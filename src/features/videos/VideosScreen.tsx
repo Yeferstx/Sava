@@ -1,22 +1,30 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { ImagePlus, Play, Upload, X } from 'lucide-react-native';
+import { ImagePlus, MessageCircle, Play, Plus, Share2, Sparkles, Upload, Volume2, VolumeX, X } from 'lucide-react-native';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
 import { createLocalId, getActiveBusinessId } from '../../infrastructure/database/database';
 import { colors } from '../../shared/theme';
+import { limpiarTelefono } from '../../shared/validaciones';
 
-type PublicVideo = { id: string; business_id: string; title: string; category: string; video_path: string; created_at: string; business: { name: string; municipality: string } | null };
+type PublicVideo = { id: string; business_id: string; title: string; category: string; video_path: string; created_at: string; business: { name: string; municipality: string; phone: string } | null };
 // videos del campo: cosechas, insumos, consejos y recetas
 const categories = ['Todos', 'Cosechas', 'Insumos', 'Consejos del campo', 'Recetas', 'Otros'];
 const videoCategories = categories.slice(1);
-const moneylessDate = (value: string) => new Date(value).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+const fechaCorta = (value: string) => new Date(value).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
 
-export default function VideosScreen({ canPublish = false, onVender }: { canPublish?: boolean; onVender?: () => void }) {
+type Props = { canPublish?: boolean; onVender?: () => void; onOpenMaria?: () => void };
+
+// videos a pantalla completa, uno debajo del otro, como tiktok.
+// se desliza hacia arriba para ver el siguiente y se toca para pausar
+export default function VideosScreen({ canPublish = false, onVender, onOpenMaria }: Props) {
   const [category, setCategory] = useState('Todos');
   const [videos, setVideos] = useState<PublicVideo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [alto, setAlto] = useState(0);
+  const [actual, setActual] = useState(0);
+  const [silencio, setSilencio] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const [draftUri, setDraftUri] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
@@ -27,7 +35,7 @@ export default function VideosScreen({ canPublish = false, onVender }: { canPubl
     const supabase = getSupabaseClient();
     if (!supabase) { setVideos([]); setLoading(false); return; }
     try {
-      const { data, error } = await supabase.from('videos').select('id,business_id,title,category,video_path,created_at,business:businesses(name,municipality)').eq('is_published', true).order('created_at', { ascending: false }).limit(40);
+      const { data, error } = await supabase.from('videos').select('id,business_id,title,category,video_path,created_at,business:businesses(name,municipality,phone)').eq('is_published', true).order('created_at', { ascending: false }).limit(40);
       if (error) throw error;
       setVideos((data ?? []) as unknown as PublicVideo[]);
     } catch (error) {
@@ -36,23 +44,34 @@ export default function VideosScreen({ canPublish = false, onVender }: { canPubl
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
 
+  // cual video se ve en pantalla: ese es el que suena
+  const alCambiarVisible = useRef(({ viewableItems }: { viewableItems: Array<{ index?: number | null }> }) => {
+    if (viewableItems.length > 0 && typeof viewableItems[0].index === 'number') setActual(viewableItems[0].index);
+  }).current;
+
   async function chooseVideo() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permiso para tus videos', 'Permite el acceso a la fototeca para elegir un video.');
+      Alert.alert('Permiso para tus videos', 'Permite el acceso a tus fotos y videos para elegir uno.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], videoMaxDuration: 60, quality: 1 });
-    if (result.canceled) return;
+    if (result.canceled || result.assets.length === 0) return;
     const asset = result.assets[0];
-    if (!asset) return;
     if (asset.fileSize && asset.fileSize > 50 * 1024 * 1024) {
-      Alert.alert('El video pesa demasiado', 'El límite por video es 50 MB. Elige un clip más corto o liviano.');
+      Alert.alert('El video pesa demasiado', 'El límite por video es 50 MB. Elige un video más corto.');
       return;
     }
     setDraftUri(asset.uri);
-    setDraftTitle(asset.fileName?.replace(/\.[^.]+$/, '') ?? '');
-    setShowComposer(true);
+    let titulo = '';
+    if (asset.fileName) titulo = asset.fileName.replace(/\.[^.]+$/, '');
+    setDraftTitle(titulo);
+  }
+
+  function cerrarComposer() {
+    setShowComposer(false);
+    setDraftUri(null);
+    setDraftTitle('');
   }
 
   async function publishVideo() {
@@ -66,15 +85,17 @@ export default function VideosScreen({ canPublish = false, onVender }: { canPubl
     try {
       const [{ data: { user }, error: userError }, businessId] = await Promise.all([supabase.auth.getUser(), getActiveBusinessId()]);
       if (userError) throw userError;
-      if (!user) throw new Error('Inicia sesión como negocio para publicar videos.');
+      if (!user) throw new Error('Inicia sesión para publicar videos.');
       const response = await fetch(draftUri);
-      if (!response.ok) throw new Error('No pudimos leer el video guardado en este dispositivo.');
+      if (!response.ok) throw new Error('No pudimos leer el video guardado en este celular.');
       const bytes = await response.arrayBuffer();
       if (bytes.byteLength > 50 * 1024 * 1024) throw new Error('El video supera el límite de 50 MB.');
-      const extension = draftUri.toLowerCase().split('?')[0]?.endsWith('.mov') ? 'mov' : 'mp4';
-      const contentType = extension === 'mov' ? 'video/quicktime' : 'video/mp4';
+      let extension = 'mp4';
+      if (draftUri.toLowerCase().split('?')[0].endsWith('.mov')) extension = 'mov';
+      let contentType = 'video/mp4';
+      if (extension === 'mov') contentType = 'video/quicktime';
       const videoId = createLocalId('video');
-      const videoPath = `${user.id}/${businessId}/videos/${videoId}.${extension}`;
+      const videoPath = user.id + '/' + businessId + '/videos/' + videoId + '.' + extension;
       const { error: uploadError } = await supabase.storage.from('sava-media').upload(videoPath, bytes, { contentType, upsert: false });
       if (uploadError) throw uploadError;
       const { error: insertError } = await supabase.from('videos').insert({ id: videoId, business_id: businessId, title: draftTitle.trim(), category: draftCategory, video_path: videoPath, is_published: true });
@@ -82,53 +103,201 @@ export default function VideosScreen({ canPublish = false, onVender }: { canPubl
         await supabase.storage.from('sava-media').remove([videoPath]);
         throw insertError;
       }
-      setDraftUri(null); setDraftTitle(''); setShowComposer(false);
+      cerrarComposer();
       await refresh();
-      Alert.alert('Video publicado', 'Ya aparece en los videos locales de Sava.');
+      setActual(0);
+      Alert.alert('Video publicado', 'Ya lo pueden ver en Sava.');
     } catch (error) {
       Alert.alert('No se pudo publicar', error instanceof Error ? error.message : 'Revisa tu conexión e intenta de nuevo.');
     } finally { setSaving(false); }
   }
 
-  const visibleVideos = videos.filter((video) => category === 'Todos' || video.category === category);
-  return <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { setLoading(true); void refresh(); }} tintColor={colors.brown} />}>
-    <Text style={styles.eyebrow}>MIRA CÓMO SE TRABAJA EN CASANARE</Text>
-    <Text style={styles.title}>Videos del campo</Text>
-    <Text style={styles.subtitle}>Cosechas, insumos, consejos y recetas de la región.</Text>
-    {!canPublish && !!onVender && <Pressable accessibilityRole="button" onPress={onVender} style={styles.invitar}><Upload size={18} color={colors.verde} /><Text style={styles.invitarTexto}>¿Vendes en el campo? Regístrate y sube tus videos</Text></Pressable>}
-    {canPublish && !showComposer && <Pressable accessibilityRole="button" onPress={() => void chooseVideo()} style={styles.publishButton}><Upload size={17} color="#fff" /><Text style={styles.publishButtonText}>Publicar un video</Text></Pressable>}
-    {showComposer && <View style={styles.composer}>
-      <View style={styles.composerHeader}><Text style={styles.composerTitle}>Prepara tu video</Text><Pressable accessibilityRole="button" onPress={() => { setShowComposer(false); setDraftUri(null); }}><X size={19} color={colors.muted} /></Pressable></View>
-      {draftUri ? <VideoPreview uri={draftUri} /> : <Pressable onPress={() => void chooseVideo()} style={styles.chooseVideo}><ImagePlus size={22} color={colors.brown} /><Text style={styles.chooseVideoText}>Elegir video del celular</Text></Pressable>}
-      <Text style={styles.label}>Título</Text><TextInput value={draftTitle} onChangeText={setDraftTitle} placeholder="Ej. Así preparamos nuestro producto" style={styles.input} maxLength={80} />
-      <Text style={styles.label}>Categoría</Text><View style={styles.draftCategories}>{videoCategories.map((item) => <Pressable key={item} onPress={() => setDraftCategory(item)} style={[styles.chip, draftCategory === item && styles.selectedChip]}><Text style={[styles.chipText, draftCategory === item && styles.selectedChipText]}>{item}</Text></Pressable>)}</View>
-      <Pressable accessibilityRole="button" disabled={saving} onPress={() => void publishVideo()} style={[styles.publishButton, saving && styles.disabled]}>{saving ? <ActivityIndicator color="#fff" /> : <Upload size={16} color="#fff" />}<Text style={styles.publishButtonText}>{saving ? 'Subiendo video…' : 'Publicar'}</Text></Pressable>
-      <Text style={styles.limit}>Máximo 60 segundos y 50 MB. Requiere conexión a internet.</Text>
+  const visibles: PublicVideo[] = [];
+  for (const video of videos) {
+    if (category === 'Todos' || video.category === category) visibles.push(video);
+  }
+
+  let vacioTitulo = 'Todavía no hay videos';
+  if (videos.length > 0) vacioTitulo = 'No hay videos de ' + category.toLowerCase();
+
+  return <View style={styles.pantalla} onLayout={(e) => setAlto(e.nativeEvent.layout.height)}>
+    {loading && <ActivityIndicator color={colors.white} style={styles.cargando} />}
+
+    {!loading && visibles.length > 0 && alto > 0 && <FlatList
+      data={visibles}
+      keyExtractor={(item) => item.id}
+      pagingEnabled
+      showsVerticalScrollIndicator={false}
+      onViewableItemsChanged={alCambiarVisible}
+      viewabilityConfig={{ itemVisiblePercentThreshold: 70 }}
+      getItemLayout={(_, index) => ({ length: alto, offset: alto * index, index })}
+      windowSize={3}
+      onRefresh={() => { setLoading(true); void refresh(); }}
+      refreshing={false}
+      renderItem={({ item, index }) => <VideoCompleto video={item} alto={alto} activo={index === actual} cerca={Math.abs(index - actual) <= 1} silencio={silencio} onSilencio={() => setSilencio(!silencio)} onOpenMaria={onOpenMaria} />}
+    />}
+
+    {!loading && visibles.length === 0 && <View style={styles.vacio}>
+      <View style={styles.vacioIcono}><Play size={34} color={colors.white} fill={colors.white} /></View>
+      <Text style={styles.vacioTitulo}>{vacioTitulo}</Text>
+      <Text style={styles.vacioTexto}>{canPublish ? 'Sube el primer video: muestra tu cosecha o tus productos.' : 'Pronto los campesinos y tiendas de Casanare mostrarán aquí su trabajo.'}</Text>
+      {canPublish && <Pressable accessibilityRole="button" onPress={() => setShowComposer(true)} style={styles.vacioBoton}><Upload size={18} color={colors.grafito} /><Text style={styles.vacioBotonTexto}>Subir un video</Text></Pressable>}
+      {!canPublish && !!onVender && <Pressable accessibilityRole="button" onPress={onVender} style={styles.vacioBoton}><Upload size={18} color={colors.grafito} /><Text style={styles.vacioBotonTexto}>¿Vendes? Regístrate y sube videos</Text></Pressable>}
     </View>}
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>{categories.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.chip, category === item && styles.selectedChip]}><Text style={[styles.chipText, category === item && styles.selectedChipText]}>{item}</Text></Pressable>)}</ScrollView>
-    {visibleVideos.map((video) => <PublishedVideo key={video.id} video={video} />)}
-    {!loading && visibleVideos.length === 0 && <View style={styles.empty}><Play size={28} color={colors.brown} /><Text style={styles.emptyTitle}>{videos.length ? 'No hay videos en esta categoría' : 'Todavía no hay videos'}</Text><Text style={styles.emptyText}>{canPublish ? 'Publica el primer video de tu negocio y compártelo con Casanare.' : 'Pronto los negocios de Casanare compartirán sus productos y servicios aquí.'}</Text></View>}
-  </ScrollView>;
+
+    {/* arriba: titulo, boton de subir y categorias encima del video */}
+    <View pointerEvents="box-none" style={styles.arriba}>
+      <View style={styles.arribaFila}>
+        <Text style={styles.titulo}>Videos del campo</Text>
+        {canPublish && <Pressable accessibilityRole="button" accessibilityLabel="Subir un video" onPress={() => setShowComposer(true)} style={styles.subir}><Plus size={18} color={colors.grafito} /><Text style={styles.subirTexto}>Subir</Text></Pressable>}
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categorias}>
+        {categories.map((item) => <Pressable key={item} accessibilityRole="button" accessibilityState={{ selected: category === item }} onPress={() => { setCategory(item); setActual(0); }} style={[styles.chip, category === item && styles.chipActivo]}><Text style={[styles.chipTexto, category === item && styles.chipTextoActivo]}>{item}</Text></Pressable>)}
+      </ScrollView>
+    </View>
+
+    <Modal visible={showComposer} animationType="slide" presentationStyle="pageSheet" onRequestClose={cerrarComposer}>
+      <ScrollView style={styles.composer} contentContainerStyle={styles.composerContenido} keyboardShouldPersistTaps="handled">
+        <View style={styles.composerHeader}><Text style={styles.composerTitle}>Subir un video</Text><Pressable accessibilityRole="button" accessibilityLabel="Cerrar" hitSlop={10} onPress={cerrarComposer}><X size={24} color={colors.grafito} /></Pressable></View>
+        {draftUri ? <VideoPreview uri={draftUri} /> : <Pressable accessibilityRole="button" onPress={() => void chooseVideo()} style={styles.chooseVideo}><ImagePlus size={30} color={colors.verde} /><Text style={styles.chooseVideoText}>Elegir video del celular</Text><Text style={styles.limit}>Hasta 60 segundos. Mejor grabado de forma vertical.</Text></Pressable>}
+        {!!draftUri && <Pressable onPress={() => void chooseVideo()}><Text style={styles.cambiar}>Cambiar video</Text></Pressable>}
+        <Text style={styles.label}>¿De qué trata?</Text>
+        <TextInput value={draftTitle} onChangeText={setDraftTitle} placeholder="Ej. Así cosechamos la piña en Aguazul" placeholderTextColor={colors.muted} style={styles.input} maxLength={80} />
+        <Text style={styles.label}>Categoría</Text>
+        <View style={styles.draftCategories}>{videoCategories.map((item) => <Pressable key={item} onPress={() => setDraftCategory(item)} style={[styles.draftChip, draftCategory === item && styles.draftChipActivo]}><Text style={[styles.draftChipTexto, draftCategory === item && styles.draftChipTextoActivo]}>{item}</Text></Pressable>)}</View>
+        <Pressable accessibilityRole="button" disabled={saving} onPress={() => void publishVideo()} style={[styles.publicar, saving && styles.disabled]}>{saving ? <ActivityIndicator color={colors.white} /> : <Upload size={18} color={colors.white} />}<Text style={styles.publicarTexto}>{saving ? 'Subiendo video…' : 'Publicar video'}</Text></Pressable>
+        <Text style={styles.limit}>Máximo 60 segundos y 50 MB. Necesita internet.</Text>
+      </ScrollView>
+    </Modal>
+  </View>;
 }
 
 function VideoPreview({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (instance) => { instance.loop = false; });
-  return <VideoView player={player} style={styles.preview} nativeControls fullscreenOptions={{ enable: true }} contentFit="contain" />;
+  const player = useVideoPlayer(uri, (instance) => { instance.loop = true; });
+  return <VideoView player={player} style={styles.preview} nativeControls contentFit="contain" />;
 }
 
-function PublishedVideo({ video }: { video: PublicVideo }) {
+type ItemProps = { video: PublicVideo; alto: number; activo: boolean; cerca: boolean; silencio: boolean; onSilencio: () => void; onOpenMaria?: () => void };
+
+// un video a pantalla completa. solo se carga si esta cerca del que se ve, para no gastar datos
+function VideoCompleto({ video, alto, activo, cerca, silencio, onSilencio, onOpenMaria }: ItemProps) {
+  const [pausado, setPausado] = useState(false);
   const supabase = getSupabaseClient();
   let uri = '';
-  if (supabase) uri = supabase.storage.from('sava-media').getPublicUrl(video.video_path).data.publicUrl;
-  // el hook va antes de cualquier return (reglas de react)
-  const player = useVideoPlayer(uri === '' ? null : uri, (instance) => { instance.loop = false; });
-  if (uri === '') return null;
-  return <View style={styles.videoCard}>
-    <View style={styles.videoFrame}><VideoView player={player} style={styles.player} nativeControls fullscreenOptions={{ enable: true }} contentFit="cover" /></View>
-    <View style={styles.videoInfo}><View style={styles.videoTag}><Text style={styles.videoTagText}>{video.category.toUpperCase()}</Text></View><Text style={styles.videoTitle}>{video.title}</Text><Text style={styles.seller}>{video.business?.name ?? 'Negocio local'} · {video.business?.municipality ?? 'Casanare'} · {moneylessDate(video.created_at)}</Text></View>
+  if (supabase && cerca) uri = supabase.storage.from('sava-media').getPublicUrl(video.video_path).data.publicUrl;
+  const player = useVideoPlayer(uri === '' ? null : uri, (instance) => { instance.loop = true; });
+
+  useEffect(() => {
+    player.muted = silencio;
+  }, [player, silencio]);
+
+  useEffect(() => {
+    if (activo && !pausado) player.play();
+    else player.pause();
+  }, [player, activo, pausado]);
+
+  // al pasar a otro video se quita la pausa
+  useEffect(() => { if (!activo) setPausado(false); }, [activo]);
+
+  let vendedor = 'Vendedor de Casanare';
+  let municipio = 'Casanare';
+  let telefono = '';
+  if (video.business) { vendedor = video.business.name; municipio = video.business.municipality; telefono = video.business.phone; }
+
+  async function escribir() {
+    if (telefono === '') { Alert.alert('Contacto no disponible', 'Este vendedor no tiene teléfono registrado.'); return; }
+    const mensaje = 'Hola, vi tu video «' + video.title + '» en Sava y quisiera más información.';
+    try { await Linking.openURL('https://wa.me/57' + limpiarTelefono(telefono) + '?text=' + encodeURIComponent(mensaje)); }
+    catch { Alert.alert('No se pudo abrir WhatsApp', 'Revisa que WhatsApp esté instalado.'); }
+  }
+
+  async function compartir() {
+    try { await Share.share({ message: 'Mira este video en Sava: «' + video.title + '» de ' + vendedor + ', ' + municipio + '.' }); }
+    catch { /* la persona cerro el menu */ }
+  }
+
+  return <View style={[styles.item, { height: alto }]}>
+    {uri !== '' && <VideoView player={player} style={styles.video} nativeControls={false} contentFit="cover" />}
+    <Pressable accessibilityRole="button" accessibilityLabel={pausado ? 'Reproducir video' : 'Pausar video'} onPress={() => setPausado(!pausado)} style={styles.toque}>
+      {pausado && <View style={styles.pausa}><Play size={40} color={colors.white} fill={colors.white} /></View>}
+    </Pressable>
+
+    {/* sombra suave abajo para que el texto se lea sobre cualquier video */}
+    <View pointerEvents="none" style={styles.sombra} />
+
+    <View pointerEvents="none" style={styles.info}>
+      <View style={styles.etiqueta}><Text style={styles.etiquetaTexto}>{video.category}</Text></View>
+      <Text style={styles.videoTitulo} numberOfLines={3}>{video.title}</Text>
+      <Text style={styles.vendedor}>{vendedor} · {municipio} · {fechaCorta(video.created_at)}</Text>
+    </View>
+
+    <View style={styles.acciones}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Escribir al vendedor por WhatsApp" onPress={() => void escribir()} style={styles.accion}>
+        <View style={[styles.accionCirculo, styles.accionVerde]}><MessageCircle size={24} color={colors.white} /></View><Text style={styles.accionTexto}>Escribir</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Compartir video" onPress={() => void compartir()} style={styles.accion}>
+        <View style={styles.accionCirculo}><Share2 size={22} color={colors.white} /></View><Text style={styles.accionTexto}>Compartir</Text>
+      </Pressable>
+      {!!onOpenMaria && <Pressable accessibilityRole="button" accessibilityLabel="Preguntarle a María" onPress={onOpenMaria} style={styles.accion}>
+        <View style={[styles.accionCirculo, styles.accionArcilla]}><Sparkles size={22} color={colors.grafito} /></View><Text style={styles.accionTexto}>María</Text>
+      </Pressable>}
+      <Pressable accessibilityRole="button" accessibilityLabel={silencio ? 'Activar sonido' : 'Quitar sonido'} onPress={onSilencio} style={styles.accion}>
+        <View style={styles.accionCirculo}>{silencio ? <VolumeX size={22} color={colors.white} /> : <Volume2 size={22} color={colors.white} />}</View><Text style={styles.accionTexto}>{silencio ? 'Sin sonido' : 'Sonido'}</Text>
+      </Pressable>
+    </View>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 20, paddingTop: 38, paddingBottom: 96 }, eyebrow: { color: '#636A64', fontSize: 11, fontWeight: '800', letterSpacing: 1 }, invitar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.verdeClaro, borderRadius: 14, padding: 13, marginTop: 14 }, invitarTexto: { color: colors.verde, fontSize: 14, fontWeight: '800', flex: 1 }, title: { color: colors.ink, fontSize: 27, fontWeight: '900', marginTop: 5 }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 4 }, publishButton: { minHeight: 44, paddingHorizontal: 16, borderRadius: 23, backgroundColor: colors.brown, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 15 }, publishButtonText: { color: '#fff', fontWeight: '800', fontSize: 12 }, disabled: { opacity: 0.55 }, composer: { backgroundColor: '#fff', borderRadius: 17, borderWidth: 1, borderColor: colors.line, padding: 13, marginTop: 14 }, composerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }, composerTitle: { color: colors.ink, fontWeight: '800', fontSize: 14 }, chooseVideo: { height: 150, borderRadius: 13, backgroundColor: '#E8F2EE', alignItems: 'center', justifyContent: 'center', gap: 7 }, chooseVideoText: { color: colors.brown, fontSize: 11, fontWeight: '700' }, preview: { height: 180, borderRadius: 12, backgroundColor: '#26332F' }, label: { color: colors.ink, fontWeight: '800', fontSize: 11, marginTop: 12, marginBottom: 5 }, input: { minHeight: 42, borderWidth: 1, borderColor: colors.line, borderRadius: 11, paddingHorizontal: 11, color: colors.ink, fontSize: 12 }, draftCategories: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, categories: { gap: 8, paddingVertical: 16 }, chip: { borderRadius: 18, paddingHorizontal: 13, paddingVertical: 8, backgroundColor: '#F0E9DF' }, selectedChip: { backgroundColor: colors.brown }, chipText: { color: colors.ink, fontSize: 11, fontWeight: '600' }, selectedChipText: { color: '#fff' }, limit: { color: colors.muted, fontSize: 9, textAlign: 'center', marginTop: 8 }, videoCard: { overflow: 'hidden', backgroundColor: '#fff', borderColor: colors.line, borderWidth: 1, borderRadius: 19, marginBottom: 13 }, videoFrame: { height: 260, backgroundColor: '#26332F' }, player: { width: '100%', height: '100%' }, videoInfo: { padding: 12 }, videoTag: { alignSelf: 'flex-start', backgroundColor: '#E8F2EE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 11 }, videoTagText: { color: colors.brown, fontWeight: '800', fontSize: 8, letterSpacing: 0.5 }, videoTitle: { color: colors.ink, fontWeight: '800', fontSize: 13, marginTop: 8 }, seller: { color: colors.muted, fontSize: 10, marginTop: 4 }, empty: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 18, padding: 22, alignItems: 'center' }, emptyTitle: { color: colors.ink, fontWeight: '800', fontSize: 14, marginTop: 9 }, emptyText: { color: colors.muted, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 5 },
+  pantalla: { flex: 1, backgroundColor: colors.grafito },
+  cargando: { marginTop: 160 },
+  item: { width: '100%', backgroundColor: colors.grafito },
+  video: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  toque: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  pausa: { width: 84, height: 84, borderRadius: 42, backgroundColor: 'rgba(38,51,47,0.55)', alignItems: 'center', justifyContent: 'center', paddingLeft: 6 },
+  sombra: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 220, backgroundColor: 'rgba(38,51,47,0.45)' },
+  info: { position: 'absolute', left: 16, right: 96, bottom: 22 },
+  etiqueta: { alignSelf: 'flex-start', backgroundColor: colors.arcilla, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 8 },
+  etiquetaTexto: { color: colors.grafito, fontSize: 12, fontWeight: '900' },
+  videoTitulo: { color: colors.white, fontSize: 19, fontWeight: '900', lineHeight: 24 },
+  vendedor: { color: colors.verdeClaro, fontSize: 13, fontWeight: '600', marginTop: 6 },
+  acciones: { position: 'absolute', right: 12, bottom: 24, alignItems: 'center', gap: 16 },
+  accion: { alignItems: 'center', gap: 4 },
+  accionCirculo: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(38,51,47,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center' },
+  accionVerde: { backgroundColor: colors.verde, borderColor: colors.verde },
+  accionArcilla: { backgroundColor: colors.arcilla, borderColor: colors.arcilla },
+  accionTexto: { color: colors.white, fontSize: 12, fontWeight: '800' },
+  arriba: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: 12, backgroundColor: 'rgba(38,51,47,0.35)' },
+  arribaFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
+  titulo: { color: colors.white, fontSize: 21, fontWeight: '900' },
+  subir: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.arcilla, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
+  subirTexto: { color: colors.grafito, fontSize: 14, fontWeight: '900' },
+  categorias: { gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 },
+  chip: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  chipActivo: { backgroundColor: colors.white, borderColor: colors.white },
+  chipTexto: { color: colors.white, fontSize: 13, fontWeight: '700' }, chipTextoActivo: { color: colors.grafito, fontWeight: '900' },
+  vacio: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30, gap: 10 },
+  vacioIcono: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.verde, alignItems: 'center', justifyContent: 'center', paddingLeft: 5 },
+  vacioTitulo: { color: colors.white, fontSize: 20, fontWeight: '900', textAlign: 'center', marginTop: 6 },
+  vacioTexto: { color: colors.verdeClaro, fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  vacioBoton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.arcilla, borderRadius: 24, paddingHorizontal: 20, paddingVertical: 13, marginTop: 8 },
+  vacioBotonTexto: { color: colors.grafito, fontSize: 15, fontWeight: '900' },
+  composer: { flex: 1, backgroundColor: colors.crema },
+  composerContenido: { padding: 22, paddingTop: 26, paddingBottom: 40 },
+  composerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  composerTitle: { color: colors.grafito, fontSize: 24, fontWeight: '900' },
+  chooseVideo: { height: 220, borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.verde, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 20 },
+  chooseVideoText: { color: colors.verde, fontSize: 16, fontWeight: '900' },
+  preview: { width: '100%', height: 320, borderRadius: 20, backgroundColor: colors.grafito },
+  cambiar: { color: colors.verde, fontSize: 14, fontWeight: '800', textAlign: 'center', padding: 10 },
+  label: { color: colors.grafito, fontSize: 14, fontWeight: '800', marginTop: 16, marginBottom: 8 },
+  input: { backgroundColor: colors.white, borderColor: colors.line, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, color: colors.grafito, fontSize: 15 },
+  draftCategories: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  draftChip: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white },
+  draftChipActivo: { backgroundColor: colors.verde, borderColor: colors.verde },
+  draftChipTexto: { color: colors.grafito, fontSize: 13, fontWeight: '700' }, draftChipTextoActivo: { color: colors.white },
+  publicar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 54, borderRadius: 27, backgroundColor: colors.verde, marginTop: 24 },
+  publicarTexto: { color: colors.white, fontSize: 16, fontWeight: '900' },
+  disabled: { opacity: 0.6 },
+  limit: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 10 },
 });

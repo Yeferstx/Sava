@@ -1,8 +1,10 @@
+import { Platform } from 'react-native';
 import * as Speech from 'expo-speech';
 
 // voz de maria. se busca la mejor voz en espanol que tenga el celular:
-// primero colombia, luego latinoamerica y al final espana. si hay calidad mejorada se usa esa
-let vozElegida: string | null | undefined;
+// primero colombia, luego latinoamerica y al final espana
+type VozElegida = { identificador: string; idioma: string } | null;
+let vozElegida: VozElegida | undefined;
 const oyentes: Array<(hablando: boolean) => void> = [];
 
 async function buscarVoz() {
@@ -10,18 +12,20 @@ async function buscarVoz() {
   try {
     const voces = await Speech.getAvailableVoicesAsync();
     const orden = ['es-co', 'es-us', 'es-mx', 'es-419', 'es-es', 'es'];
-    let mejor = null;
+    let mejor: VozElegida = null;
     let puntosMejor = -1;
     for (const voz of voces) {
-      const idioma = voz.language.toLowerCase().replace('_', '-');
+      const idioma = voz.language.replace('_', '-');
       let posicion = -1;
       for (let i = 0; i < orden.length; i++) {
-        if (idioma.startsWith(orden[i])) { posicion = i; break; }
+        if (idioma.toLowerCase().startsWith(orden[i])) { posicion = i; break; }
       }
       if (posicion === -1) continue;
+      // ios muestra voces "super-compact" que no estan instaladas
+      if (voz.identifier.toLowerCase().includes('super-compact')) continue;
       let puntos = (orden.length - posicion) * 10;
       if (voz.quality === Speech.VoiceQuality.Enhanced) puntos = puntos + 5;
-      if (puntos > puntosMejor) { puntosMejor = puntos; mejor = voz.identifier; }
+      if (puntos > puntosMejor) { puntosMejor = puntos; mejor = { identificador: voz.identifier, idioma }; }
     }
     vozElegida = mejor;
   } catch {
@@ -53,7 +57,7 @@ export async function hablar(texto: string) {
   Speech.stop();
   const voz = await buscarVoz();
   const opciones: Speech.SpeechOptions = {
-    language: 'es-CO',
+    language: 'es-MX',
     rate: 0.92,
     pitch: 1.05,
     onStart: () => avisar(true),
@@ -61,7 +65,12 @@ export async function hablar(texto: string) {
     onStopped: () => avisar(false),
     onError: () => avisar(false),
   };
-  if (voz) opciones.voice = voz;
+  if (voz) {
+    opciones.language = voz.idioma;
+    // en iphone pedir una voz por nombre puede fallar si no esta descargada.
+    // por eso solo se le da el idioma y ios escoge una voz que si tenga
+    if (Platform.OS === 'android') opciones.voice = voz.identificador;
+  }
   Speech.speak(limpiarParaVoz(texto), opciones);
 }
 

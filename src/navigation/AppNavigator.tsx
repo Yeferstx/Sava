@@ -233,7 +233,7 @@ export default function AppNavigator() {
   else if (selectedProduct) pantalla = <ProductDetailScreen product={selectedProduct.product} business={selectedProduct.business} onBack={() => setSelectedProduct(null)} onOpenBusiness={(business) => { setSelectedProduct(null); setSelectedBusiness(business); }} onConsultar={startOrder} />;
   else if (selectedBusiness) pantalla = <BusinessDetailScreen business={selectedBusiness} onBack={() => setSelectedBusiness(null)} />;
   else if (activeTab === 'Legal') pantalla = <LegalScreen onBack={() => setActiveTab(volverLegal)} />;
-  else if (activeTab === 'Videos') pantalla = <VideosScreen canPublish={esAgricultor} onVender={startMerchantFlow} />;
+  else if (activeTab === 'Videos') pantalla = <VideosScreen canPublish={esAgricultor} onVender={startMerchantFlow} onOpenMaria={openChat} />;
   else if (esAgricultor && activeTab === 'Mi negocio') pantalla = <BusinessDashboardScreen tipo={tipoNegocio} onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (esAgricultor && activeTab === 'Inventario') pantalla = <InventoryScreen tipo={tipoNegocio} onAddProduct={() => navigate('Publicar')} onEdit={editarCosecha} onOpenSales={() => setActiveTab('Ventas')} />;
   else if (esAgricultor && activeTab === 'Publicar') pantalla = <PublishScreen key={productoEditar ? productoEditar.id : 'nueva'} tipo={tipoNegocio} producto={productoEditar} initialDraft={draftForPublish} onBack={volverDePublicar} onCreated={() => { if (draftForPublish) chat.confirmDraft(); setDraftForPublish(null); setProductoEditar(null); setActiveTab('Inventario'); }} />;
@@ -247,20 +247,22 @@ export default function AppNavigator() {
 
   // el boton de maria se ve en las pantallas principales y en el detalle de un producto
   const conBarra = !isTransient && !selectedBusiness && !selectedProduct;
-  const verMaria = !isChat && (conBarra || !!selectedProduct || !!selectedBusiness);
+  // en videos maria esta en los botones de la derecha, no hace falta el flotante
+  const enVideos = activeTab === 'Videos' && conBarra;
+  const verMaria = !isChat && !enVideos && (conBarra || !!selectedProduct || !!selectedBusiness);
   let alturaMaria = 24;
   if (conBarra) alturaMaria = 92;
 
-  return <SafeAreaView style={styles.safe}>
-    <StatusBar barStyle={isChat ? 'light-content' : 'dark-content'} />
+  return <SafeAreaView style={[styles.safe, enVideos && styles.oscuro]}>
+    <StatusBar barStyle={isChat || enVideos ? 'light-content' : 'dark-content'} />
     {pantalla}
     {verMaria && <MariaFlotante abajo={alturaMaria} onPress={openChat} />}
     {!isTransient && !selectedBusiness && !selectedProduct && <TabBar active={activeTab} onChange={(tab) => {
       if (!esAgricultor && tab === 'Publicar') { startMerchantFlow(); return; }
       if (!esAgricultor && tab === 'Mi negocio' && !user) { setMerchantIntent(false); setStage('signedOut'); return; }
       navigate(tab);
-    }} guest={!esAgricultor} tienda={tipoNegocio === 'tienda'} />}
+    }} guest={!esAgricultor} tienda={tipoNegocio === 'tienda'} oscuro={enVideos} />}
   </SafeAreaView>;
 }
 
-const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.paper }, loading: { flex: 1, alignItems: 'center', justifyContent: 'center' }, brand: { color: colors.brown, fontSize: 35, fontWeight: '900' }, spinner: { marginTop: 22 }, loadingText: { color: colors.muted, fontSize: 12, marginTop: 12, textAlign: 'center' }, errorScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 25 }, errorTitle: { color: colors.ink, fontWeight: '900', fontSize: 21, marginTop: 26 }, retry: { backgroundColor: colors.brown, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 23, marginTop: 20 }, retryText: { color: '#fff', fontWeight: '800', fontSize: 12 }, signOut: { padding: 12, marginTop: 7 }, signOutText: { color: colors.brown, fontWeight: '700', fontSize: 11 } });
+const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.paper }, oscuro: { backgroundColor: colors.grafito }, loading: { flex: 1, alignItems: 'center', justifyContent: 'center' }, brand: { color: colors.brown, fontSize: 35, fontWeight: '900' }, spinner: { marginTop: 22 }, loadingText: { color: colors.muted, fontSize: 12, marginTop: 12, textAlign: 'center' }, errorScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 25 }, errorTitle: { color: colors.ink, fontWeight: '900', fontSize: 21, marginTop: 26 }, retry: { backgroundColor: colors.brown, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 23, marginTop: 20 }, retryText: { color: '#fff', fontWeight: '800', fontSize: 12 }, signOut: { padding: 12, marginTop: 7 }, signOutText: { color: colors.brown, fontWeight: '700', fontSize: 11 } });
