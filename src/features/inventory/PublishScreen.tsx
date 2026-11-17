@@ -1,35 +1,65 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { ImagePlus, X } from 'lucide-react-native';
-import { createProduct } from './data/inventoryRepository';
+import { createProduct, updateProduct } from './data/inventoryRepository';
+import { getBusinessProfile } from '../business/data/businessRepository';
+import { getProductImageUri } from '../marketplace/getProductImageUri';
 import { colors } from '../../shared/theme';
 import type { ProductDraft } from '../chat/types';
-import { CANTIDAD_MAXIMA, errorCantidad, leerCantidad, leerPrecio, tecladoCantidad } from '../../shared/validaciones';
+import type { Product } from './types';
+import { CANTIDAD_MAXIMA, errorCantidad, leerCantidad, leerPrecio, municipios, tecladoCantidad } from '../../shared/validaciones';
+import { categoriasAgricolas, categoriaVisible, fechaDesdeHoy, formasEntrega, opcionesFecha, unidades } from '../../shared/agro';
 
-const categories = ['Abarrotes', 'Comida', 'Agro', 'Servicios', 'Otros'];
-const units = ['unidad', 'kg', 'bulto', 'libra', 'servicio'];
+type Props = { onBack: () => void; onCreated: () => void; initialDraft?: ProductDraft | null; producto?: Product | null };
 
-type Props = { onBack: () => void; onCreated: () => void; initialDraft?: ProductDraft | null };
+// separa "Recogida en la finca · detalle" en la forma y el detalle
+function partirEntrega(texto: string | undefined) {
+  if (!texto) return { forma: 'A convenir', detalle: '' };
+  for (const forma of formasEntrega) {
+    if (texto === forma) return { forma, detalle: '' };
+    if (texto.startsWith(forma + ' · ')) return { forma, detalle: texto.slice(forma.length + 3) };
+  }
+  return { forma: 'A convenir', detalle: texto };
+}
 
-export default function PublishScreen({ onBack, onCreated, initialDraft }: Props) {
-  const [name, setName] = useState(initialDraft?.name ?? '');
-  const [description, setDescription] = useState(initialDraft?.description ?? '');
-  const [category, setCategory] = useState(initialDraft?.category ?? 'Abarrotes');
-  const [price, setPrice] = useState(initialDraft?.price_cop ? String(initialDraft.price_cop) : '');
-  const [stock, setStock] = useState(initialDraft?.stock ? String(initialDraft.stock) : '');
-  const [unit, setUnit] = useState(initialDraft?.unit ?? 'unidad');
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+export default function PublishScreen({ onBack, onCreated, initialDraft, producto }: Props) {
+  const editando = !!producto;
+  let base: ProductDraft | null = null;
+  if (producto) base = producto;
+  else if (initialDraft) base = initialDraft;
+  const entregaInicial = partirEntrega(producto ? producto.delivery : undefined);
+
+  const [name, setName] = useState(base ? base.name : '');
+  const [description, setDescription] = useState(base ? base.description : '');
+  const [category, setCategory] = useState(base ? categoriaVisible(base.category) : categoriasAgricolas[0]);
+  const [price, setPrice] = useState(base && base.price_cop ? String(base.price_cop) : '');
+  const [stock, setStock] = useState(base && base.stock ? String(base.stock) : '');
+  const [unit, setUnit] = useState(base ? base.unit : 'kg');
+  const [municipio, setMunicipio] = useState(producto && producto.municipality ? producto.municipality : '');
+  const [disponible, setDisponible] = useState(producto && producto.available_from ? producto.available_from : fechaDesdeHoy(0));
+  const [entrega, setEntrega] = useState(entregaInicial.forma);
+  const [detalleEntrega, setDetalleEntrega] = useState(entregaInicial.detalle);
+  const [photoUri, setPhotoUri] = useState<string | null>(producto ? producto.photo_uri : null);
   const [saving, setSaving] = useState(false);
+
+  // el municipio por defecto es el de la finca
+  useEffect(() => {
+    if (municipio !== '') return;
+    void getBusinessProfile().then((finca) => {
+      if (finca && municipios.includes(finca.city)) setMunicipio(finca.city);
+      else setMunicipio('Yopal');
+    }).catch(() => setMunicipio('Yopal'));
+  }, []);
 
   async function choosePhoto() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permiso para tus fotos', 'Permite el acceso a la fototeca para elegir una imagen del producto.');
+      Alert.alert('Permiso para tus fotos', 'Permite el acceso a la fototeca para elegir una imagen de la cosecha.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.8, preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible });
-    if (!result.canceled) setPhotoUri(result.assets[0]?.uri ?? null);
+    if (!result.canceled && result.assets.length > 0) setPhotoUri(result.assets[0].uri);
   }
 
   async function submit() {
@@ -37,10 +67,6 @@ export default function PublishScreen({ onBack, onCreated, initialDraft }: Props
     const parsedStock = leerCantidad(stock);
     if (name.trim().length < 3) {
       Alert.alert('Revisa la publicación', 'El nombre debe tener al menos 3 letras.');
-      return;
-    }
-    if (parsedPrice === 0) {
-      Alert.alert('Revisa el precio', 'Escribe un precio mayor que 0 y sin centavos, por ejemplo 80000 o 80.000.');
       return;
     }
     const error = errorCantidad(parsedStock, unit);
@@ -52,45 +78,103 @@ export default function PublishScreen({ onBack, onCreated, initialDraft }: Props
       Alert.alert('Revisa la cantidad', 'La cantidad no puede pasar de ' + CANTIDAD_MAXIMA + '.');
       return;
     }
+    if (parsedPrice === 0) {
+      Alert.alert('Revisa el precio', 'Escribe un precio mayor que 0 y sin centavos, por ejemplo 2500 o 2.500.');
+      return;
+    }
+    if (municipios.includes(municipio) === false) {
+      Alert.alert('Elige el municipio', 'Selecciona el municipio de Casanare donde está la cosecha.');
+      return;
+    }
+    let textoEntrega = entrega;
+    if (detalleEntrega.trim() !== '') textoEntrega = entrega + ' · ' + detalleEntrega.trim();
+    const datos = { name: name.trim(), category, description: description.trim(), price_cop: parsedPrice, stock: parsedStock, unit, photo_uri: photoUri, municipality: municipio, available_from: disponible, delivery: textoEntrega };
     try {
       setSaving(true);
-      await createProduct({ name: name.trim(), category, description: description.trim(), price_cop: parsedPrice, stock: parsedStock, unit, photo_uri: photoUri });
-      Alert.alert('Producto guardado', 'La publicación quedó guardada en el celular. Cuando vuelva la conexión, la foto y el producto se sincronizarán.');
+      if (producto) {
+        await updateProduct(producto.id, datos);
+        Alert.alert('Publicación actualizada', 'Los cambios quedaron guardados en el celular y se sincronizarán cuando haya internet.');
+      } else {
+        await createProduct(datos);
+        Alert.alert('Cosecha publicada', 'Quedó guardada en el celular. Los compradores la verán cuando se sincronice con internet.');
+      }
       onCreated();
     } catch (error) {
       Alert.alert('No se pudo guardar', error instanceof Error ? error.message : 'Intenta de nuevo.');
     } finally { setSaving(false); }
   }
 
+  const fotoVisible = getProductImageUri(photoUri);
+  let tituloPrecio = 'Precio por ' + unit + ' (COP) *';
+  let textoBoton = 'Publicar cosecha';
+  if (editando) textoBoton = 'Guardar cambios';
+  if (saving) textoBoton = 'Guardando…';
+
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Pressable onPress={onBack}><Text style={styles.back}>‹  Volver</Text></Pressable>
-      <Text style={styles.title}>Publica algo nuevo</Text>
-      <Text style={styles.subtitle}>Cuéntales a tus clientes qué tienes disponible.</Text>
-      <Text style={styles.label}>¿Qué ofreces? *</Text>
-      <TextInput value={name} onChangeText={setName} placeholder="Ej. Arroz de la región" style={styles.input} maxLength={80} />
-      <Text style={styles.label}>Categoría</Text>
-      <View style={styles.options}>{categories.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.option, category === item && styles.optionSelected]}><Text style={[styles.optionText, category === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
+      <Text style={styles.title}>{editando ? 'Editar publicación' : 'Publicar cosecha'}</Text>
+      <Text style={styles.subtitle}>Cuéntales a los compradores qué tienes disponible.</Text>
 
-      <Text style={styles.label}>Foto del producto</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel={photoUri ? 'Cambiar foto del producto' : 'Elegir foto del producto'} onPress={() => void choosePhoto()} style={styles.photoPicker}>
-        {photoUri ? <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="cover" /> : <View style={styles.photoEmpty}><ImagePlus size={27} color={colors.brown} /><Text style={styles.photoHint}>Añade una foto real</Text><Text style={styles.photoSubhint}>Elige una imagen de tu celular</Text></View>}
+      <Text style={styles.label}>Foto de la cosecha</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={fotoVisible ? 'Cambiar foto' : 'Elegir foto'} onPress={() => void choosePhoto()} style={styles.photoPicker}>
+        {fotoVisible ? <Image source={{ uri: fotoVisible }} style={styles.photoPreview} resizeMode="cover" /> : <View style={styles.photoEmpty}><ImagePlus size={27} color={colors.brown} /><Text style={styles.photoHint}>Añade una foto real</Text><Text style={styles.photoSubhint}>Una buena foto ayuda a vender</Text></View>}
       </Pressable>
-      {photoUri && <Pressable accessibilityRole="button" onPress={() => setPhotoUri(null)} style={styles.removePhoto}><X size={14} color={colors.brown} /><Text style={styles.removePhotoText}>Quitar foto</Text></Pressable>}
+      {!!fotoVisible && <Pressable accessibilityRole="button" onPress={() => setPhotoUri(null)} style={styles.removePhoto}><X size={14} color={colors.brown} /><Text style={styles.removePhotoText}>Quitar foto</Text></Pressable>}
 
-      <Text style={styles.label}>Precio por unidad (COP) *</Text>
-      <TextInput value={price} onChangeText={setPrice} placeholder="Ej. 80.000" style={styles.input} keyboardType="number-pad" maxLength={13} />
+      <Text style={styles.label}>¿Qué cosechaste? *</Text>
+      <TextInput value={name} onChangeText={setName} placeholder="Ej. Piña oro miel" placeholderTextColor={colors.muted} style={styles.input} maxLength={80} />
+
+      <Text style={styles.label}>Categoría</Text>
+      <View style={styles.options}>{categoriasAgricolas.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.option, category === item && styles.optionSelected]}><Text style={[styles.optionText, category === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
+
       <Text style={styles.label}>Cantidad disponible *</Text>
-      <View style={styles.stockRow}><TextInput value={stock} onChangeText={setStock} placeholder="Ej. 20" style={[styles.input, styles.stockInput]} keyboardType={tecladoCantidad(unit)} maxLength={10} /><View style={styles.options}>{units.map((item) => <Pressable key={item} onPress={() => setUnit(item)} style={[styles.option, unit === item && styles.optionSelected]}><Text style={[styles.optionText, unit === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View></View>
-      <Text style={styles.label}>Descripción</Text>
-      <TextInput value={description} onChangeText={setDescription} placeholder="Origen, presentación o detalles para tus clientes" style={[styles.input, styles.multiline]} multiline textAlignVertical="top" maxLength={240} />
+      <TextInput value={stock} onChangeText={setStock} placeholder="Ej. 150" placeholderTextColor={colors.muted} style={[styles.input, styles.stockInput]} keyboardType={tecladoCantidad(unit)} maxLength={10} />
+      <Text style={styles.label}>Unidad de medida</Text>
+      <View style={styles.options}>{unidades.map((item) => <Pressable key={item} onPress={() => setUnit(item)} style={[styles.option, unit === item && styles.optionSelected]}><Text style={[styles.optionText, unit === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
+
+      <Text style={styles.label}>{tituloPrecio}</Text>
+      <TextInput value={price} onChangeText={setPrice} placeholder="Ej. 2.500" placeholderTextColor={colors.muted} style={styles.input} keyboardType="number-pad" maxLength={13} />
+
+      <Text style={styles.label}>Municipio *</Text>
+      <View style={styles.options}>{municipios.map((item) => <Pressable key={item} onPress={() => setMunicipio(item)} style={[styles.option, municipio === item && styles.optionSelected]}><Text style={[styles.optionText, municipio === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
+
+      <Text style={styles.label}>¿Desde cuándo está disponible?</Text>
+      <View style={styles.options}>{opcionesFecha.map((item) => {
+        const fecha = fechaDesdeHoy(item.dias);
+        const elegida = disponible === fecha || (item.dias === 0 && disponible < fecha);
+        return <Pressable key={item.texto} onPress={() => setDisponible(fecha)} style={[styles.option, elegida && styles.optionSelected]}><Text style={[styles.optionText, elegida && styles.optionTextSelected]}>{item.texto}</Text></Pressable>;
+      })}</View>
+
+      <Text style={styles.label}>Entrega o recogida</Text>
+      <View style={styles.options}>{formasEntrega.map((item) => <Pressable key={item} onPress={() => setEntrega(item)} style={[styles.option, entrega === item && styles.optionSelected]}><Text style={[styles.optionText, entrega === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
+      <TextInput value={detalleEntrega} onChangeText={setDetalleEntrega} placeholder="Detalle opcional, ej. vereda La Chaparrera, sábados" placeholderTextColor={colors.muted} style={[styles.input, styles.spaced]} maxLength={100} />
+
+      <Text style={styles.label}>Descripción (opcional)</Text>
+      <TextInput value={description} onChangeText={setDescription} placeholder="Variedad, tamaño, estado de la cosecha…" placeholderTextColor={colors.muted} style={[styles.input, styles.multiline]} multiline textAlignVertical="top" maxLength={240} />
       <Text style={styles.counter}>{description.length}/240</Text>
-      <Pressable disabled={saving} onPress={() => void submit()} style={[styles.submit, saving && styles.disabled]}><Text style={styles.submitText}>{saving ? 'Guardando…' : 'Guardar publicación'}</Text></Pressable>
-      <Text style={styles.footnote}>Puedes preparar publicaciones sin internet. Se sincronizarán cuando vuelva la conexión.</Text>
+
+      <Pressable disabled={saving} onPress={() => void submit()} style={[styles.submit, saving && styles.disabled]}><Text style={styles.submitText}>{textoBoton}</Text></Pressable>
+      <Text style={styles.footnote}>Puedes publicar sin internet. La publicación queda pendiente y se sube cuando vuelva la conexión.</Text>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 23, paddingTop: 35, paddingBottom: 40 }, back: { color: colors.brown, fontWeight: '700', fontSize: 15, marginBottom: 18 }, title: { color: colors.ink, fontSize: 27, fontWeight: '900' }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7, marginBottom: 19 }, label: { color: colors.ink, fontSize: 13, fontWeight: '800', marginTop: 17, marginBottom: 7 }, input: { backgroundColor: '#fff', borderColor: colors.line, borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, paddingVertical: 12, color: colors.ink, fontSize: 14 }, photoPicker: { height: 175, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed', backgroundColor: '#F0E9DF' }, photoPreview: { width: '100%', height: '100%' }, photoEmpty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 7 }, photoHint: { color: colors.brown, fontSize: 13, fontWeight: '800' }, photoSubhint: { color: colors.muted, fontSize: 11 }, removePhoto: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, padding: 9 }, removePhotoText: { color: colors.brown, fontSize: 11, fontWeight: '700' }, multiline: { height: 92 }, counter: { color: colors.muted, fontSize: 10, textAlign: 'right', marginTop: 4 }, options: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, option: { borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: '#fff' }, optionSelected: { backgroundColor: '#E8F2EE', borderColor: colors.brown }, optionText: { fontSize: 10, color: colors.ink }, optionTextSelected: { color: colors.brown, fontWeight: '800' }, stockRow: { gap: 9 }, stockInput: { width: 120 }, submit: { backgroundColor: colors.brown, borderRadius: 24, alignItems: 'center', padding: 15, marginTop: 25 }, disabled: { opacity: 0.6 }, submitText: { color: '#fff', fontWeight: '800', fontSize: 14 }, footnote: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 10, textAlign: 'center' },
+  flex: { flex: 1 }, content: { padding: 22, paddingTop: 35, paddingBottom: 40 }, back: { color: colors.brown, fontWeight: '700', fontSize: 15, marginBottom: 18 },
+  title: { color: colors.ink, fontSize: 27, fontWeight: '900' }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7, marginBottom: 8 },
+  label: { color: colors.ink, fontSize: 14, fontWeight: '800', marginTop: 18, marginBottom: 8 },
+  input: { backgroundColor: colors.white, borderColor: colors.line, borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, paddingVertical: 12, color: colors.ink, fontSize: 15 },
+  spaced: { marginTop: 9 },
+  photoPicker: { height: 175, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed', backgroundColor: colors.white },
+  photoPreview: { width: '100%', height: '100%' }, photoEmpty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 7 },
+  photoHint: { color: colors.brown, fontSize: 14, fontWeight: '800' }, photoSubhint: { color: colors.muted, fontSize: 12 },
+  removePhoto: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, padding: 9 }, removePhotoText: { color: colors.brown, fontSize: 12, fontWeight: '700' },
+  multiline: { height: 92 }, counter: { color: colors.muted, fontSize: 11, textAlign: 'right', marginTop: 4 },
+  options: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  option: { borderRadius: 18, paddingHorizontal: 13, paddingVertical: 9, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white },
+  optionSelected: { backgroundColor: colors.verdeClaro, borderColor: colors.brown }, optionText: { fontSize: 13, color: colors.ink }, optionTextSelected: { color: colors.brown, fontWeight: '800' },
+  stockInput: { width: 140 },
+  submit: { backgroundColor: colors.brown, borderRadius: 26, alignItems: 'center', padding: 16, marginTop: 26 }, disabled: { opacity: 0.6 }, submitText: { color: colors.white, fontWeight: '800', fontSize: 15 },
+  footnote: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 10, textAlign: 'center' },
 });

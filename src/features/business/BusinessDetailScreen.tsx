@@ -1,32 +1,39 @@
-import { useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ArrowLeft, Clock3, Headphones, Heart, MapPin, Star, Store, Utensils } from 'lucide-react-native';
+import { ArrowLeft, MapPin, Sprout, UserRound } from 'lucide-react-native';
 import type { Business } from './types';
 import { colors } from '../../shared/theme';
+import { limpiarTelefono } from '../../shared/validaciones';
 
+// perfil publico del productor
 export default function BusinessDetailScreen({ business, onBack }: { business: Business; onBack: () => void }) {
-  const [saved, setSaved] = useState(false);
-  const Icon = business.category.toLowerCase().includes('restaurante') || business.category.toLowerCase().includes('comida') ? Utensils : business.category.toLowerCase().includes('tecnolog') ? Headphones : Store;
   async function contactBusiness() {
-    if (!business.phone) { Alert.alert('Contacto no disponible', 'Este negocio todavía no agregó un número de contacto.'); return; }
-    const number = business.phone.replace(/\D/g, '').replace(/^57/, '');
-    await Linking.openURL(`https://wa.me/57${number}?text=${encodeURIComponent(`Hola, vi ${business.name} en Sava y quisiera más información.`)}`);
+    if (!business.phone) { Alert.alert('Contacto no disponible', 'Este productor todavía no agregó un número de contacto.'); return; }
+    const texto = 'Hola, vi ' + business.name + ' en Sava y quisiera más información.';
+    try { await Linking.openURL('https://wa.me/57' + limpiarTelefono(business.phone) + '?text=' + encodeURIComponent(texto)); }
+    catch { Alert.alert('No se pudo abrir WhatsApp', 'Revisa que WhatsApp esté instalado e intenta de nuevo.'); }
   }
+  let descripcion = business.description;
+  if (!descripcion) descripcion = 'Este productor todavía no agregó una descripción.';
+  let municipio = 'Casanare';
+  if (business.municipality) municipio = business.municipality + ', Casanare';
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
       <Pressable accessibilityRole="button" onPress={onBack} style={styles.back}><ArrowLeft size={19} color={colors.brown} /><Text style={styles.backText}>Volver</Text></Pressable>
-      <View style={[styles.hero, { backgroundColor: business.color }]}><Icon size={78} color={colors.brown} strokeWidth={1.5} /></View>
-      <View style={styles.headingRow}><View style={styles.headingCopy}><Text style={styles.name}>{business.name}</Text><Text style={styles.category}>{business.category}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={saved ? 'Quitar de guardados' : 'Guardar negocio'} onPress={() => setSaved(!saved)} style={styles.save}><Heart size={21} color={colors.brown} fill={saved ? colors.brown : 'transparent'} /></Pressable></View>
-      {business.rating > 0 && <View style={styles.rating}><Star size={14} color="#C98770" fill="#C98770" /><Text style={styles.ratingText}>{business.rating.toFixed(1)}  ·  A {business.distanceKm.toFixed(1)} km</Text></View>}
-      <Text style={styles.section}>Acerca del negocio</Text><Text style={styles.description}>{business.description || 'Conoce este negocio local de Casanare y comunícate directamente para consultar disponibilidad.'}</Text>
-      <View style={styles.info}><MapPin size={20} color={colors.brown} /><View><Text style={styles.infoTitle}>Ubicación</Text><Text style={styles.infoText}>{business.municipality ?? 'Yopal'}, Casanare</Text></View></View>
-      <View style={styles.info}><Clock3 size={20} color={colors.brown} /><View><Text style={styles.infoTitle}>Horario</Text><Text style={styles.infoText}>Consulta disponibilidad con el negocio</Text></View></View>
+      <View style={styles.hero}><Sprout size={70} color={colors.brown} strokeWidth={1.5} /></View>
+      <Text style={styles.name}>{business.name}</Text>
+      <Text style={styles.category}>{business.category}</Text>
+      <Text style={styles.section}>Acerca del productor</Text><Text style={styles.description}>{descripcion}</Text>
+      <View style={styles.info}><MapPin size={20} color={colors.brown} /><View><Text style={styles.infoTitle}>Ubicación</Text><Text style={styles.infoText}>{municipio}</Text></View></View>
+      <View style={styles.info}><UserRound size={20} color={colors.brown} /><View style={styles.flex}><Text style={styles.infoTitle}>Perfil sin verificar</Text><Text style={styles.infoText}>Sava todavía no verifica la identidad de los productores. Acuerda la entrega antes de pagar.</Text></View></View>
       <Pressable style={styles.primary} onPress={() => void contactBusiness()}><Text style={styles.primaryText}>Contactar por WhatsApp</Text></Pressable>
-      <Pressable style={styles.secondary} onPress={() => Alert.alert('Cómo llegar', 'La navegación y el mapa estarán disponibles al conectar el servicio de ubicación.')}><Text style={styles.secondaryText}>Ver cómo llegar</Text></Pressable>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 22, paddingTop: 36, paddingBottom: 32 }, back: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 16 }, backText: { color: colors.brown, fontSize: 15, fontWeight: '700' }, hero: { height: 220, borderRadius: 25, alignItems: 'center', justifyContent: 'center' }, headingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 20 }, headingCopy: { flex: 1 }, name: { color: colors.ink, fontSize: 25, fontWeight: '900' }, category: { color: colors.muted, fontSize: 14, marginTop: 4 }, save: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#E8F2EE', justifyContent: 'center', alignItems: 'center' }, rating: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 12 }, ratingText: { color: '#26332F', fontSize: 13 }, section: { color: colors.ink, fontSize: 18, fontWeight: '800', marginTop: 25, marginBottom: 7 }, description: { color: colors.muted, fontSize: 14, lineHeight: 22 }, info: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomColor: colors.line, borderBottomWidth: 1 }, infoTitle: { color: colors.ink, fontWeight: '700', fontSize: 13 }, infoText: { color: colors.muted, fontSize: 12, marginTop: 3 }, primary: { backgroundColor: colors.brown, borderRadius: 25, padding: 15, alignItems: 'center', marginTop: 24 }, primaryText: { color: '#fff', fontWeight: '800' }, secondary: { borderColor: colors.brown, borderWidth: 1, borderRadius: 25, padding: 14, alignItems: 'center', marginTop: 10 }, secondaryText: { color: colors.brown, fontWeight: '800' },
+  flex: { flex: 1 }, content: { padding: 22, paddingTop: 36, paddingBottom: 32 }, back: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 16 }, backText: { color: colors.brown, fontSize: 15, fontWeight: '700' },
+  hero: { height: 170, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.verdeClaro }, name: { color: colors.ink, fontSize: 25, fontWeight: '900', marginTop: 20 }, category: { color: colors.muted, fontSize: 14, marginTop: 4 },
+  section: { color: colors.ink, fontSize: 18, fontWeight: '800', marginTop: 25, marginBottom: 7 }, description: { color: colors.muted, fontSize: 14, lineHeight: 21 },
+  info: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, marginTop: 12 }, infoTitle: { color: colors.ink, fontSize: 13, fontWeight: '800' }, infoText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
+  primary: { backgroundColor: colors.brown, borderRadius: 25, minHeight: 50, alignItems: 'center', justifyContent: 'center', marginTop: 24 }, primaryText: { color: colors.white, fontWeight: '800', fontSize: 14 },
 });

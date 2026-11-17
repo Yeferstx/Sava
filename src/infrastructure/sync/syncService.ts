@@ -3,7 +3,7 @@ import { getActiveBusinessId, getDatabase } from '../database/database';
 
 type QueueItem = { id: string; entity: string; operation: string; payload: string };
 type BusinessPayload = { id: string; name: string; category: string; description: string; phone: string; city: string; updated_at: string };
-type ProductPayload = { id: string; business_id: string; name: string; category: string; description: string; price_cop: number; stock: number; unit: string; photo_uri?: string | null; is_published?: number | boolean; updated_at: string };
+type ProductPayload = { id: string; business_id: string; name: string; category: string; description: string; price_cop: number; stock: number; unit: string; photo_uri?: string | null; is_published?: number | boolean; updated_at: string; municipality?: string; available_from?: string | null; delivery?: string; retired?: number | boolean };
 type SalePayload = { id: string; item_id: string; business_id: string; product_id: string; quantity: number; unit_price_cop: number; total_cop: number; sold_at: string };
 
 export async function syncPendingChanges() {
@@ -44,7 +44,17 @@ export async function syncPendingChanges() {
         await db.runAsync('UPDATE products SET photo_uri = ? WHERE id = ?', uploaded.path, product.id);
         await db.runAsync('UPDATE sync_queue SET payload = ? WHERE id = ?', JSON.stringify(product), item.id);
       }
-      const { error } = await supabase.from('products').upsert({ id: product.id, business_id: product.business_id, name: product.name, category: product.category, description: product.description, price_cop: product.price_cop, stock: product.stock, unit: product.unit, photo_path: product.photo_uri ?? null, is_published: Boolean(product.is_published ?? true), updated_at: product.updated_at });
+      const fila = { id: product.id, business_id: product.business_id, name: product.name, category: product.category, description: product.description, price_cop: product.price_cop, stock: product.stock, unit: product.unit, photo_path: product.photo_uri ?? null, is_published: Boolean(product.is_published ?? true), updated_at: product.updated_at };
+      const cosecha = { municipality: product.municipality ?? 'Yopal', available_from: product.available_from ?? undefined, delivery: product.delivery ?? 'A convenir', retired: Boolean(product.retired ?? false) };
+      let { error } = await supabase.from('products').upsert({ ...fila, ...cosecha });
+      // PGRST204 = falta la columna: la migracion de cosechas aun no esta aplicada en supabase.
+      // se sube sin esos datos para no frenar la sincronizacion
+      if (error && error.code === 'PGRST204') {
+        let filaVieja = fila;
+        if (cosecha.retired) filaVieja = { ...fila, is_published: false };
+        const segundo = await supabase.from('products').upsert(filaVieja);
+        error = segundo.error;
+      }
       if (error) throw error;
       await db.runAsync("UPDATE products SET sync_status = 'synced' WHERE id = ?", product.id);
     } else if (item.entity === 'sale') {

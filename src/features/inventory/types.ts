@@ -11,4 +11,10 @@ export type Product = {
   is_published: number;
   sync_status: 'local' | 'pending' | 'synced';
   updated_at: string;
+  // datos de la cosecha (pueden faltar en productos viejos)
+  municipality?: string;
+  available_from?: string;
+  delivery?: string;
+  retired?: number;
+  created_at?: string;
 };

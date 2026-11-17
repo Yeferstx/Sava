@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ArrowLeft, CalendarDays, ChevronRight, CircleUserRound, Lightbulb, MessageCircle, MoreHorizontal, Search, Send, Sparkles, Utensils } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, CircleUserRound, MessageCircle, MoreHorizontal, Send, Sparkles } from 'lucide-react-native';
 import type { ChatMessage, ProductDraft } from './types';
 import { colors } from '../../shared/theme';
 
 type Props = { messages: ChatMessage[]; draft: ProductDraft | null; onSend: (text: string) => void; onReset: () => void; onBack: () => void; onConfirmDraft: () => void; onEditDraft: () => void };
+// frases de ejemplo que maria si entiende hoy
 const suggestions = [
-  { Icon: Search, label: 'Buscar un negocio\no producto' },
-  { Icon: Utensils, label: 'Recomiéndame\nrestaurantes' },
-  { Icon: CalendarDays, label: 'Agendar un servicio' },
-  { Icon: Lightbulb, label: 'Dame ideas de\nemprendimiento' },
+  { Icon: Sparkles, label: 'Tengo 200 kilos de piña\na 2.500 pesos' },
+  { Icon: Sparkles, label: 'Vendo 30 racimos de plátano\na 25 mil' },
+  { Icon: Sparkles, label: 'Vendo 20 bultos de yuca\na 80.000' },
 ];
 
 export default function ChatScreen({ messages, draft, onSend, onReset, onBack, onConfirmDraft, onEditDraft }: Props) {
@@ -19,7 +19,7 @@ export default function ChatScreen({ messages, draft, onSend, onReset, onBack, o
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.header}>
         <Pressable accessibilityLabel="Volver al inicio" onPress={onBack} style={styles.back}><ArrowLeft size={22} color="#fff" /></Pressable>
-        <View style={styles.title}><View style={styles.nameRow}><Text style={styles.name}>María</Text><Sparkles size={15} color="#C98770" /></View><Text style={styles.subtitle}>Asistente de Sava · Yopal</Text></View>
+        <View style={styles.title}><View style={styles.nameRow}><Text style={styles.name}>María</Text><Sparkles size={15} color="#C98770" /></View><Text style={styles.subtitle}>Asistente básico · sin IA conectada</Text></View>
         <Pressable accessibilityLabel="Reiniciar conversación" onPress={onReset}><MoreHorizontal size={23} color="#fff" /></Pressable>
       </View>
       <View style={styles.body}>

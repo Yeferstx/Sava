@@ -58,9 +58,16 @@ export async function getDatabase() {
           created_at TEXT NOT NULL,
           attempts INTEGER NOT NULL DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS favoritos (
+          product_id TEXT PRIMARY KEY NOT NULL,
+          producto TEXT NOT NULL,
+          negocio TEXT,
+          guardado_en TEXT NOT NULL
+        );
         CREATE INDEX IF NOT EXISTS products_business_idx ON products(business_id, is_published);
         CREATE INDEX IF NOT EXISTS sales_business_date_idx ON sales(business_id, sold_at);
       `);
+      await agregarColumnasCosecha(db);
       await seedDemoData(db);
       return db;
     })().catch((error) => {
@@ -71,21 +78,31 @@ export async function getDatabase() {
   return databasePromise;
 }
 
+// columnas nuevas de la cosecha para celulares que ya tenian la app instalada
+async function agregarColumnasCosecha(db: SQLite.SQLiteDatabase) {
+  const columnas = await db.getAllAsync<{ name: string }>('PRAGMA table_info(products)');
+  const nombres: string[] = [];
+  for (const columna of columnas) nombres.push(columna.name);
+  if (!nombres.includes('municipality')) await db.execAsync("ALTER TABLE products ADD COLUMN municipality TEXT NOT NULL DEFAULT 'Yopal'");
+  if (!nombres.includes('available_from')) await db.execAsync("ALTER TABLE products ADD COLUMN available_from TEXT");
+  if (!nombres.includes('delivery')) await db.execAsync("ALTER TABLE products ADD COLUMN delivery TEXT NOT NULL DEFAULT 'A convenir'");
+  if (!nombres.includes('retired')) await db.execAsync('ALTER TABLE products ADD COLUMN retired INTEGER NOT NULL DEFAULT 0');
+  if (!nombres.includes('created_at')) await db.execAsync('ALTER TABLE products ADD COLUMN created_at TEXT');
+}
+
+// el negocio de prueba solo existe para que la app funcione sin supabase.
+// ya no se crean productos de muestra porque se veian como si fueran reales
 async function seedDemoData(db: SQLite.SQLiteDatabase) {
+  const viejos = ['demo-arroz', 'demo-queso', 'demo-yuca'];
+  for (const id of viejos) {
+    await db.runAsync('DELETE FROM sale_items WHERE product_id = ?', id);
+    await db.runAsync('DELETE FROM products WHERE id = ?', id);
+  }
+  await db.runAsync('DELETE FROM sales WHERE business_id = ? AND id NOT IN (SELECT sale_id FROM sale_items)', DEMO_BUSINESS_ID);
   const business = await db.getFirstAsync<{ id: string }>('SELECT id FROM businesses WHERE id = ?', DEMO_BUSINESS_ID);
   if (business) return;
   const now = new Date().toISOString();
-  await db.withTransactionAsync(async () => {
-    await db.runAsync('INSERT INTO businesses (id, name, category, description, phone, city, sync_status, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', DEMO_BUSINESS_ID, 'Mercado Llanero', 'Tienda', 'Productos de la región, pedidos sencillos y atención cercana.', '', 'Yopal', 'local', now);
-    const samples = [
-      ['demo-arroz', 'Arroz de la región', 'Abarrotes', 'Arroz cultivado en Casanare.', 80000, 20, 'bulto'],
-      ['demo-queso', 'Queso campesino', 'Lácteos', 'Queso fresco de productores locales.', 18000, 12, 'unidad'],
-      ['demo-yuca', 'Yuca fresca', 'Agro', 'Cosecha local disponible.', 3500, 30, 'kg'],
-    ] as const;
-    for (const [id, name, category, description, price, stock, unit] of samples) {
-      await db.runAsync('INSERT INTO products (id, business_id, name, category, description, price_cop, stock, unit, sync_status, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', id, DEMO_BUSINESS_ID, name, category, description, price, stock, unit, 'local', now);
-    }
-  });
+  await db.runAsync('INSERT INTO businesses (id, name, category, description, phone, city, sync_status, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', DEMO_BUSINESS_ID, 'Finca de prueba', 'Finca', 'Espacio de prueba sin conexión al servidor.', '', 'Yopal', 'local', now);
 }
 
 export const demoBusinessId = DEMO_BUSINESS_ID;

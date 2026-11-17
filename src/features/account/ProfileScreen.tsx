@@ -6,7 +6,7 @@ import { colors } from '../../shared/theme';
 import SavaLogo from '../../shared/components/SavaLogo';
 import { limpiarTelefono, municipios, telefonoValido } from '../../shared/validaciones';
 
-const businessCategories = ['Tienda', 'Restaurante', 'Agro', 'Servicios', 'Otro'];
+const businessCategories = ['Finca', 'Huerta', 'Asociación', 'Emprendimiento agrícola', 'Otro'];
 
 export default function ProfileScreen({ onBack }: { onBack: () => void }) {
   const [name, setName] = useState('');
@@ -15,23 +15,23 @@ export default function ProfileScreen({ onBack }: { onBack: () => void }) {
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('Yopal');
   const [loading, setLoading] = useState(true);
-  useEffect(() => { void getBusinessProfile().then((business) => { if (business) { setName(business.name); setCategory(business.category); setDescription(business.description); setPhone(business.phone); setCity(business.city); } }).catch(() => Alert.alert('Error', 'No pudimos leer la información del negocio.')).finally(() => setLoading(false)); }, []);
+  useEffect(() => { void getBusinessProfile().then((business) => { if (business) { setName(business.name); setCategory(business.category); setDescription(business.description); setPhone(business.phone); setCity(business.city); } }).catch(() => Alert.alert('Error', 'No pudimos leer la información de la finca.')).finally(() => setLoading(false)); }, []);
 
   async function save() {
-    if (!name.trim() || !phone.trim()) { Alert.alert('Completa los datos', 'El nombre del negocio y el teléfono son obligatorios.'); return; }
-    if (name.trim().length < 3) { Alert.alert('Revisa el nombre', 'El nombre del negocio debe tener al menos 3 letras.'); return; }
-    if (telefonoValido(phone) === false) { Alert.alert('Revisa el teléfono', 'Escribe un número de 10 dígitos, por ejemplo 300 123 4567. Los clientes lo usan para escribirte por WhatsApp.'); return; }
-    if (municipios.includes(city) === false) { Alert.alert('Elige el municipio', 'Selecciona el municipio de Casanare donde está tu negocio.'); return; }
-    try { await saveBusinessProfile({ name: name.trim(), category, description: description.trim(), phone: limpiarTelefono(phone), city: city }); Alert.alert('Negocio actualizado', 'Los cambios quedaron guardados en este dispositivo.'); }
+    if (!name.trim() || !phone.trim()) { Alert.alert('Completa los datos', 'El nombre de la finca y el teléfono son obligatorios.'); return; }
+    if (name.trim().length < 3) { Alert.alert('Revisa el nombre', 'El nombre debe tener al menos 3 letras.'); return; }
+    if (telefonoValido(phone) === false) { Alert.alert('Revisa el teléfono', 'Escribe un número de 10 dígitos, por ejemplo 300 123 4567. Los compradores lo usan para escribirte por WhatsApp.'); return; }
+    if (municipios.includes(city) === false) { Alert.alert('Elige el municipio', 'Selecciona el municipio de Casanare donde está tu finca.'); return; }
+    try { await saveBusinessProfile({ name: name.trim(), category, description: description.trim(), phone: limpiarTelefono(phone), city: city }); Alert.alert('Finca actualizada', 'Los cambios quedaron guardados en este dispositivo.'); }
     catch { Alert.alert('No se pudo guardar', 'Intenta de nuevo.'); }
   }
 
   return <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-    <Pressable onPress={onBack}><Text style={styles.back}>‹  Mi negocio</Text></Pressable><SavaLogo size="small" /><Text style={styles.title}>Información del negocio</Text><Text style={styles.subtitle}>Estos datos ayudan a que los clientes sepan quién eres y cómo encontrarte.</Text>
+    <Pressable onPress={onBack}><Text style={styles.back}>‹  Volver</Text></Pressable><SavaLogo size="small" /><Text style={styles.title}>Información de la finca</Text><Text style={styles.subtitle}>Estos datos ayudan a que los compradores sepan quién eres y cómo encontrarte.</Text>
     <View style={styles.avatar}><Store size={38} color={colors.brown} strokeWidth={1.6} /></View>
-    <Text style={styles.label}>Nombre del negocio *</Text><TextInput editable={!loading} value={name} onChangeText={setName} placeholder="Nombre del negocio" style={styles.input} maxLength={60} />
-    <Text style={styles.label}>Actividad</Text><View style={styles.options}>{businessCategories.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.option, category === item && styles.optionSelected]}><Text style={[styles.optionText, category === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
-    <Text style={styles.label}>Descripción</Text><TextInput value={description} onChangeText={setDescription} placeholder="¿Qué hace especial tu negocio?" style={[styles.input, styles.multiline]} multiline textAlignVertical="top" maxLength={240} />
+    <Text style={styles.label}>Nombre de la finca o emprendimiento *</Text><TextInput editable={!loading} value={name} onChangeText={setName} placeholder="Nombre de la finca" style={styles.input} maxLength={60} />
+    <Text style={styles.label}>Tipo</Text><View style={styles.options}>{businessCategories.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.option, category === item && styles.optionSelected]}><Text style={[styles.optionText, category === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
+    <Text style={styles.label}>Descripción</Text><TextInput value={description} onChangeText={setDescription} placeholder="¿Qué cultivas?" style={[styles.input, styles.multiline]} multiline textAlignVertical="top" maxLength={240} />
     <Text style={styles.label}>Teléfono de contacto *</Text><TextInput value={phone} onChangeText={setPhone} placeholder="+57 300 000 0000" style={styles.input} keyboardType="phone-pad" maxLength={16} />
     <Text style={styles.label}>Municipio</Text><View style={styles.options}>{municipios.map((item) => <Pressable key={item} onPress={() => setCity(item)} style={[styles.option, city === item && styles.optionSelected]}><Text style={[styles.optionText, city === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
     <Pressable disabled={loading} onPress={save} style={[styles.button, loading && styles.disabled]}><Text style={styles.buttonText}>{loading ? 'Cargando…' : 'Guardar información'}</Text></Pressable>

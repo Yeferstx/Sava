@@ -1,9 +1,14 @@
-import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { CircleCheck, LockKeyhole, Mail, UserRound } from 'lucide-react-native';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
 import { colors } from '../../shared/theme';
 import SavaLogo from '../../shared/components/SavaLogo';
 import { correoValido } from '../../shared/validaciones';
+import Campo from './components/Campo';
+import PaisajeLlanero from './components/PaisajeLlanero';
+import LegalScreen from '../legal/LegalScreen';
 
 // supabase responde en ingles, se pasan a espanol los errores mas comunes
 function traducirError(mensaje: string) {
@@ -11,49 +16,242 @@ function traducirError(mensaje: string) {
   if (texto.includes('invalid login credentials')) return 'El correo o la contraseña no son correctos.';
   if (texto.includes('already registered')) return 'Ya existe una cuenta con ese correo. Inicia sesión.';
   if (texto.includes('email not confirmed')) return 'Aún no confirmas tu correo. Revisa tu bandeja de entrada.';
-  if (texto.includes('rate limit') || texto.includes('too many')) return 'Hiciste muchos intentos. Espera unos minutos e intenta de nuevo.';
+  if (texto.includes('rate limit') || texto.includes('too many') || texto.includes('security purposes')) return 'Hiciste muchos intentos. Espera unos minutos e intenta de nuevo.';
   if (texto.includes('network') || texto.includes('fetch')) return 'No hay conexión. Revisa tu internet e intenta de nuevo.';
   return mensaje;
 }
 
 type AuthPurpose = 'buyer' | 'seller' | 'general';
+type Modo = 'signIn' | 'signUp';
+type Errores = { nombre: string; correo: string; clave: string; general: string };
+const sinErrores: Errores = { nombre: '', correo: '', clave: '', general: '' };
+
+// boton con una pequena animacion al presionarlo
+function BotonPrincipal({ texto, cargando, listo, onPress }: { texto: string; cargando: boolean; listo: boolean; onPress: () => void }) {
+  const escala = useRef(new Animated.Value(1)).current;
+  function presionar(valor: number) {
+    Animated.timing(escala, { toValue: valor, duration: 90, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+  }
+  let contenido = <Text style={styles.botonTexto}>{texto}</Text>;
+  if (cargando) contenido = <ActivityIndicator color={colors.white} />;
+  if (listo) contenido = <CircleCheck size={24} color={colors.white} />;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={texto} accessibilityState={{ busy: cargando, disabled: cargando }} disabled={cargando || listo} onPress={onPress} onPressIn={() => presionar(0.97)} onPressOut={() => presionar(1)}>
+      <Animated.View style={[styles.boton, { transform: [{ scale: escala }] }]}>{contenido}</Animated.View>
+    </Pressable>
+  );
+}
 
 export default function AuthScreen({ onContinueGuest, purpose = 'general' }: { onContinueGuest?: () => void; purpose?: AuthPurpose }) {
-  const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn');
+  const [mode, setMode] = useState<Modo>('signIn');
+  const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [working, setWorking] = useState(false);
-  const [message, setMessage] = useState('');
+  const [listo, setListo] = useState(false);
+  const [errores, setErrores] = useState<Errores>(sinErrores);
+  const [aviso, setAviso] = useState('');
+  const [verLegal, setVerLegal] = useState(false);
+  const [movimiento, setMovimiento] = useState(false);
+  const [anchoTabs, setAnchoTabs] = useState(0);
+
+  // entrada: logo, pestanas, titulo, campos, boton y pie (en ese orden)
+  const entrada = useRef([0, 1, 2, 3, 4, 5].map(() => new Animated.Value(0))).current;
+  const pestana = useRef(new Animated.Value(0)).current;
+  const formulario = useRef(new Animated.Value(1)).current;
+  const check = useRef(new Animated.Value(0)).current;
+  const reducir = useRef(false);
+
+  useEffect(() => {
+    let activo = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((valor) => {
+      if (!activo) return;
+      reducir.current = valor;
+      if (valor) {
+        // sin movimiento: todo aparece de una vez
+        for (const item of entrada) item.setValue(1);
+        return;
+      }
+      setMovimiento(true);
+      Animated.stagger(80, entrada.map((item) => Animated.timing(item, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }))).start();
+    }).catch(() => { for (const item of entrada) item.setValue(1); });
+    return () => { activo = false; };
+  }, []);
+
+  function aparecer(i: number) {
+    const subir = entrada[i].interpolate({ inputRange: [0, 1], outputRange: [14, 0] });
+    return { opacity: entrada[i], transform: [{ translateY: subir }] };
+  }
+
+  function cambiarModo(nuevo: Modo) {
+    if (nuevo === mode || working) return;
+    setErrores(sinErrores);
+    setAviso('');
+    check.setValue(0);
+    let destino = 0;
+    if (nuevo === 'signUp') destino = 1;
+    if (reducir.current) { pestana.setValue(destino); setMode(nuevo); return; }
+    Animated.timing(pestana, { toValue: destino, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    // el formulario sale, cambia y vuelve a entrar
+    Animated.timing(formulario, { toValue: 0, duration: 110, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => {
+      setMode(nuevo);
+      Animated.timing(formulario, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    });
+  }
+
+  function mostrarAviso(texto: string) {
+    setAviso(texto);
+    check.setValue(0);
+    if (reducir.current) { check.setValue(1); return; }
+    Animated.spring(check, { toValue: 1, friction: 7, tension: 90, useNativeDriver: true }).start();
+  }
+
+  // al escribir se quita el error de ese campo
+  function escribir(campo: 'nombre' | 'correo' | 'clave', valor: string) {
+    if (campo === 'nombre') setNombre(valor);
+    if (campo === 'correo') setEmail(valor);
+    if (campo === 'clave') setPassword(valor);
+    if (errores[campo] !== '' || errores.general !== '') setErrores({ ...errores, [campo]: '', general: '' });
+  }
 
   async function submit() {
     const supabase = getSupabaseClient();
-    if (!supabase) { Alert.alert('Falta configurar Supabase', 'Revisa las variables EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY en .env.'); return; }
-    if (correoValido(email) === false) { setMessage('Escribe un correo válido, por ejemplo tu@negocio.com.'); return; }
-    if (password.length < 8) { setMessage('La contraseña debe tener al menos 8 caracteres.'); return; }
-    setWorking(true); setMessage('');
+    if (!supabase) { setErrores({ ...sinErrores, general: 'Sava no está conectada al servidor en este celular.' }); return; }
+    const nuevos: Errores = { ...sinErrores };
+    if (mode === 'signUp' && nombre.trim().length < 3) nuevos.nombre = 'Escribe tu nombre completo.';
+    if (correoValido(email) === false) nuevos.correo = 'Escribe un correo válido, por ejemplo tu@correo.com.';
+    if (password.length < 8) nuevos.clave = 'La contraseña debe tener al menos 8 caracteres.';
+    if (nuevos.nombre !== '' || nuevos.correo !== '' || nuevos.clave !== '') { setErrores(nuevos); return; }
+    setWorking(true);
+    setErrores(sinErrores);
+    setAviso('');
+    const correo = email.trim().toLowerCase();
     try {
-      const result = mode === 'signUp'
-        ? await supabase.auth.signUp({ email: email.trim().toLowerCase(), password })
-        : await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-      if (result.error) throw result.error;
-      if (mode === 'signUp' && !result.data.session) setMessage('Revisa tu correo para confirmar la cuenta. Después vuelve e inicia sesión.');
+      if (mode === 'signUp') {
+        const result = await supabase.auth.signUp({ email: correo, password, options: { data: { nombre: nombre.trim() } } });
+        if (result.error) throw result.error;
+        if (!result.data.session) mostrarAviso('Te enviamos un correo a ' + correo + '. Confírmalo y luego inicia sesión.');
+        else setListo(true);
+      } else {
+        const result = await supabase.auth.signInWithPassword({ email: correo, password });
+        if (result.error) throw result.error;
+        // la app cambia de pantalla sola cuando supabase avisa que entro
+        setListo(true);
+      }
     } catch (error) {
-      setMessage(error instanceof Error ? traducirError(error.message) : 'No pudimos conectar. Intenta de nuevo.');
+      let mensaje = 'No pudimos conectar. Intenta de nuevo.';
+      if (error instanceof Error) mensaje = traducirError(error.message);
+      const texto = mensaje.toLowerCase();
+      if (texto.includes('contraseña no son')) setErrores({ ...sinErrores, clave: mensaje });
+      else if (texto.includes('ya existe') || texto.includes('confirmas tu correo')) setErrores({ ...sinErrores, correo: mensaje });
+      else setErrores({ ...sinErrores, general: mensaje });
     } finally { setWorking(false); }
   }
 
-  return <View style={styles.screen}>
-    <SavaLogo size="small" />
-    <Text style={styles.title}>{mode === 'signIn' ? 'Qué bueno verte' : 'Crea tu cuenta'}</Text>
-    <Text style={styles.subtitle}>{purpose === 'buyer' ? mode === 'signIn' ? 'Inicia sesión para enviar este pedido y consultar su estado.' : 'Crea una cuenta de cliente para hacer pedidos. No necesitas registrar un negocio.' : purpose === 'seller' ? mode === 'signIn' ? 'Entra para administrar tu negocio o continuar con tu cuenta.' : 'Crea una cuenta para publicar y administrar tu negocio.' : mode === 'signIn' ? 'Entra para hacer pedidos o administrar tu negocio.' : 'Crea una cuenta para comprar en Sava. Si tienes un negocio, podrás registrarlo después.'}</Text>
-    <Text style={styles.label}>Correo electrónico</Text><TextInput autoCapitalize="none" autoComplete="email" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder="tu@negocio.com" placeholderTextColor="#636A64" style={styles.input} maxLength={100} />
-    <Text style={styles.label}>Contraseña</Text><TextInput secureTextEntry autoCapitalize="none" autoComplete={mode === 'signUp' ? 'new-password' : 'password'} value={password} onChangeText={setPassword} placeholder="Mínimo 8 caracteres" placeholderTextColor="#636A64" style={styles.input} onSubmitEditing={() => void submit()} />
-    {!!message && <Text accessibilityRole="alert" style={styles.message}>{message}</Text>}
-    <Pressable disabled={working} onPress={() => void submit()} style={[styles.submit, working && styles.disabled]}>{working ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{mode === 'signIn' ? 'Iniciar sesión' : 'Crear cuenta'}</Text>}</Pressable>
-    <Pressable onPress={() => { setMode(mode === 'signIn' ? 'signUp' : 'signIn'); setMessage(''); }} style={styles.toggle}><Text style={styles.toggleText}>{mode === 'signIn' ? '¿Nuevo en Sava? Crea tu cuenta' : 'Ya tienes cuenta? Inicia sesión'}</Text></Pressable>
-    {!!onContinueGuest && <Pressable onPress={onContinueGuest} style={styles.toggle}><Text style={styles.toggleText}>Seguir explorando sin cuenta</Text></Pressable>}
-    <Text style={styles.footnote}>{purpose === 'buyer' ? 'Tu cuenta de cliente no necesita un negocio. Puedes registrar uno más adelante.' : 'Tus productos y movimientos se guardan en el dispositivo y se sincronizan cuando vuelve internet.'}</Text>
-  </View>;
+  async function olvideClave() {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    if (correoValido(email) === false) { setErrores({ ...sinErrores, correo: 'Escribe tu correo arriba y te enviamos un enlace para cambiar la contraseña.' }); return; }
+    setWorking(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
+      if (error) throw error;
+      mostrarAviso('Si existe una cuenta con ese correo, te llegará un enlace para cambiar la contraseña.');
+    } catch (error) {
+      setErrores({ ...sinErrores, general: error instanceof Error ? traducirError(error.message) : 'Intenta de nuevo.' });
+    } finally { setWorking(false); }
+  }
+
+  if (verLegal) return <LegalScreen onBack={() => setVerLegal(false)} />;
+
+  let titulo = '¡Qué bueno verte!';
+  let subtitulo = 'Entra y conecta con lo nuestro.';
+  if (purpose === 'seller') subtitulo = 'Entra para publicar tus cosechas y llevar tus ventas.';
+  if (purpose === 'buyer') subtitulo = 'Entra para enviar tu consulta al productor.';
+  if (mode === 'signUp') { titulo = 'Empieza con Sava'; subtitulo = 'Tu cosecha o tus compras, en un solo lugar.'; }
+
+  const moverIndicador = pestana.interpolate({ inputRange: [0, 1], outputRange: [0, anchoTabs / 2] });
+  const moverFormulario = formulario.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
+  const logoEscala = entrada[0].interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] });
+
+  return (
+    <View style={styles.screen}>
+      <PaisajeLlanero posicion="arriba" moverse={movimiento} />
+      <PaisajeLlanero posicion="abajo" moverse={movimiento} />
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <View style={styles.columna}>
+            <Animated.View style={[styles.logo, { opacity: entrada[0], transform: [{ scale: logoEscala }] }]}><SavaLogo size="large" centrado /></Animated.View>
+
+            <Animated.View style={aparecer(1)}>
+              <View accessibilityRole="tablist" style={styles.tabs} onLayout={(e) => setAnchoTabs(e.nativeEvent.layout.width)}>
+                <Pressable accessibilityRole="tab" accessibilityState={{ selected: mode === 'signIn' }} onPress={() => cambiarModo('signIn')} style={styles.tab}><Text style={[styles.tabTexto, mode === 'signIn' && styles.tabActiva]}>Iniciar sesión</Text></Pressable>
+                <Pressable accessibilityRole="tab" accessibilityState={{ selected: mode === 'signUp' }} onPress={() => cambiarModo('signUp')} style={styles.tab}><Text style={[styles.tabTexto, mode === 'signUp' && styles.tabActiva]}>Crear cuenta</Text></Pressable>
+                {anchoTabs > 0 && <Animated.View style={[styles.indicador, { width: anchoTabs / 2, transform: [{ translateX: moverIndicador }] }]} />}
+              </View>
+            </Animated.View>
+
+            <Animated.View style={{ opacity: formulario, transform: [{ translateY: moverFormulario }] }}>
+              <Animated.View style={[styles.encabezado, aparecer(2)]}>
+                <Text style={styles.titulo}>{titulo}</Text>
+                <Svg width={92} height={10} viewBox="0 0 92 10"><Path d="M3 7 C 30 1, 62 1, 89 6" stroke={colors.arcilla} strokeWidth={3} strokeLinecap="round" fill="none" /></Svg>
+                <Text style={styles.subtitulo}>{subtitulo}</Text>
+              </Animated.View>
+
+              <Animated.View style={[styles.campos, aparecer(3)]}>
+                {mode === 'signUp' && <Campo etiqueta="Nombre completo" icono={<UserRound size={20} color={colors.grafito} />} value={nombre} onChangeText={(v) => escribir('nombre', v)} placeholder="Escribe tu nombre completo" autoComplete="name" autoCapitalize="words" maxLength={80} error={errores.nombre} />}
+                <Campo etiqueta="Correo electrónico" icono={<Mail size={20} color={colors.grafito} />} value={email} onChangeText={(v) => escribir('correo', v)} placeholder="Ingresa tu correo electrónico" autoCapitalize="none" autoComplete="email" keyboardType="email-address" maxLength={100} error={errores.correo} />
+                <Campo etiqueta="Contraseña" esClave icono={<LockKeyhole size={20} color={colors.grafito} />} value={password} onChangeText={(v) => escribir('clave', v)} placeholder={mode === 'signUp' ? 'Crea una contraseña' : 'Ingresa tu contraseña'} autoCapitalize="none" autoComplete={mode === 'signUp' ? 'new-password' : 'password'} maxLength={72} error={errores.clave} ayuda={mode === 'signUp' ? 'Usa al menos 8 caracteres' : ''} onSubmitEditing={() => void submit()} />
+                {mode === 'signIn' && <Pressable accessibilityRole="button" hitSlop={8} disabled={working} onPress={() => void olvideClave()} style={styles.olvide}><Text style={styles.enlace}>¿Olvidaste tu contraseña?</Text></Pressable>}
+              </Animated.View>
+
+              {errores.general !== '' && <Text accessibilityRole="alert" style={styles.errorGeneral}>{errores.general}</Text>}
+              {aviso !== '' && <View accessibilityRole="alert" style={styles.aviso}>
+                <Animated.View style={{ transform: [{ scale: check }] }}><CircleCheck size={22} color={colors.verde} /></Animated.View>
+                <Text style={styles.avisoTexto}>{aviso}</Text>
+              </View>}
+
+              <Animated.View style={aparecer(4)}>
+                <BotonPrincipal texto={mode === 'signUp' ? 'Crear cuenta' : 'Entrar'} cargando={working} listo={listo} onPress={() => void submit()} />
+              </Animated.View>
+            </Animated.View>
+
+            <Animated.View style={[styles.pie, aparecer(5)]}>
+              {mode === 'signUp' && <Text style={styles.terminos}>Al continuar, aceptas los <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>términos</Text> y la <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>política de privacidad</Text>.</Text>}
+              {mode === 'signIn' && <Pressable hitSlop={6} onPress={() => setVerLegal(true)}><Text style={styles.terminos}>Privacidad y términos de uso</Text></Pressable>}
+              {!!onContinueGuest && <Pressable accessibilityRole="button" hitSlop={10} onPress={onContinueGuest} style={styles.explorar}><Text style={styles.enlace}>Explorar sin cuenta</Text></Pressable>}
+            </Animated.View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
 }
 
-const styles = StyleSheet.create({ screen: { flex: 1, justifyContent: 'center', padding: 27, backgroundColor: colors.paper }, mark: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#E8F2EE', alignItems: 'center', justifyContent: 'center', marginBottom: 13 }, markText: { color: colors.brown, fontWeight: '900', fontSize: 28 }, brand: { color: colors.brown, fontWeight: '900', fontSize: 18 }, title: { color: colors.ink, fontWeight: '900', fontSize: 27, marginTop: 28 }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 5, marginBottom: 16 }, label: { color: colors.ink, fontWeight: '800', fontSize: 12, marginTop: 14, marginBottom: 6 }, input: { height: 48, paddingHorizontal: 14, borderColor: colors.line, borderWidth: 1, backgroundColor: '#fff', color: colors.ink, borderRadius: 13 }, message: { color: '#775D50', fontSize: 11, lineHeight: 17, marginTop: 12 }, submit: { height: 48, borderRadius: 24, marginTop: 20, backgroundColor: colors.brown, alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.65 }, submitText: { color: '#fff', fontWeight: '800', fontSize: 13 }, toggle: { alignItems: 'center', paddingVertical: 16 }, toggleText: { color: colors.brown, fontWeight: '700', fontSize: 11 }, footnote: { color: colors.muted, fontSize: 10, textAlign: 'center', lineHeight: 15, marginTop: 10 } });
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.crema },
+  flex: { flex: 1 },
+  content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingTop: 70, paddingBottom: 120 },
+  columna: { width: '100%', maxWidth: 420, alignSelf: 'center' },
+  logo: { marginBottom: 18 },
+  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.line, marginBottom: 22 },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 12 },
+  tabTexto: { color: colors.grafito, fontSize: 16, fontWeight: '500' },
+  tabActiva: { color: colors.verde, fontWeight: '800' },
+  indicador: { position: 'absolute', left: 0, bottom: -1.5, height: 3, borderRadius: 2, backgroundColor: colors.verde },
+  encabezado: { alignItems: 'center', marginBottom: 20 },
+  titulo: { color: colors.verde, fontSize: 28, fontWeight: '900', textAlign: 'center' },
+  subtitulo: { color: colors.grafito, fontSize: 15, textAlign: 'center', marginTop: 8 },
+  campos: { minHeight: 240 },
+  olvide: { alignSelf: 'flex-end', marginTop: -4, marginBottom: 6, paddingVertical: 4 },
+  enlace: { color: colors.verde, fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
+  enlaceChico: { color: colors.verde, fontWeight: '700', textDecorationLine: 'underline' },
+  errorGeneral: { color: '#775D50', fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 12 },
+  aviso: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.verdeClaro, borderRadius: 14, padding: 12, marginBottom: 14 },
+  avisoTexto: { flex: 1, color: colors.verde, fontSize: 13, lineHeight: 19, fontWeight: '600' },
+  boton: { height: 54, borderRadius: 27, backgroundColor: colors.verde, alignItems: 'center', justifyContent: 'center', marginTop: 8, shadowColor: colors.grafito, shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  botonTexto: { color: colors.white, fontSize: 17, fontWeight: '800' },
+  pie: { alignItems: 'center', marginTop: 16, gap: 6 },
+  terminos: { color: colors.grafito, fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  explorar: { paddingVertical: 10 },
+});

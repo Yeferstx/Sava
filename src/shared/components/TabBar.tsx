@@ -1,26 +1,27 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Boxes, CirclePlus, Compass, House, MessageCircle, Play, Store, UserRound } from 'lucide-react-native';
+import { Bookmark, CirclePlus, House, MessageCircle, Sprout, Store, UserRound } from 'lucide-react-native';
 import type { AppTab } from '../../navigation/types';
 import { colors } from '../theme';
 
 type Props = { active: AppTab; onChange: (tab: AppTab) => void; guest?: boolean };
 
 export default function TabBar({ active, onChange, guest = false }: Props) {
-  const tabs = guest
-    ? [
-        { name: 'Inicio' as const, label: 'Inicio', Icon: House },
-        { name: 'Explorar' as const, label: 'Explorar', Icon: Compass },
-        { name: 'Publicar' as const, label: 'Publicar', Icon: CirclePlus },
-        { name: 'María' as const, label: 'María', Icon: MessageCircle },
-        { name: 'Mi negocio' as const, label: 'Perfil', Icon: UserRound },
-      ]
-    : [
-        { name: 'Inicio' as const, label: 'Inicio', Icon: House },
-        { name: 'Inventario' as const, label: 'Inventario', Icon: Boxes },
-        { name: 'Publicar' as const, label: 'Publicar', Icon: CirclePlus },
-        { name: 'Videos' as const, label: 'Videos', Icon: Play },
-        { name: 'Mi negocio' as const, label: 'Mi negocio', Icon: Store },
-      ];
+  // comprador o invitado: mercado y guardados. agricultor: su panel y sus cosechas
+  let tabs = [
+    { name: 'Inicio' as AppTab, label: 'Inicio', Icon: House },
+    { name: 'Guardados' as AppTab, label: 'Guardados', Icon: Bookmark },
+    { name: 'Publicar' as AppTab, label: 'Vender', Icon: CirclePlus },
+    { name: 'Mi negocio' as AppTab, label: 'Cuenta', Icon: UserRound },
+  ];
+  if (guest === false) {
+    tabs = [
+      { name: 'Inicio' as AppTab, label: 'Inicio', Icon: House },
+      { name: 'Explorar' as AppTab, label: 'Mercado', Icon: Store },
+      { name: 'Publicar' as AppTab, label: 'Publicar', Icon: CirclePlus },
+      { name: 'Inventario' as AppTab, label: 'Cosechas', Icon: Sprout },
+      { name: 'María' as AppTab, label: 'María', Icon: MessageCircle },
+    ];
+  }
 
   return (
     <View style={styles.bar}>
@@ -47,6 +48,6 @@ const styles = StyleSheet.create({
   iconWrap: { width: 34, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
   selected: { backgroundColor: '#E8F2EE' },
   add: { width: 44, height: 44, backgroundColor: colors.brown, marginTop: -18, borderWidth: 4, borderColor: colors.paper },
-  label: { fontSize: 9, marginTop: 1, color: '#26332F' },
+  label: { fontSize: 11, marginTop: 1, color: '#26332F' },
   activeText: { color: colors.brown, fontWeight: '800' },
 });

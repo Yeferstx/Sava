@@ -1,46 +1,111 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ArrowRight, Boxes, CircleCheck, CircleDollarSign, ClipboardList, PackagePlus, Sparkles, Store, Wifi } from 'lucide-react-native';
-import { listProducts } from '../inventory/data/inventoryRepository';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ArrowRight, CircleDollarSign, ClipboardList, CloudUpload, PackagePlus, Sparkles, Sprout, Store } from 'lucide-react-native';
+import { contarPendientes, listProducts } from '../inventory/data/inventoryRepository';
 import { listSales } from '../sales/data/salesRepository';
 import { getBusinessProfile } from '../business/data/businessRepository';
+import { syncPendingChanges } from '../../infrastructure/sync/syncService';
 import type { AppTab } from '../../navigation/types';
 import { colors } from '../../shared/theme';
+import { dinero } from '../../shared/contacto';
 
-type Props = { onNavigate: (tab: AppTab) => void; onRegisterBusiness: () => void; onSignOut?: () => void };
-const money = (value: number) => `$${value.toLocaleString('es-CO')}`;
+type Props = { onNavigate: (tab: AppTab) => void; onEditFinca: () => void; onSignOut?: () => void; onLegal: () => void };
 
-export default function BusinessDashboardScreen({ onNavigate, onRegisterBusiness, onSignOut }: Props) {
-  const [productCount, setProductCount] = useState(0);
-  const [todayTotal, setTodayTotal] = useState(0);
-  const [todayCount, setTodayCount] = useState(0);
-  const [businessName, setBusinessName] = useState('Mercado Llanero');
-  const [municipality, setMunicipality] = useState('Yopal');
+// panel del agricultor: accesos rapidos y un resumen corto, sin graficas
+export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSignOut, onLegal }: Props) {
+  const [activas, setActivas] = useState(0);
+  const [ventasSemana, setVentasSemana] = useState(0);
+  const [pendientes, setPendientes] = useState(0);
+  const [finca, setFinca] = useState('');
+  const [municipio, setMunicipio] = useState('');
+  const [sincronizando, setSincronizando] = useState(false);
+
   const refresh = useCallback(async () => {
     try {
-      const [products, sales, business] = await Promise.all([listProducts(), listSales(), getBusinessProfile()]);
-      const today = new Date().toDateString();
-      const currentSales = sales.filter((sale) => new Date(sale.sold_at).toDateString() === today);
-      setProductCount(products.length); setTodayCount(currentSales.length); setTodayTotal(currentSales.reduce((sum, sale) => sum + sale.total_cop, 0));
-      if (business) { setBusinessName(business.name); setMunicipality(business.city); }
-    } catch { Alert.alert('No pudimos cargar el resumen', 'Revisa tu conexión e intenta otra vez.'); }
+      const products = await listProducts();
+      const sales = await listSales();
+      const perfil = await getBusinessProfile();
+      let publicadas = 0;
+      for (const product of products) {
+        if (product.is_published === 1 && product.stock > 0) publicadas = publicadas + 1;
+      }
+      // ventas de los ultimos 7 dias
+      const hace7Dias = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      let total = 0;
+      for (const sale of sales) {
+        if (new Date(sale.sold_at).getTime() >= hace7Dias) total = total + sale.total_cop;
+      }
+      setActivas(publicadas);
+      setVentasSemana(total);
+      setPendientes(await contarPendientes());
+      if (perfil) { setFinca(perfil.name); setMunicipio(perfil.city); }
+    } catch { Alert.alert('No pudimos cargar el resumen', 'Intenta otra vez.'); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
 
-  return <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
-    <Text style={styles.eyebrow}>HERRAMIENTAS PARA TU NEGOCIO</Text><Text style={styles.title}>Mi negocio</Text>
-    <View style={styles.businessCard}><View style={styles.storeIcon}><Store size={24} color={colors.brown} /></View><View style={styles.businessCopy}><Text style={styles.businessName}>{businessName}</Text><Text style={styles.businessLocation}>{municipality} · Casanare</Text></View><CircleCheck size={19} color="#174B3F" /></View>
-    <View style={styles.metrics}><View style={styles.metric}><Text style={styles.metricLabel}>VENTAS DE HOY</Text><Text style={styles.metricValue}>{money(todayTotal)}</Text><Text style={styles.metricHint}>{todayCount} {todayCount === 1 ? 'venta' : 'ventas'}</Text></View><View style={styles.metric}><Text style={styles.metricLabel}>PUBLICACIONES</Text><Text style={styles.metricValue}>{productCount}</Text><Text style={styles.metricHint}>productos activos</Text></View></View>
-    <Text style={styles.section}>Atajos</Text>
-    <Pressable onPress={() => onNavigate('Inventario')} style={styles.action}><View style={styles.actionIcon}><Boxes size={21} color={colors.brown} /></View><View style={styles.actionCopy}><Text style={styles.actionTitle}>Inventario</Text><Text style={styles.actionBody}>Actualiza existencias y precios</Text></View><ArrowRight size={18} color={colors.brown} /></Pressable>
-    <Pressable onPress={() => onNavigate('Ventas')} style={styles.action}><View style={styles.actionIcon}><CircleDollarSign size={21} color={colors.brown} /></View><View style={styles.actionCopy}><Text style={styles.actionTitle}>Registrar ventas</Text><Text style={styles.actionBody}>Lleva tus cuentas al día</Text></View><ArrowRight size={18} color={colors.brown} /></Pressable>
-    <Pressable onPress={() => onNavigate('Pedidos')} style={styles.action}><View style={styles.actionIcon}><ClipboardList size={21} color={colors.brown} /></View><View style={styles.actionCopy}><Text style={styles.actionTitle}>Pedidos</Text><Text style={styles.actionBody}>Revisa y responde solicitudes de clientes</Text></View><ArrowRight size={18} color={colors.brown} /></Pressable>
-    <Pressable onPress={() => onNavigate('Publicar')} style={styles.action}><View style={styles.actionIcon}><PackagePlus size={21} color={colors.brown} /></View><View style={styles.actionCopy}><Text style={styles.actionTitle}>Publicar producto</Text><Text style={styles.actionBody}>Muestra lo que ofreces</Text></View><ArrowRight size={18} color={colors.brown} /></Pressable>
-    <Pressable onPress={() => onNavigate('María')} style={styles.action}><View style={styles.actionIcon}><Sparkles size={21} color={colors.brown} /></View><View style={styles.actionCopy}><Text style={styles.actionTitle}>Hablar con María</Text><Text style={styles.actionBody}>Prepara una publicación conversando</Text></View><ArrowRight size={18} color={colors.brown} /></Pressable>
-    <Pressable onPress={onRegisterBusiness} style={styles.editProfile}><Text style={styles.editProfileText}>Editar información del negocio</Text></Pressable>
-    {!!onSignOut && <Pressable onPress={onSignOut} style={styles.editProfile}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8 }}><Wifi size={15} color="#174B3F" /><Text style={styles.offline}>Inventario y ventas se guardan en este dispositivo, incluso sin internet.</Text></View>
+  async function sincronizar() {
+    setSincronizando(true);
+    try {
+      const resultado = await syncPendingChanges();
+      if (resultado.reason === 'not-configured') Alert.alert('Sin servidor', 'Sava no está conectada a Supabase en este celular.');
+      await refresh();
+    } catch {
+      Alert.alert('No se pudo sincronizar', 'Revisa tu conexión a internet. Tus cambios siguen guardados en el celular.');
+    } finally { setSincronizando(false); }
+  }
+
+  const atajos: Array<{ tab: AppTab; titulo: string; texto: string; Icon: typeof Sprout }> = [
+    { tab: 'Publicar', titulo: 'Publicar cosecha', texto: 'Muestra lo que tienes disponible', Icon: PackagePlus },
+    { tab: 'Inventario', titulo: 'Mis cosechas', texto: 'Cantidades, precios y publicaciones', Icon: Sprout },
+    { tab: 'Ventas', titulo: 'Ventas registradas', texto: 'Anota lo que vendiste', Icon: CircleDollarSign },
+    { tab: 'Pedidos', titulo: 'Consultas de compradores', texto: 'Solicitudes que te enviaron en Sava', Icon: ClipboardList },
+    { tab: 'María', titulo: 'Hablar con María', texto: 'Prepara una publicación escribiendo', Icon: Sparkles },
+    { tab: 'Explorar', titulo: 'Ver el mercado', texto: 'Mira lo que publican otros productores', Icon: Store },
+  ];
+
+  let textoPendientes = 'Todo está sincronizado';
+  if (pendientes === 1) textoPendientes = '1 cambio pendiente de sincronizar';
+  if (pendientes > 1) textoPendientes = pendientes + ' cambios pendientes de sincronizar';
+
+  return <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refresh()} tintColor={colors.brown} />}>
+    <Text style={styles.eyebrow}>PANEL DEL AGRICULTOR</Text>
+    <Text style={styles.title}>{finca !== '' ? finca : 'Mi finca'}</Text>
+    {municipio !== '' && <Text style={styles.place}>{municipio}, Casanare</Text>}
+    <Text style={styles.motto}>Tu cosecha merece encontrar compradores.</Text>
+
+    <View style={styles.metrics}>
+      <View style={styles.metric}><Text style={styles.metricLabel}>COSECHAS PUBLICADAS</Text><Text style={styles.metricValue}>{activas}</Text></View>
+      <View style={styles.metric}><Text style={styles.metricLabel}>VENTAS 7 DÍAS</Text><Text style={styles.metricValue}>{dinero(ventasSemana)}</Text></View>
+    </View>
+
+    <Pressable accessibilityRole="button" disabled={pendientes === 0 || sincronizando} onPress={() => void sincronizar()} style={[styles.sync, pendientes > 0 && styles.syncPending]}>
+      <CloudUpload size={18} color={pendientes > 0 ? '#775D50' : colors.brown} />
+      <Text style={[styles.syncText, pendientes > 0 && styles.syncTextPending]}>{sincronizando ? 'Sincronizando…' : textoPendientes}</Text>
+      {pendientes > 0 && !sincronizando && <Text style={styles.syncAction}>Sincronizar</Text>}
+    </Pressable>
+
+    {atajos.map((atajo) => <Pressable key={atajo.tab} accessibilityRole="button" onPress={() => onNavigate(atajo.tab)} style={styles.action}>
+      <View style={styles.actionIcon}><atajo.Icon size={21} color={colors.brown} /></View>
+      <View style={styles.flex}><Text style={styles.actionTitle}>{atajo.titulo}</Text><Text style={styles.actionBody}>{atajo.texto}</Text></View>
+      <ArrowRight size={18} color={colors.brown} />
+    </Pressable>)}
+
+    <Pressable onPress={onEditFinca} style={styles.link}><Text style={styles.linkText}>Editar información de la finca</Text></Pressable>
+    <Pressable onPress={onLegal} style={styles.link}><Text style={styles.linkText}>Privacidad y términos de uso</Text></Pressable>
+    {!!onSignOut && <Pressable onPress={onSignOut} style={styles.link}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ flex: { flex: 1 }, content: { padding: 22, paddingTop: 38, paddingBottom: 40 }, eyebrow: { color: '#636A64', fontSize: 9, letterSpacing: 1.2, fontWeight: '800' }, title: { color: colors.ink, fontSize: 27, fontWeight: '900', marginTop: 4 }, businessCard: { backgroundColor: '#fff', borderRadius: 17, padding: 13, flexDirection: 'row', alignItems: 'center', marginTop: 17, borderColor: colors.line, borderWidth: 1 }, storeIcon: { width: 47, height: 47, borderRadius: 15, backgroundColor: '#E8F2EE', alignItems: 'center', justifyContent: 'center', marginRight: 11 }, storeEmoji: { fontSize: 25 }, businessCopy: { flex: 1 }, businessName: { color: colors.ink, fontWeight: '800', fontSize: 14 }, businessLocation: { color: colors.muted, fontSize: 11, marginTop: 3 }, verified: { color: '#174B3F', marginRight: 4 }, metrics: { flexDirection: 'row', gap: 10, marginTop: 12, marginBottom: 23 }, metric: { flex: 1, backgroundColor: '#E8F2EE', borderRadius: 15, padding: 13 }, metricLabel: { color: '#636A64', fontWeight: '800', letterSpacing: 0.5, fontSize: 8 }, metricValue: { color: colors.brown, fontWeight: '900', fontSize: 21, marginTop: 7 }, metricHint: { color: colors.muted, fontSize: 9, marginTop: 2 }, section: { color: colors.ink, fontWeight: '800', fontSize: 17, marginBottom: 10 }, action: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 15, padding: 12, borderWidth: 1, borderColor: colors.line, marginBottom: 8 }, actionIcon: { color: colors.brown, fontSize: 21, width: 40, height: 40, textAlign: 'center', textAlignVertical: 'center', backgroundColor: '#E8F2EE', overflow: 'hidden', borderRadius: 13, marginRight: 11 }, actionCopy: { flex: 1 }, actionTitle: { color: colors.ink, fontSize: 12, fontWeight: '800' }, actionBody: { color: colors.muted, fontSize: 10, marginTop: 3 }, arrow: { color: colors.brown, fontSize: 23 }, editProfile: { alignItems: 'center', paddingVertical: 14 }, editProfileText: { color: colors.brown, fontSize: 11, fontWeight: '700' }, signOutText: { color: '#775D50', fontSize: 11, fontWeight: '700' }, offline: { color: '#174B3F', textAlign: 'center', fontSize: 9, lineHeight: 14, marginTop: 8 } });
+const styles = StyleSheet.create({
+  flex: { flex: 1 }, content: { padding: 20, paddingTop: 38, paddingBottom: 40 },
+  eyebrow: { color: colors.muted, fontSize: 11, letterSpacing: 1.2, fontWeight: '800' }, title: { color: colors.ink, fontSize: 27, fontWeight: '900', marginTop: 4 },
+  place: { color: colors.muted, fontSize: 13, marginTop: 2 }, motto: { color: colors.brown, fontSize: 14, fontWeight: '700', marginTop: 10 },
+  metrics: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  metric: { flex: 1, borderRadius: 17, padding: 14, backgroundColor: colors.brown }, metricLabel: { color: colors.verdeClaro, fontSize: 10, letterSpacing: 0.8, fontWeight: '800' }, metricValue: { color: colors.white, fontSize: 22, fontWeight: '900', marginTop: 6 },
+  sync: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 13, borderRadius: 14, backgroundColor: colors.verdeClaro, marginTop: 12, marginBottom: 14 },
+  syncPending: { backgroundColor: '#F5E7E2' }, syncText: { flex: 1, color: colors.brown, fontSize: 13, fontWeight: '700' }, syncTextPending: { color: '#775D50' }, syncAction: { color: '#775D50', fontSize: 13, fontWeight: '900' },
+  action: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: 16, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, marginBottom: 9 },
+  actionIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.verdeClaro, alignItems: 'center', justifyContent: 'center' },
+  actionTitle: { color: colors.ink, fontSize: 15, fontWeight: '800' }, actionBody: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  link: { alignItems: 'center', padding: 13 }, linkText: { color: colors.brown, fontWeight: '700', fontSize: 13 }, signOutText: { color: '#775D50', fontWeight: '700', fontSize: 13 },
+});

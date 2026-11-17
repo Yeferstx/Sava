@@ -21,6 +21,9 @@ import { getActiveBusinessId, getDatabase, setActiveBusinessId } from '../infras
 import { getSupabaseClient } from '../infrastructure/supabase/client';
 import { syncPendingChanges } from '../infrastructure/sync/syncService';
 import SalesScreen from '../features/sales/SalesScreen';
+import RoleScreen, { type Rol } from '../features/auth/RoleScreen';
+import GuardadosScreen from '../features/favoritos/GuardadosScreen';
+import LegalScreen from '../features/legal/LegalScreen';
 import { cacheRemoteSales } from '../features/sales/data/salesRepository';
 import VideosScreen from '../features/videos/VideosScreen';
 import OrderCheckoutScreen from '../features/orders/OrderCheckoutScreen';
@@ -30,8 +33,16 @@ import { colors } from '../shared/theme';
 import SavaLogo from '../shared/components/SavaLogo';
 import type { AppTab } from './types';
 
-type AppStage = 'loading' | 'demo' | 'guest' | 'signedOut' | 'checkingBusiness' | 'setupBusiness' | 'signedIn' | 'error';
+type AppStage = 'loading' | 'demo' | 'guest' | 'signedOut' | 'checkingBusiness' | 'chooseRole' | 'setupBusiness' | 'signedIn' | 'error';
 type OrderIntent = { product: Product; business: Business; quantity: number };
+
+// rol y municipio que la persona eligio al crear la cuenta
+function datoUsuario(user: User | null, campo: string) {
+  if (!user || !user.user_metadata) return '';
+  const valor = user.user_metadata[campo];
+  if (typeof valor === 'string') return valor;
+  return '';
+}
 
 function describeError(error: unknown) {
   if (typeof error === 'string') return error;
@@ -55,6 +66,8 @@ export default function AppNavigator() {
   const [merchantIntent, setMerchantIntent] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [startupError, setStartupError] = useState('');
+  const [productoEditar, setProductoEditar] = useState<Product | null>(null);
+  const [volverLegal, setVolverLegal] = useState<AppTab>('Inicio');
   const chat = useAssistantChat();
   const supabase = getSupabaseClient();
 
@@ -89,14 +102,22 @@ export default function AppNavigator() {
         const { data: business, error } = await supabase.from('businesses').select('id,owner_id,name,category,description,phone,municipality,is_published').eq('owner_id', user.id).order('created_at', { ascending: true }).limit(1).maybeSingle();
         if (error) throw error;
         if (!active) return;
-        if (!business) { if (!merchantIntent) setActiveTab('Inicio'); setStage(merchantIntent ? 'setupBusiness' : 'guest'); return; }
+        if (!business) {
+          const rol = datoUsuario(user, 'rol');
+          setActiveTab('Inicio');
+          if (merchantIntent || rol === 'agricultor') setStage('setupBusiness');
+          else if (rol === 'comprador') setStage('guest');
+          else setStage('chooseRole');
+          return;
+        }
         phase = 'preparar el negocio guardado en el dispositivo';
         await setActiveBusinessId(business.id);
         await cacheRemoteBusiness(business);
         phase = 'sincronizar los cambios pendientes';
         await syncPendingChanges();
         phase = 'cargar los productos del negocio';
-        const { data: products, error: productError } = await supabase.from('products').select('id,business_id,name,category,description,price_cop,stock,unit,photo_path,is_published,updated_at').eq('business_id', business.id).order('created_at', { ascending: false });
+        // select * para que no falle si la migracion de cosechas aun no esta aplicada
+        const { data: products, error: productError } = await supabase.from('products').select('*').eq('business_id', business.id).order('created_at', { ascending: false });
         if (productError) throw productError;
         await cacheRemoteProducts(products ?? []);
         phase = 'cargar las ventas del negocio';
@@ -122,11 +143,20 @@ export default function AppNavigator() {
     return () => subscription.remove();
   }, [stage]);
 
-  function navigate(tab: AppTab) { setSelectedBusiness(null); setSelectedProduct(null); setActiveTab(tab); if (tab === 'Pedidos') setOrdersMode('business'); }
-  function startOrder(product: Product, business: Business, quantity: number) {
-    setMerchantIntent(false);
-    setOrderIntent({ product, business, quantity });
-    if (!user) setStage('signedOut');
+  function navigate(tab: AppTab) { setSelectedBusiness(null); setSelectedProduct(null); setProductoEditar(null); setActiveTab(tab); if (tab === 'Pedidos') setOrdersMode('business'); }
+  function abrirLegal(volver: AppTab) { setVolverLegal(volver); setActiveTab('Legal'); }
+  function editarCosecha(product: Product) { setProductoEditar(product); setDraftForPublish(null); setActiveTab('Publicar'); }
+  function rolElegido(rol: Rol) {
+    if (rol === 'agricultor') { setStage('setupBusiness'); return; }
+    setActiveTab('Inicio');
+    setStage('guest');
+  }
+  function volverDePublicar() {
+    let volver: AppTab = 'Inicio';
+    if (draftForPublish) volver = 'María';
+    if (productoEditar) volver = 'Inventario';
+    setProductoEditar(null);
+    setActiveTab(volver);
   }
   function orderCreated() {
     setOrderIntent(null);
@@ -157,32 +187,43 @@ export default function AppNavigator() {
   async function signOut() { const { error } = await supabase?.auth.signOut() ?? { error: null }; if (error) Alert.alert('No se pudo cerrar sesión', error.message); }
 
   if (stage === 'loading' || stage === 'checkingBusiness') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><View style={styles.loading}><SavaLogo size="large" centrado /><ActivityIndicator color={colors.brown} style={styles.spinner} /><Text style={styles.loadingText}>{stage === 'checkingBusiness' ? 'Conectando tu negocio…' : 'Preparando tu espacio…'}</Text></View></SafeAreaView>;
+  if (stage === 'chooseRole') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><RoleScreen onElegido={rolElegido} onSignOut={() => void signOut()} /></SafeAreaView>;
   if (stage === 'signedOut') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><AuthScreen onContinueGuest={continueAsGuest} purpose={orderIntent ? 'buyer' : merchantIntent ? 'seller' : 'general'} /></SafeAreaView>;
   if (stage === 'setupBusiness' && user) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><BusinessSetupScreen user={user} onCreated={(business) => { void onBusinessCreated(business).catch((error) => { setStartupError(error instanceof Error ? error.message : 'No se pudo preparar el negocio.'); setStage('error'); }); }} /></SafeAreaView>;
   if (stage === 'error') return <SafeAreaView style={styles.safe}><View style={styles.errorScreen}><SavaLogo size="large" centrado /><Text style={styles.errorTitle}>No pudimos conectar</Text><Text style={styles.loadingText}>{startupError}</Text><Pressable onPress={() => setStage(user ? 'checkingBusiness' : 'signedOut')} style={styles.retry}><Text style={styles.retryText}>Intentar de nuevo</Text></Pressable>{!!user && <Pressable onPress={() => void signOut()} style={styles.signOut}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}</View></SafeAreaView>;
 
   if (orderIntent && user && (stage === 'guest' || stage === 'signedIn')) return <SafeAreaView style={styles.safe}><OrderCheckoutScreen product={orderIntent.product} business={orderIntent.business} quantity={orderIntent.quantity} user={user} onBack={() => setOrderIntent(null)} onCreated={orderCreated} /></SafeAreaView>;
   const isChat = activeTab === 'María';
-  const isTransient = isChat || activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio';
+  const isTransient = isChat || activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio' || activeTab === 'Legal' || productoEditar !== null;
+  const esAgricultor = stage === 'signedIn';
+  const municipioComprador = datoUsuario(user, 'municipio');
+  const abrirProducto = (product: Product, business: Business | null) => setSelectedProduct({ product, business });
+
+  // cada pestana muestra una pantalla distinta segun el rol
+  let pantalla;
+  if (selectedProduct) pantalla = <ProductDetailScreen product={selectedProduct.product} business={selectedProduct.business} onBack={() => setSelectedProduct(null)} onOpenBusiness={(business) => { setSelectedProduct(null); setSelectedBusiness(business); }} />;
+  else if (selectedBusiness) pantalla = <BusinessDetailScreen business={selectedBusiness} onBack={() => setSelectedBusiness(null)} />;
+  else if (activeTab === 'Legal') pantalla = <LegalScreen onBack={() => setActiveTab(volverLegal)} />;
+  else if (isChat && esAgricultor) pantalla = <ChatScreen messages={chat.messages} draft={chat.draft} onSend={chat.sendMessage} onReset={chat.resetChat} onBack={() => setActiveTab('Inicio')} onConfirmDraft={() => void confirmProductDraft()} onEditDraft={editProductDraft} />;
+  else if (esAgricultor && (activeTab === 'Inicio' || activeTab === 'Mi negocio')) pantalla = <BusinessDashboardScreen onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Inicio')} onSignOut={() => void signOut()} />;
+  else if (esAgricultor && activeTab === 'Inventario') pantalla = <InventoryScreen onAddProduct={() => navigate('Publicar')} onEdit={editarCosecha} onOpenSales={() => setActiveTab('Ventas')} />;
+  else if (esAgricultor && activeTab === 'Publicar') pantalla = <PublishScreen key={productoEditar ? productoEditar.id : 'nueva'} producto={productoEditar} initialDraft={draftForPublish} onBack={volverDePublicar} onCreated={() => { if (draftForPublish) chat.confirmDraft(); setDraftForPublish(null); setProductoEditar(null); setActiveTab('Inventario'); }} />;
+  else if (esAgricultor && activeTab === 'Ventas') pantalla = <SalesScreen onBack={() => setActiveTab('Inicio')} />;
+  else if (esAgricultor && activeTab === 'Pedidos') pantalla = <OrdersScreen mode={ordersMode} userId={user?.id} onBack={() => setActiveTab('Inicio')} />;
+  else if (esAgricultor && activeTab === 'Editar negocio') pantalla = <ProfileScreen onBack={() => setActiveTab('Inicio')} />;
+  else if (activeTab === 'Guardados') pantalla = <GuardadosScreen onProductPress={abrirProducto} />;
+  else if (activeTab === 'Mi negocio' && user) pantalla = <OrdersScreen mode={'customer'} userId={user.id} onBack={() => setActiveTab('Inicio')} onSignOut={() => void signOut()} />;
+  else if (activeTab === 'Mi negocio' || activeTab === 'Publicar') pantalla = <AuthScreen onContinueGuest={continueAsGuest} />;
+  else pantalla = <HomeScreen key={municipioComprador} municipioInicial={municipioComprador} mostrarInvitacion={!esAgricultor} onProductPress={abrirProducto} onVender={startMerchantFlow} />;
+
   return <SafeAreaView style={styles.safe}>
     <StatusBar barStyle={isChat ? 'light-content' : 'dark-content'} />
-    {selectedProduct ? <ProductDetailScreen product={selectedProduct.product} business={selectedProduct.business} onBack={() => setSelectedProduct(null)} onOpenBusiness={(business) => { setSelectedProduct(null); setSelectedBusiness(business); }} onPlaceOrder={startOrder} />
-      : selectedBusiness ? <BusinessDetailScreen business={selectedBusiness} onBack={() => setSelectedBusiness(null)} />
-      : isChat ? <ChatScreen messages={chat.messages} draft={chat.draft} onSend={chat.sendMessage} onReset={chat.resetChat} onBack={() => setActiveTab('Inicio')} onConfirmDraft={() => void confirmProductDraft()} onEditDraft={editProductDraft} />
-      : activeTab === 'Inicio' || activeTab === 'Explorar' ? <HomeScreen exploring={activeTab === 'Explorar'} guest={stage === 'guest' || stage === 'demo'} onOpenChat={openChat} onBusinessPress={setSelectedBusiness} onProductPress={(product, business) => setSelectedProduct({ product, business })} onOpenVideos={() => setActiveTab('Videos')} />
-      : activeTab === 'Inventario' ? <InventoryScreen onAddProduct={() => setActiveTab('Publicar')} onOpenSales={() => setActiveTab('Ventas')} />
-      : activeTab === 'Publicar' ? stage === 'guest' ? <AuthScreen onContinueGuest={continueAsGuest} /> : <PublishScreen initialDraft={draftForPublish} onBack={() => setActiveTab(draftForPublish ? 'María' : 'Inicio')} onCreated={() => { if (draftForPublish) chat.confirmDraft(); setDraftForPublish(null); setActiveTab('Inventario'); }} />
-      : activeTab === 'Videos' ? <VideosScreen canPublish={stage === 'signedIn'} />
-      : activeTab === 'Ventas' ? <SalesScreen onBack={() => setActiveTab('Mi negocio')} />
-      : activeTab === 'Pedidos' ? <OrdersScreen mode={ordersMode} userId={user?.id} onBack={() => setActiveTab('Mi negocio')} />
-      : activeTab === 'Editar negocio' ? <ProfileScreen onBack={() => setActiveTab('Mi negocio')} />
-      : stage === 'guest' && activeTab === 'Mi negocio' && user ? <OrdersScreen mode={'customer'} userId={user.id} onBack={() => setActiveTab('Inicio')} onSignOut={() => void signOut()} />
-      : stage === 'guest' ? <AuthScreen onContinueGuest={continueAsGuest} /> : <BusinessDashboardScreen onNavigate={navigate} onRegisterBusiness={() => setActiveTab('Editar negocio')} onSignOut={stage === 'signedIn' ? () => void signOut() : undefined} />}
+    {pantalla}
     {!isTransient && !selectedBusiness && !selectedProduct && <TabBar active={activeTab} onChange={(tab) => {
-      if (stage === 'guest' && tab === 'Publicar') { startMerchantFlow(); return; }
-      if (stage === 'guest' && tab === 'Mi negocio' && !user) { setMerchantIntent(false); setStage('signedOut'); return; }
+      if (!esAgricultor && tab === 'Publicar') { startMerchantFlow(); return; }
+      if (!esAgricultor && tab === 'Mi negocio' && !user) { setMerchantIntent(false); setStage('signedOut'); return; }
       navigate(tab);
-    }} guest={stage === 'guest'} />}
+    }} guest={!esAgricultor} />}
   </SafeAreaView>;
 }
 
