@@ -24,7 +24,8 @@ export default function LegalScreen({ onBack }: { onBack: () => void }) {
     <Text style={styles.body}>Las tiendas del campo solo pueden publicar agroquímicos con registro ICA vigente y etiqueta original.</Text>
 
     <Text style={styles.section}>María</Text>
-    <Text style={styles.body}>María es un asistente que entiende frases sencillas. Funciona con reglas dentro del celular, no con inteligencia artificial conectada a internet. Nunca guarda una publicación ni una venta sin que tú la confirmes.</Text>
+    <Text style={styles.body}>Cuando hay internet y tienes cuenta, María usa inteligencia artificial (Claude, de la empresa Anthropic) para entender lo que escribes o dictas. Para responderte se envía tu mensaje y un resumen de tus productos y ventas; no se envían tu correo ni tu teléfono. Sin internet, María funciona con reglas dentro del celular.</Text>
+    <Text style={styles.body}>María nunca guarda una publicación ni una venta sin que tú la confirmes, y puede equivocarse: revisa siempre los datos antes de confirmar.</Text>
 
     <View style={styles.apoyo}><ApoyoGobernacion conMapa /></View>
   </ScrollView>;

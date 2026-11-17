@@ -9,6 +9,7 @@ import { dinero } from '../../../shared/contacto';
 import { mostrarCantidad, textoUnidad } from '../../../shared/validaciones';
 import { callar, hablar } from '../../../shared/voz';
 import { getDatabase } from '../../../infrastructure/database/database';
+import { preguntarAMaria, type AccionIA } from '../mariaIA';
 
 // tipoVendedor: 'agricultor' o 'tienda' si la persona vende, '' si solo compra
 type TipoVendedor = 'agricultor' | 'tienda' | '';
@@ -44,6 +45,8 @@ export function useAssistantChat(tipo: TipoVendedor) {
   const [draft, setDraft] = useState<ProductDraft | null>(null);
   const [venta, setVenta] = useState<VentaPropuesta | null>(null);
   const [pensando, setPensando] = useState(false);
+  // true cuando la ultima respuesta vino de la inteligencia artificial
+  const [conIA, setConIA] = useState(false);
   // maria habla por defecto; si la persona la silencia se recuerda en el celular
   const [leerEnVoz, setLeerEnVoz] = useState(true);
   // borrador al que le falta la cantidad o el precio
@@ -74,7 +77,14 @@ export function useAssistantChat(tipo: TipoVendedor) {
     if (!valor || pensando) return;
     setMessages((actual) => [...actual, { id: nuevoId(), author: 'user', text: valor }]);
     setPensando(true);
-    try { await procesar(valor); }
+    // si maria esta esperando un dato corto (cantidad o precio) se usan las reglas;
+    // si no, primero se intenta con la ia y si no responde se usan las reglas
+    try {
+      let resuelto = false;
+      if (!pendiente.current) resuelto = await usarIA(valor);
+      setConIA(resuelto);
+      if (!resuelto) await procesar(valor);
+    }
     catch (error) { responder('Tuve un problema: ' + (error instanceof Error ? error.message : 'intenta de nuevo.')); }
     finally { setPensando(false); }
   }
@@ -138,6 +148,49 @@ export function useAssistantChat(tipo: TipoVendedor) {
 
     if (vende) responder('No te entendí. Prueba con frases como «vendí 10 kilos de yuca» o «¿cuánto vendí esta semana?».');
     else responder('No te entendí. Dime qué buscas, por ejemplo «necesito plátano en Yopal».');
+  }
+
+  // le pregunta a claude por medio de la funcion de supabase.
+  // devuelve false si la ia no esta disponible (sin internet, sin cuenta o sin configurar)
+  async function usarIA(valor: string) {
+    const historial: Array<{ autor: 'user' | 'assistant'; texto: string }> = [];
+    for (const mensaje of messages) {
+      if (mensaje.id === 'bienvenida') continue;
+      historial.push({ autor: mensaje.author, texto: mensaje.text });
+    }
+    const respuesta = await preguntarAMaria(valor, historial, tipo);
+    if (!respuesta) return false;
+    const accion = respuesta.accion;
+    if (!accion) {
+      if (respuesta.texto === '') return false;
+      responder(respuesta.texto);
+      return true;
+    }
+    await ejecutarAccion(accion, respuesta.texto);
+    return true;
+  }
+
+  // la ia solo propone: aqui se convierte en una tarjeta que la persona confirma
+  async function ejecutarAccion(accion: AccionIA, texto: string) {
+    const vende = tipo !== '';
+    if (accion.tipo === 'buscar_en_mercado') {
+      await buscar(accion.datos.producto, accion.datos.municipio, accion.datos.cantidad);
+      return;
+    }
+    if (!vende) { responder('Eso es para quien vende en Sava. Si tienes cosecha o una tienda del campo, toca «Vender» abajo para registrarte.'); return; }
+    if (accion.tipo === 'registrar_venta') {
+      await prepararVenta(accion.datos.producto, accion.datos.cantidad, accion.datos.precio_unitario_cop, 0);
+      return;
+    }
+    const datos = accion.datos;
+    let categoria = categoriaVisible(datos.categoria);
+    if (tipo === 'tienda' && !esInsumo(categoria)) categoria = 'Otros insumos';
+    const borrador: ProductDraft = { name: datos.nombre, category: categoria, description: datos.descripcion, price_cop: Math.round(datos.precio_cop), stock: datos.cantidad, unit: datos.unidad };
+    setDraft(borrador);
+    setVenta(null);
+    let mensaje = texto;
+    if (mensaje === '') mensaje = 'Preparé esta publicación: ' + borrador.name + ', ' + mostrarCantidad(borrador.stock) + ' ' + textoUnidad(borrador.stock, borrador.unit) + ' a ' + dinero(borrador.price_cop) + ' cada ' + borrador.unit + '. Revísala y toca «Confirmar».';
+    responder(mensaje);
   }
 
   function mostrarBorrador(borrador: ProductDraft) {
@@ -287,5 +340,5 @@ export function useAssistantChat(tipo: TipoVendedor) {
     if (leerEnVoz && messages.length === 1) void hablar(messages[0].text);
   }
 
-  return { messages, draft, venta, pensando, leerEnVoz, sendMessage, confirmDraft, confirmarVenta, cancelarVenta, resetChat, cambiarVoz, alAbrir };
+  return { messages, draft, venta, pensando, leerEnVoz, conIA, sendMessage, confirmDraft, confirmarVenta, cancelarVenta, resetChat, cambiarVoz, alAbrir };
 }

@@ -11,7 +11,7 @@ import { getProductImageUri } from '../marketplace/getProductImageUri';
 import { hablar } from '../../shared/voz';
 
 type Props = {
-  messages: ChatMessage[]; draft: ProductDraft | null; venta: VentaPropuesta | null; pensando: boolean; leerEnVoz: boolean; tipo: 'agricultor' | 'tienda' | '';
+  messages: ChatMessage[]; draft: ProductDraft | null; venta: VentaPropuesta | null; pensando: boolean; leerEnVoz: boolean; conIA: boolean; tipo: 'agricultor' | 'tienda' | '';
   onSend: (text: string) => void; onReset: () => void; onBack: () => void; onCambiarVoz: () => void;
   onConfirmDraft: () => void; onEditDraft: () => void; onConfirmarVenta: () => void; onCancelarVenta: () => void;
   onOpenProduct: (product: Product, business: Business | null) => void;
@@ -61,7 +61,7 @@ export default function ChatScreen(props: Props) {
         <Pressable accessibilityRole="button" accessibilityLabel="Volver" hitSlop={10} onPress={props.onBack} style={styles.headerBoton}><ArrowLeft size={22} color={colors.white} /></Pressable>
         <View style={styles.headerCentro}>
           <View style={styles.nameRow}><Text style={styles.name}>María</Text><Sparkles size={15} color={colors.arcilla} /></View>
-          <Text style={styles.subtitle}>Entiende frases sencillas · sin IA conectada</Text>
+          <Text style={styles.subtitle}>{props.conIA ? 'Con inteligencia artificial' : 'Asistente de Sava'}</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel={leerEnVoz ? 'Dejar de leer en voz alta' : 'Leer respuestas en voz alta'} hitSlop={10} onPress={props.onCambiarVoz} style={[styles.headerBoton, leerEnVoz && styles.vozActiva]}>
           {leerEnVoz ? <Volume2 size={21} color={colors.white} /> : <VolumeX size={21} color={colors.white} />}

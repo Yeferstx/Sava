@@ -10,7 +10,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#F0E9DF"
+        "backgroundColor": "#F0E9DF",
+        "foregroundImage": "./assets/adaptive-icon.png"
       }
     },
     "plugins": [
@@ -41,6 +42,10 @@
           "backgroundColor": "#F0E9DF"
         }
       ]
-    ]
+    ],
+    "icon": "./assets/icon.png",
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
   }
 }
