@@ -3,13 +3,14 @@ import { Bookmark, CirclePlus, House, MessageCircle, Sprout, Store, UserRound } 
 import type { AppTab } from '../../navigation/types';
 import { colors } from '../theme';
 
-type Props = { active: AppTab; onChange: (tab: AppTab) => void; guest?: boolean };
+type Props = { active: AppTab; onChange: (tab: AppTab) => void; guest?: boolean; tienda?: boolean };
 
-export default function TabBar({ active, onChange, guest = false }: Props) {
+export default function TabBar({ active, onChange, guest = false, tienda = false }: Props) {
   // comprador o invitado: mercado y guardados. agricultor: su panel y sus cosechas
   let tabs = [
     { name: 'Inicio' as AppTab, label: 'Inicio', Icon: House },
     { name: 'Guardados' as AppTab, label: 'Guardados', Icon: Bookmark },
+    { name: 'María' as AppTab, label: 'María', Icon: MessageCircle },
     { name: 'Publicar' as AppTab, label: 'Vender', Icon: CirclePlus },
     { name: 'Mi negocio' as AppTab, label: 'Cuenta', Icon: UserRound },
   ];
@@ -18,7 +19,7 @@ export default function TabBar({ active, onChange, guest = false }: Props) {
       { name: 'Inicio' as AppTab, label: 'Inicio', Icon: House },
       { name: 'Explorar' as AppTab, label: 'Mercado', Icon: Store },
       { name: 'Publicar' as AppTab, label: 'Publicar', Icon: CirclePlus },
-      { name: 'Inventario' as AppTab, label: 'Cosechas', Icon: Sprout },
+      { name: 'Inventario' as AppTab, label: tienda ? 'Productos' : 'Cosechas', Icon: Sprout },
       { name: 'María' as AppTab, label: 'María', Icon: MessageCircle },
     ];
   }

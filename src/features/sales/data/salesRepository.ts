@@ -26,7 +26,8 @@ export async function cacheRemoteSales(remoteSales: Array<{ id: string; business
   });
 }
 
-export async function recordSale(productId: string, quantity = 1) {
+// precioUnitario es opcional: si la venta fue a otro precio (lo dice maria) se usa ese
+export async function recordSale(productId: string, quantity = 1, precioUnitario = 0) {
   const db = await getDatabase();
   const businessId = await getActiveBusinessId();
   const saleId = createLocalId('sale');
@@ -39,13 +40,35 @@ export async function recordSale(productId: string, quantity = 1) {
     if (errorVenta !== '') throw new Error(errorVenta);
     if (redondear(product.stock) < redondear(quantity)) throw new Error('No hay suficiente inventario para registrar esta venta.');
     // en supabase el total es entero, por eso se redondea
-    const total = Math.round(product.price_cop * quantity);
+    let precio = product.price_cop;
+    if (precioUnitario > 0) precio = Math.round(precioUnitario);
+    const total = Math.round(precio * quantity);
     const nuevoStock = redondear(product.stock - quantity);
     await transaction.runAsync('INSERT INTO sales (id, business_id, total_cop, sold_at, sync_status) VALUES (?, ?, ?, ?, ?)', saleId, businessId, total, now, 'pending');
-    await transaction.runAsync('INSERT INTO sale_items (id, sale_id, product_id, quantity, unit_price_cop) VALUES (?, ?, ?, ?, ?)', itemId, saleId, productId, quantity, product.price_cop);
+    await transaction.runAsync('INSERT INTO sale_items (id, sale_id, product_id, quantity, unit_price_cop) VALUES (?, ?, ?, ?, ?)', itemId, saleId, productId, quantity, precio);
     await transaction.runAsync('UPDATE products SET stock = ?, sync_status = ?, updated_at = ? WHERE id = ?', nuevoStock, 'pending', now, productId);
     await enqueueSync(transaction, 'product', 'upsert', { ...product, stock: nuevoStock, sync_status: 'pending', updated_at: now });
-    await enqueueSync(transaction, 'sale', 'create', { id: saleId, item_id: itemId, business_id: businessId, product_id: productId, quantity, unit_price_cop: product.price_cop, total_cop: total, sold_at: now });
+    await enqueueSync(transaction, 'sale', 'create', { id: saleId, item_id: itemId, business_id: businessId, product_id: productId, quantity, unit_price_cop: precio, total_cop: total, sold_at: now });
   });
   void syncPendingChanges().catch(() => undefined);
+}
+
+// ventas desde una fecha, para el resumen de maria
+export async function ventasDesde(desde: Date) {
+  const db = await getDatabase();
+  const businessId = await getActiveBusinessId();
+  return db.getAllAsync<SaleSummary>(`SELECT sales.id, products.name AS product_name, products.unit, sale_items.quantity, sales.total_cop, sales.sold_at
+    FROM sales JOIN sale_items ON sale_items.sale_id = sales.id JOIN products ON products.id = sale_items.product_id
+    WHERE sales.business_id = ? AND sales.sold_at >= ? ORDER BY sales.sold_at DESC`, businessId, desde.toISOString());
+}
+
+// cuanto se ha vendido de cada producto (para el inventario)
+export type VendidoPorProducto = { product_id: string; vendido: number; total: number };
+
+export async function vendidoPorProducto() {
+  const db = await getDatabase();
+  const businessId = await getActiveBusinessId();
+  return db.getAllAsync<VendidoPorProducto>(`SELECT sale_items.product_id, SUM(sale_items.quantity) AS vendido, SUM(sales.total_cop) AS total
+    FROM sale_items JOIN sales ON sales.id = sale_items.sale_id
+    WHERE sales.business_id = ? GROUP BY sale_items.product_id`, businessId);
 }

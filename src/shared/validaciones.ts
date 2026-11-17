@@ -12,7 +12,7 @@ export const municipios = [
 
 // estas unidades se pueden vender por partes (medio kilo, media libra)
 export function aceptaDecimales(unidad: string) {
-  if (unidad === 'kg' || unidad === 'libra' || unidad === 'bulto') {
+  if (unidad === 'kg' || unidad === 'libra' || unidad === 'bulto' || unidad === 'litro' || unidad === 'galón') {
     return true;
   }
   return false;
@@ -76,6 +76,9 @@ export function textoUnidad(cantidad: number, unidad: string) {
   }
   if (unidad === 'unidad') {
     return 'unidades';
+  }
+  if (unidad === 'galón') {
+    return 'galones';
   }
   return unidad + 's';
 }

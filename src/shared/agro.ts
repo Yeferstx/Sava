@@ -7,6 +7,17 @@ export const categoriasAgricolas = [
 
 export const unidades = ['kg', 'bulto', 'caja', 'racimo', 'unidad', 'libra'];
 
+// lo que venden las tiendas del campo (agropecuarias)
+export const categoriasInsumos = [
+  'Semillas', 'Abonos y fertilizantes', 'Agroquímicos', 'Herramientas', 'Alimento para animales', 'Otros insumos',
+];
+
+export const unidadesInsumo = ['unidad', 'bulto', 'kg', 'litro', 'galón', 'caja'];
+
+export function esInsumo(categoria: string) {
+  return categoriasInsumos.includes(categoria);
+}
+
 export const formasEntrega = ['Recogida en la finca', 'Entrega en el pueblo', 'A convenir'];
 
 // opciones de fecha de disponibilidad (dias desde hoy)
@@ -52,6 +63,12 @@ export function categoriaDeProducto(nombre: string) {
   if (texto.includes('patilla') || texto.includes('sandía') || texto.includes('sandia')) return 'Patilla';
   if (texto.includes('ahuyama') || texto.includes('zapallo')) return 'Ahuyama';
   if (texto.includes('maracuy') || texto.includes('mango') || texto.includes('guayaba') || texto.includes('limón') || texto.includes('limon') || texto.includes('naranja') || texto.includes('fruta')) return 'Maracuyá y frutas';
+  // insumos de las tiendas del campo
+  if (texto.includes('semilla')) return 'Semillas';
+  if (texto.includes('abono') || texto.includes('fertiliz') || texto.includes('urea') || texto.includes('triple 15') || texto.includes('cal ')) return 'Abonos y fertilizantes';
+  if (texto.includes('veneno') || texto.includes('herbicida') || texto.includes('insecticida') || texto.includes('fungicida') || texto.includes('glifosato') || texto.includes('matamaleza') || texto.includes('fumig')) return 'Agroquímicos';
+  if (texto.includes('machete') || texto.includes('pala') || texto.includes('azad') || texto.includes('bomba') || texto.includes('guadaña') || texto.includes('alambre')) return 'Herramientas';
+  if (texto.includes('concentrado') || texto.includes('purina') || texto.includes('sal mineral') || texto.includes('melaza')) return 'Alimento para animales';
   if (texto.includes('tomate') || texto.includes('cebolla') || texto.includes('pimentón') || texto.includes('cilantro') || texto.includes('lechuga') || texto.includes('ají') || texto.includes('pepino') || texto.includes('habichuela')) return 'Hortalizas';
   return 'Otros';
 }
@@ -59,5 +76,6 @@ export function categoriaDeProducto(nombre: string) {
 // la categoria vieja de productos anteriores cae en "otros"
 export function categoriaVisible(categoria: string) {
   if (categoriasAgricolas.includes(categoria)) return categoria;
+  if (categoriasInsumos.includes(categoria)) return categoria;
   return 'Otros';
 }

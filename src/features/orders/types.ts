@@ -1,6 +1,7 @@
 export type OrderStatus = 'pending' | 'accepted' | 'rejected' | 'completed';
 
 export type OrderItem = {
+  product_id: string;
   product_name: string;
   quantity: number;
   unit: string;
@@ -20,5 +21,5 @@ export type OrderSummary = {
   total_cop: number;
   created_at: string;
   order_items: OrderItem[];
-  business?: { name: string; municipality: string } | null;
+  business?: { name: string; municipality: string; phone: string } | null;
 };

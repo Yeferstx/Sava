@@ -8,11 +8,14 @@ import { syncPendingChanges } from '../../infrastructure/sync/syncService';
 import type { AppTab } from '../../navigation/types';
 import { colors } from '../../shared/theme';
 import { dinero } from '../../shared/contacto';
+import ApoyoGobernacion from '../../shared/components/ApoyoGobernacion';
+import BotonEscuchar from '../../shared/components/BotonEscuchar';
 
-type Props = { onNavigate: (tab: AppTab) => void; onEditFinca: () => void; onSignOut?: () => void; onLegal: () => void };
+type Props = { onNavigate: (tab: AppTab) => void; onEditFinca: () => void; onSignOut?: () => void; onLegal: () => void; tipo?: 'agricultor' | 'tienda' };
 
 // panel del agricultor: accesos rapidos y un resumen corto, sin graficas
-export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSignOut, onLegal }: Props) {
+export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSignOut, onLegal, tipo = 'agricultor' }: Props) {
+  const esTienda = tipo === 'tienda';
   const [activas, setActivas] = useState(0);
   const [ventasSemana, setVentasSemana] = useState(0);
   const [pendientes, setPendientes] = useState(0);
@@ -55,12 +58,12 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
   }
 
   const atajos: Array<{ tab: AppTab; titulo: string; texto: string; Icon: typeof Sprout }> = [
-    { tab: 'Publicar', titulo: 'Publicar cosecha', texto: 'Muestra lo que tienes disponible', Icon: PackagePlus },
-    { tab: 'Inventario', titulo: 'Mis cosechas', texto: 'Cantidades, precios y publicaciones', Icon: Sprout },
+    { tab: 'Publicar', titulo: esTienda ? 'Publicar producto' : 'Publicar cosecha', texto: 'Muestra lo que tienes disponible', Icon: PackagePlus },
+    { tab: 'Inventario', titulo: esTienda ? 'Mis productos' : 'Mis cosechas', texto: 'Cantidades, precios y publicaciones', Icon: Sprout },
     { tab: 'Ventas', titulo: 'Ventas registradas', texto: 'Anota lo que vendiste', Icon: CircleDollarSign },
     { tab: 'Pedidos', titulo: 'Consultas de compradores', texto: 'Solicitudes que te enviaron en Sava', Icon: ClipboardList },
-    { tab: 'María', titulo: 'Hablar con María', texto: 'Prepara una publicación escribiendo', Icon: Sparkles },
-    { tab: 'Explorar', titulo: 'Ver el mercado', texto: 'Mira lo que publican otros productores', Icon: Store },
+    { tab: 'María', titulo: 'Hablar con María', texto: 'Publica, anota ventas y pregunta tu inventario', Icon: Sparkles },
+    { tab: 'Explorar', titulo: esTienda ? 'Ver el mercado' : 'Comprar insumos', texto: esTienda ? 'Mira lo que se vende en Casanare' : 'Semillas, abonos y herramientas', Icon: Store },
   ];
 
   let textoPendientes = 'Todo está sincronizado';
@@ -68,13 +71,14 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
   if (pendientes > 1) textoPendientes = pendientes + ' cambios pendientes de sincronizar';
 
   return <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refresh()} tintColor={colors.brown} />}>
-    <Text style={styles.eyebrow}>PANEL DEL AGRICULTOR</Text>
-    <Text style={styles.title}>{finca !== '' ? finca : 'Mi finca'}</Text>
+    <Text style={styles.eyebrow}>{esTienda ? 'PANEL DE LA TIENDA' : 'PANEL DEL CAMPESINO'}</Text>
+    <Text style={styles.title}>{finca !== '' ? finca : esTienda ? 'Mi tienda' : 'Mi finca'}</Text>
     {municipio !== '' && <Text style={styles.place}>{municipio}, Casanare</Text>}
-    <Text style={styles.motto}>Tu cosecha merece encontrar compradores.</Text>
+    <Text style={styles.motto}>{esTienda ? 'Lleva tus productos a los campesinos de Casanare.' : 'Tu cosecha merece encontrar compradores.'}</Text>
+    <View style={styles.escuchar}><BotonEscuchar texto={'Aquí ves lo que tienes publicado y tus ventas. Toca un botón grande para publicar, ver tus productos, anotar una venta o hablar con María.'} /></View>
 
     <View style={styles.metrics}>
-      <View style={styles.metric}><Text style={styles.metricLabel}>COSECHAS PUBLICADAS</Text><Text style={styles.metricValue}>{activas}</Text></View>
+      <View style={styles.metric}><Text style={styles.metricLabel}>{esTienda ? 'PRODUCTOS PUBLICADOS' : 'COSECHAS PUBLICADAS'}</Text><Text style={styles.metricValue}>{activas}</Text></View>
       <View style={styles.metric}><Text style={styles.metricLabel}>VENTAS 7 DÍAS</Text><Text style={styles.metricValue}>{dinero(ventasSemana)}</Text></View>
     </View>
 
@@ -90,16 +94,17 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
       <ArrowRight size={18} color={colors.brown} />
     </Pressable>)}
 
-    <Pressable onPress={onEditFinca} style={styles.link}><Text style={styles.linkText}>Editar información de la finca</Text></Pressable>
+    <Pressable onPress={onEditFinca} style={styles.link}><Text style={styles.linkText}>{esTienda ? 'Editar información de la tienda' : 'Editar información de la finca'}</Text></Pressable>
     <Pressable onPress={onLegal} style={styles.link}><Text style={styles.linkText}>Privacidad y términos de uso</Text></Pressable>
     {!!onSignOut && <Pressable onPress={onSignOut} style={styles.link}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}
+    <ApoyoGobernacion conMapa />
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 }, content: { padding: 20, paddingTop: 38, paddingBottom: 40 },
   eyebrow: { color: colors.muted, fontSize: 11, letterSpacing: 1.2, fontWeight: '800' }, title: { color: colors.ink, fontSize: 27, fontWeight: '900', marginTop: 4 },
-  place: { color: colors.muted, fontSize: 13, marginTop: 2 }, motto: { color: colors.brown, fontSize: 14, fontWeight: '700', marginTop: 10 },
+  place: { color: colors.muted, fontSize: 13, marginTop: 2 }, motto: { color: colors.brown, fontSize: 14, fontWeight: '700', marginTop: 10 }, escuchar: { marginTop: 10 },
   metrics: { flexDirection: 'row', gap: 10, marginTop: 18 },
   metric: { flex: 1, borderRadius: 17, padding: 14, backgroundColor: colors.brown }, metricLabel: { color: colors.verdeClaro, fontSize: 10, letterSpacing: 0.8, fontWeight: '800' }, metricValue: { color: colors.white, fontSize: 22, fontWeight: '900', marginTop: 6 },
   sync: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 13, borderRadius: 14, backgroundColor: colors.verdeClaro, marginTop: 12, marginBottom: 14 },

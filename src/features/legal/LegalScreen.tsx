@@ -1,5 +1,6 @@
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../shared/theme';
+import ApoyoGobernacion from '../../shared/components/ApoyoGobernacion';
 
 // texto base del prototipo. el equipo debe revisarlo antes de un lanzamiento real
 export default function LegalScreen({ onBack }: { onBack: () => void }) {
@@ -20,6 +21,12 @@ export default function LegalScreen({ onBack }: { onBack: () => void }) {
     <Text style={styles.section}>Términos de uso</Text>
     <Text style={styles.body}>Sava conecta a productores y compradores, pero no vende, no transporta y no procesa pagos. El precio final, la calidad y la entrega se acuerdan directamente entre las partes. Sava todavía no verifica la identidad de los productores, así que te recomendamos confirmar los datos antes de pagar.</Text>
     <Text style={styles.body}>No está permitido publicar productos falsos, engañosos o ilegales. Las publicaciones que incumplan estas reglas pueden ser retiradas.</Text>
+    <Text style={styles.body}>Las tiendas del campo solo pueden publicar agroquímicos con registro ICA vigente y etiqueta original.</Text>
+
+    <Text style={styles.section}>María</Text>
+    <Text style={styles.body}>María es un asistente que entiende frases sencillas. Funciona con reglas dentro del celular, no con inteligencia artificial conectada a internet. Nunca guarda una publicación ni una venta sin que tú la confirmes.</Text>
+
+    <View style={styles.apoyo}><ApoyoGobernacion conMapa /></View>
   </ScrollView>;
 }
 
@@ -27,5 +34,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 }, content: { padding: 22, paddingTop: 35, paddingBottom: 40 },
   back: { color: colors.brown, fontWeight: '700', fontSize: 15, marginBottom: 18 }, title: { color: colors.ink, fontSize: 26, fontWeight: '900' },
   note: { color: '#775D50', backgroundColor: '#F5E7E2', borderRadius: 13, padding: 12, fontSize: 13, lineHeight: 19, marginTop: 12, overflow: 'hidden' },
+  apoyo: { marginTop: 20 },
   section: { color: colors.ink, fontSize: 17, fontWeight: '800', marginTop: 22, marginBottom: 6 }, body: { color: colors.muted, fontSize: 14, lineHeight: 21, marginBottom: 6 },
 });

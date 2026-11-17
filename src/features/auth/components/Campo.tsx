@@ -45,7 +45,7 @@ export default function Campo({ etiqueta, icono, error = '', ayuda = '', esClave
 }
 
 const styles = StyleSheet.create({
-  bloque: { marginBottom: 14 },
+  bloque: { marginBottom: 12 },
   etiqueta: { color: colors.grafito, fontSize: 14, fontWeight: '700', marginBottom: 7 },
   caja: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, borderRadius: 14, borderWidth: 1.5, backgroundColor: colors.white, paddingHorizontal: 14 },
   input: { flex: 1, color: colors.grafito, fontSize: 15, paddingVertical: 12 },

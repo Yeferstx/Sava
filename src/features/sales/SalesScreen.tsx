@@ -55,8 +55,8 @@ export default function SalesScreen({ onBack }: { onBack: () => void }) {
   const totalToday = todaySales.reduce((sum, sale) => sum + sale.total_cop, 0);
 
   return <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.brown} />}>
-    <Pressable onPress={onBack}><Text style={styles.back}>‹  Mi negocio</Text></Pressable>
-    <Text style={styles.title}>Ventas</Text><Text style={styles.subtitle}>Registra cada venta y mantén tus cuentas al día.</Text>
+    <Pressable onPress={onBack}><Text style={styles.back}>‹  Volver</Text></Pressable>
+    <Text style={styles.title}>Ventas</Text><Text style={styles.subtitle}>Anota lo que vendes y el inventario se descuenta solo. Es un registro tuyo, no una factura.</Text>
     <View style={styles.summary}><Text style={styles.summaryCaption}>TOTAL DE HOY</Text><Text style={styles.summaryValue}>{money(totalToday)}</Text><Text style={styles.summaryCount}>{todaySales.length} {todaySales.length === 1 ? 'venta' : 'ventas'}</Text></View>
     <Text style={styles.section}>Registrar una venta</Text>
     {products.map((product) => <View key={product.id}><Pressable onPress={() => askToSell(product)} style={styles.product}><View style={styles.productIcon}>{product.category === 'Agro' ? <Sprout size={20} color={colors.brown} /> : <Package size={20} color={colors.brown} />}</View><View style={styles.productCopy}><Text style={styles.productName}>{product.name}</Text><Text style={styles.productMeta}>{money(product.price_cop)} · quedan {mostrarCantidad(product.stock)} {textoUnidad(product.stock, product.unit)}</Text></View><Plus size={19} color={colors.brown} /></Pressable>

@@ -5,6 +5,7 @@ import { getBusinessProfile, saveBusinessProfile } from '../business/data/busine
 import { colors } from '../../shared/theme';
 import SavaLogo from '../../shared/components/SavaLogo';
 import { limpiarTelefono, municipios, telefonoValido } from '../../shared/validaciones';
+import { CATEGORIA_TIENDA } from '../../shared/roles';
 
 const businessCategories = ['Finca', 'Huerta', 'Asociación', 'Emprendimiento agrícola', 'Otro'];
 
@@ -27,10 +28,10 @@ export default function ProfileScreen({ onBack }: { onBack: () => void }) {
   }
 
   return <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-    <Pressable onPress={onBack}><Text style={styles.back}>‹  Volver</Text></Pressable><SavaLogo size="small" /><Text style={styles.title}>Información de la finca</Text><Text style={styles.subtitle}>Estos datos ayudan a que los compradores sepan quién eres y cómo encontrarte.</Text>
+    <Pressable onPress={onBack}><Text style={styles.back}>‹  Volver</Text></Pressable><SavaLogo size="small" /><Text style={styles.title}>{category === CATEGORIA_TIENDA ? 'Información de la tienda' : 'Información de la finca'}</Text><Text style={styles.subtitle}>Estos datos ayudan a que los compradores sepan quién eres y cómo encontrarte.</Text>
     <View style={styles.avatar}><Store size={38} color={colors.brown} strokeWidth={1.6} /></View>
     <Text style={styles.label}>Nombre de la finca o emprendimiento *</Text><TextInput editable={!loading} value={name} onChangeText={setName} placeholder="Nombre de la finca" style={styles.input} maxLength={60} />
-    <Text style={styles.label}>Tipo</Text><View style={styles.options}>{businessCategories.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.option, category === item && styles.optionSelected]}><Text style={[styles.optionText, category === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
+    {category !== CATEGORIA_TIENDA && <Text style={styles.label}>Tipo</Text>}{category !== CATEGORIA_TIENDA && <View style={styles.options}>{businessCategories.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.option, category === item && styles.optionSelected]}><Text style={[styles.optionText, category === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>}
     <Text style={styles.label}>Descripción</Text><TextInput value={description} onChangeText={setDescription} placeholder="¿Qué cultivas?" style={[styles.input, styles.multiline]} multiline textAlignVertical="top" maxLength={240} />
     <Text style={styles.label}>Teléfono de contacto *</Text><TextInput value={phone} onChangeText={setPhone} placeholder="+57 300 000 0000" style={styles.input} keyboardType="phone-pad" maxLength={16} />
     <Text style={styles.label}>Municipio</Text><View style={styles.options}>{municipios.map((item) => <Pressable key={item} onPress={() => setCity(item)} style={[styles.option, city === item && styles.optionSelected]}><Text style={[styles.optionText, city === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>

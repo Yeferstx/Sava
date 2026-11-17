@@ -7,18 +7,21 @@ import type { Product } from './types';
 import { colors } from '../../shared/theme';
 import { mostrarCantidad, textoUnidad } from '../../shared/validaciones';
 import { compartirCosecha, dinero } from '../../shared/contacto';
+import { vendidoPorProducto, type VendidoPorProducto } from '../sales/data/salesRepository';
 
-type Props = { onAddProduct: () => void; onEdit: (product: Product) => void; onOpenSales: () => void };
+type Props = { onAddProduct: () => void; onEdit: (product: Product) => void; onOpenSales: () => void; tipo?: 'agricultor' | 'tienda' };
 
 // mis cosechas: publicaciones del agricultor con su cantidad disponible
-export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales }: Props) {
+export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, tipo = 'agricultor' }: Props) {
   const [products, setProducts] = useState<Product[]>([]);
+  const [vendidos, setVendidos] = useState<VendidoPorProducto[]>([]);
   const [finca, setFinca] = useState('');
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
       setProducts(await listProducts());
+      setVendidos(await vendidoPorProducto());
       const perfil = await getBusinessProfile();
       if (perfil) setFinca(perfil.name + ' · ' + perfil.city);
     }
@@ -66,7 +69,7 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales }: P
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.brown} />}>
       {finca !== '' && <Text style={styles.eyebrow}>{finca.toUpperCase()}</Text>}
-      <Text style={styles.title}>Mis cosechas</Text>
+      <Text style={styles.title}>{tipo === 'tienda' ? 'Mis productos' : 'Mis cosechas'}</Text>
       <View style={styles.stats}>
         <View style={styles.stat}><Text style={styles.statNumber}>{activas}</Text><Text style={styles.statLabel}>Publicadas</Text></View>
         <View style={styles.stat}><Text style={[styles.statNumber, agotadas > 0 && styles.warning]}>{agotadas}</Text><Text style={styles.statLabel}>Agotadas</Text></View>
@@ -77,6 +80,12 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales }: P
       {products.map((product) => {
         let estado = 'Publicada';
         if (product.is_published === 0) estado = 'Pausada';
+        // cantidad inicial = lo que queda + lo vendido
+        let vendido = 0;
+        let totalVendido = 0;
+        for (const fila of vendidos) {
+          if (fila.product_id === product.id) { vendido = fila.vendido; totalVendido = fila.total; }
+        }
         let sync = 'Sincronizada';
         if (product.sync_status === 'pending') sync = 'Pendiente de sincronizar';
         if (product.sync_status === 'local') sync = 'Solo en este celular';
@@ -86,7 +95,8 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales }: P
             <View style={styles.productInfo}>
               <Text style={styles.productName}>{product.name}</Text>
               <Text style={styles.productPrice}>{dinero(product.price_cop)} por {product.unit}</Text>
-              <Text style={[styles.stock, product.stock <= 0 && styles.warning]}>{mostrarCantidad(product.stock)} {textoUnidad(product.stock, product.unit)} disponibles</Text>
+              <Text style={[styles.stock, product.stock <= 0 && styles.warning]}>Quedan {mostrarCantidad(product.stock)} {textoUnidad(product.stock, product.unit)}</Text>
+              {vendido > 0 && <Text style={styles.productPrice}>Vendido: {mostrarCantidad(vendido)} de {mostrarCantidad(product.stock + vendido)} · {dinero(totalVendido)}</Text>}
               <View style={styles.badges}>
                 <Text style={[styles.badge, product.is_published === 0 && styles.badgePaused]}>{estado}</Text>
                 <Text style={[styles.sync, product.sync_status === 'pending' && styles.syncPending]}>● {sync}</Text>
@@ -105,7 +115,7 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales }: P
           </View>
         </View>;
       })}
-      {products.length === 0 && !loading && <View style={styles.emptyBox}><Text style={styles.empty}>Aún no tienes cosechas publicadas.</Text><Pressable onPress={onAddProduct} style={styles.emptyButton}><Text style={styles.emptyButtonText}>Publicar mi primera cosecha</Text></Pressable></View>}
+      {products.length === 0 && !loading && <View style={styles.emptyBox}><Text style={styles.empty}>Aún no tienes nada publicado.</Text><Pressable onPress={onAddProduct} style={styles.emptyButton}><Text style={styles.emptyButtonText}>Publicar ahora</Text></Pressable></View>}
       <View style={styles.offline}><Wifi size={16} color={colors.muted} /><Text style={styles.offlineText}>Tus cambios se guardan en este celular y se sincronizan cuando vuelve la conexión.</Text></View>
     </ScrollView>
   );

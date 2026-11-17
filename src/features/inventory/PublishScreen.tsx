@@ -9,9 +9,10 @@ import { colors } from '../../shared/theme';
 import type { ProductDraft } from '../chat/types';
 import type { Product } from './types';
 import { CANTIDAD_MAXIMA, errorCantidad, leerCantidad, leerPrecio, municipios, tecladoCantidad } from '../../shared/validaciones';
-import { categoriasAgricolas, categoriaVisible, fechaDesdeHoy, formasEntrega, opcionesFecha, unidades } from '../../shared/agro';
+import { categoriasAgricolas, categoriasInsumos, categoriaVisible, fechaDesdeHoy, formasEntrega, opcionesFecha, unidades, unidadesInsumo } from '../../shared/agro';
+import BotonEscuchar from '../../shared/components/BotonEscuchar';
 
-type Props = { onBack: () => void; onCreated: () => void; initialDraft?: ProductDraft | null; producto?: Product | null };
+type Props = { onBack: () => void; onCreated: () => void; initialDraft?: ProductDraft | null; producto?: Product | null; tipo?: 'agricultor' | 'tienda' };
 
 // separa "Recogida en la finca · detalle" en la forma y el detalle
 function partirEntrega(texto: string | undefined) {
@@ -23,8 +24,13 @@ function partirEntrega(texto: string | undefined) {
   return { forma: 'A convenir', detalle: texto };
 }
 
-export default function PublishScreen({ onBack, onCreated, initialDraft, producto }: Props) {
+export default function PublishScreen({ onBack, onCreated, initialDraft, producto, tipo = 'agricultor' }: Props) {
   const editando = !!producto;
+  // la tienda del campo publica insumos, el campesino publica cosechas
+  const esTienda = tipo === 'tienda';
+  let listaCategorias = categoriasAgricolas;
+  let listaUnidades = unidades;
+  if (esTienda) { listaCategorias = categoriasInsumos; listaUnidades = unidadesInsumo; }
   let base: ProductDraft | null = null;
   if (producto) base = producto;
   else if (initialDraft) base = initialDraft;
@@ -32,10 +38,10 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
 
   const [name, setName] = useState(base ? base.name : '');
   const [description, setDescription] = useState(base ? base.description : '');
-  const [category, setCategory] = useState(base ? categoriaVisible(base.category) : categoriasAgricolas[0]);
+  const [category, setCategory] = useState(base ? categoriaVisible(base.category) : listaCategorias[0]);
   const [price, setPrice] = useState(base && base.price_cop ? String(base.price_cop) : '');
   const [stock, setStock] = useState(base && base.stock ? String(base.stock) : '');
-  const [unit, setUnit] = useState(base ? base.unit : 'kg');
+  const [unit, setUnit] = useState(base ? base.unit : listaUnidades[0]);
   const [municipio, setMunicipio] = useState(producto && producto.municipality ? producto.municipality : '');
   const [disponible, setDisponible] = useState(producto && producto.available_from ? producto.available_from : fechaDesdeHoy(0));
   const [entrega, setEntrega] = useState(entregaInicial.forma);
@@ -55,7 +61,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
   async function choosePhoto() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permiso para tus fotos', 'Permite el acceso a la fototeca para elegir una imagen de la cosecha.');
+      Alert.alert('Permiso para tus fotos', 'Permite el acceso a tus fotos para elegir una imagen.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.8, preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible });
@@ -83,7 +89,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
       return;
     }
     if (municipios.includes(municipio) === false) {
-      Alert.alert('Elige el municipio', 'Selecciona el municipio de Casanare donde está la cosecha.');
+      Alert.alert('Elige el municipio', 'Toca el municipio de Casanare donde está el producto.');
       return;
     }
     let textoEntrega = entrega;
@@ -96,7 +102,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
         Alert.alert('Publicación actualizada', 'Los cambios quedaron guardados en el celular y se sincronizarán cuando haya internet.');
       } else {
         await createProduct(datos);
-        Alert.alert('Cosecha publicada', 'Quedó guardada en el celular. Los compradores la verán cuando se sincronice con internet.');
+        Alert.alert('Publicado', 'Quedó guardado en el celular. Los compradores lo verán cuando se sincronice con internet.');
       }
       onCreated();
     } catch (error) {
@@ -106,32 +112,35 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
 
   const fotoVisible = getProductImageUri(photoUri);
   let tituloPrecio = 'Precio por ' + unit + ' (COP) *';
-  let textoBoton = 'Publicar cosecha';
+  let textoBoton = 'Publicar';
   if (editando) textoBoton = 'Guardar cambios';
   if (saving) textoBoton = 'Guardando…';
 
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Pressable onPress={onBack}><Text style={styles.back}>‹  Volver</Text></Pressable>
-      <Text style={styles.title}>{editando ? 'Editar publicación' : 'Publicar cosecha'}</Text>
+      <Text style={styles.title}>{editando ? 'Editar publicación' : esTienda ? 'Publicar producto' : 'Publicar cosecha'}</Text>
       <Text style={styles.subtitle}>Cuéntales a los compradores qué tienes disponible.</Text>
+      <BotonEscuchar texto={'Llena los datos de arriba hacia abajo. Puedes hablar tocando el micrófono de tu teclado. Al final toca el botón verde.'} />
 
-      <Text style={styles.label}>Foto de la cosecha</Text>
+      <Text style={styles.label}>{esTienda ? 'Foto del producto' : 'Foto de la cosecha'}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel={fotoVisible ? 'Cambiar foto' : 'Elegir foto'} onPress={() => void choosePhoto()} style={styles.photoPicker}>
         {fotoVisible ? <Image source={{ uri: fotoVisible }} style={styles.photoPreview} resizeMode="cover" /> : <View style={styles.photoEmpty}><ImagePlus size={27} color={colors.brown} /><Text style={styles.photoHint}>Añade una foto real</Text><Text style={styles.photoSubhint}>Una buena foto ayuda a vender</Text></View>}
       </Pressable>
       {!!fotoVisible && <Pressable accessibilityRole="button" onPress={() => setPhotoUri(null)} style={styles.removePhoto}><X size={14} color={colors.brown} /><Text style={styles.removePhotoText}>Quitar foto</Text></Pressable>}
 
-      <Text style={styles.label}>¿Qué cosechaste? *</Text>
-      <TextInput value={name} onChangeText={setName} placeholder="Ej. Piña oro miel" placeholderTextColor={colors.muted} style={styles.input} maxLength={80} />
+      <Text style={styles.label}>{esTienda ? '¿Qué vendes? *' : '¿Qué cosechaste? *'}</Text>
+      <TextInput value={name} onChangeText={setName} placeholder={esTienda ? 'Ej. Abono triple 15 x 50 kg' : 'Ej. Piña oro miel'} placeholderTextColor={colors.muted} style={styles.input} maxLength={80} />
 
       <Text style={styles.label}>Categoría</Text>
-      <View style={styles.options}>{categoriasAgricolas.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.option, category === item && styles.optionSelected]}><Text style={[styles.optionText, category === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
+      <View style={styles.options}>{listaCategorias.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.option, category === item && styles.optionSelected]}><Text style={[styles.optionText, category === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
+
+      {category === 'Agroquímicos' && <Text style={styles.aviso}>Publica solo agroquímicos con registro ICA vigente y etiqueta original. Indica en la descripción el registro y las precauciones de uso.</Text>}
 
       <Text style={styles.label}>Cantidad disponible *</Text>
       <TextInput value={stock} onChangeText={setStock} placeholder="Ej. 150" placeholderTextColor={colors.muted} style={[styles.input, styles.stockInput]} keyboardType={tecladoCantidad(unit)} maxLength={10} />
       <Text style={styles.label}>Unidad de medida</Text>
-      <View style={styles.options}>{unidades.map((item) => <Pressable key={item} onPress={() => setUnit(item)} style={[styles.option, unit === item && styles.optionSelected]}><Text style={[styles.optionText, unit === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
+      <View style={styles.options}>{listaUnidades.map((item) => <Pressable key={item} onPress={() => setUnit(item)} style={[styles.option, unit === item && styles.optionSelected]}><Text style={[styles.optionText, unit === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
 
       <Text style={styles.label}>{tituloPrecio}</Text>
       <TextInput value={price} onChangeText={setPrice} placeholder="Ej. 2.500" placeholderTextColor={colors.muted} style={styles.input} keyboardType="number-pad" maxLength={13} />
@@ -175,6 +184,7 @@ const styles = StyleSheet.create({
   option: { borderRadius: 18, paddingHorizontal: 13, paddingVertical: 9, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white },
   optionSelected: { backgroundColor: colors.verdeClaro, borderColor: colors.brown }, optionText: { fontSize: 13, color: colors.ink }, optionTextSelected: { color: colors.brown, fontWeight: '800' },
   stockInput: { width: 140 },
+  aviso: { color: '#775D50', backgroundColor: '#F5E7E2', borderRadius: 12, padding: 11, fontSize: 13, lineHeight: 18, marginTop: 10, overflow: 'hidden' },
   submit: { backgroundColor: colors.brown, borderRadius: 26, alignItems: 'center', padding: 16, marginTop: 26 }, disabled: { opacity: 0.6 }, submitText: { color: colors.white, fontWeight: '800', fontSize: 15 },
   footnote: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 10, textAlign: 'center' },
 });

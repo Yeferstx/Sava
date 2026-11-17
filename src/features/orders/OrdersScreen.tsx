@@ -1,22 +1,41 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ArrowLeft, BadgeCheck, Clock3, MapPin, Phone, Store, XCircle } from 'lucide-react-native';
+import { ArrowLeft, BadgeCheck, ClipboardList, Clock3, MapPin, MessageCircle, XCircle } from 'lucide-react-native';
 import type { OrderStatus, OrderSummary } from './types';
 import { listBusinessOrders, listCustomerOrders, updateOrderStatus } from './data/ordersRepository';
+import { recordSale } from '../sales/data/salesRepository';
 import { colors } from '../../shared/theme';
+import { dinero } from '../../shared/contacto';
+import { limpiarTelefono, mostrarCantidad, textoUnidad } from '../../shared/validaciones';
 
-type Props = { mode: 'customer' | 'business'; userId?: string; onBack?: () => void; onSignOut?: () => void };
-const money = (value: number) => `$${Number(value).toLocaleString('es-CO')}`;
-const statusCopy: Record<OrderStatus, string> = { pending: 'Pendiente', accepted: 'Aceptado', rejected: 'No disponible', completed: 'Completado' };
+type Props = { mode: 'customer' | 'business'; userId?: string; onBack?: () => void; onSignOut?: () => void; onLegal?: () => void };
 
-export default function OrdersScreen({ mode, userId, onBack, onSignOut }: Props) {
+// nombres sencillos para cada estado de la consulta
+function textoEstado(status: OrderStatus, mode: Props['mode']) {
+  if (status === 'pending' && mode === 'customer') return 'Enviada';
+  if (status === 'pending') return 'Nueva';
+  if (status === 'accepted') return 'En conversación';
+  if (status === 'rejected') return 'No disponible';
+  return 'Vendida';
+}
+
+async function abrirWhatsApp(telefono: string, mensaje: string) {
+  try { await Linking.openURL('https://wa.me/57' + limpiarTelefono(telefono) + '?text=' + encodeURIComponent(mensaje)); }
+  catch { Alert.alert('No se pudo abrir WhatsApp', 'Revisa que WhatsApp esté instalado.'); }
+}
+
+// consultas que los compradores envian a los vendedores
+export default function OrdersScreen({ mode, userId, onBack, onSignOut, onLegal }: Props) {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    try { setOrders(mode === 'business' ? await listBusinessOrders() : await listCustomerOrders(userId ?? '')); }
-    catch (error) { Alert.alert('No pudimos cargar los pedidos', error instanceof Error ? error.message : 'Revisa tu conexión e intenta de nuevo.'); }
+    try {
+      if (mode === 'business') setOrders(await listBusinessOrders());
+      else setOrders(await listCustomerOrders(userId ?? ''));
+    }
+    catch (error) { Alert.alert('No pudimos cargar las consultas', error instanceof Error ? error.message : 'Revisa tu conexión e intenta de nuevo.'); }
     finally { setLoading(false); }
   }, [mode, userId]);
   useEffect(() => { void refresh(); }, [refresh]);
@@ -28,29 +47,116 @@ export default function OrdersScreen({ mode, userId, onBack, onSignOut }: Props)
     finally { setUpdating(null); }
   }
 
+  // el vendedor contesta por whatsapp y la consulta pasa a "en conversacion"
+  function responder(order: OrderSummary) {
+    let producto = 'tu consulta';
+    if (order.order_items && order.order_items.length > 0) producto = order.order_items[0].product_name;
+    void abrirWhatsApp(order.customer_phone, 'Hola ' + order.customer_name + ', te escribo por tu consulta de ' + producto + ' en Sava.');
+    if (order.status === 'pending') void changeStatus(order.id, 'accepted');
+  }
+
+  // solo cuando el vendedor confirma se registra la venta y baja el inventario
+  function yaVendi(order: OrderSummary) {
+    if (!order.order_items || order.order_items.length === 0) return;
+    const item = order.order_items[0];
+    Alert.alert('Registrar venta', '¿Le vendiste ' + mostrarCantidad(item.quantity) + ' ' + textoUnidad(item.quantity, item.unit) + ' de ' + item.product_name + ' a ' + order.customer_name + ' por ' + dinero(Number(item.line_total_cop)) + '?\n\nSe descontará de tu inventario.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Sí, vendí', onPress: () => void registrar(order) },
+    ]);
+  }
+
+  async function registrar(order: OrderSummary) {
+    const item = order.order_items[0];
+    setUpdating(order.id);
+    try {
+      await recordSale(item.product_id, Number(item.quantity), Number(item.unit_price_cop));
+      await updateOrderStatus(order.id, 'completed');
+      await refresh();
+      Alert.alert('Venta registrada', 'Se descontó de tu inventario.');
+    } catch (error) {
+      Alert.alert('No se pudo registrar', error instanceof Error ? error.message : 'Intenta de nuevo.');
+    } finally { setUpdating(null); }
+  }
+
+  function noTengo(order: OrderSummary) {
+    Alert.alert('No disponible', '¿Le avisamos a ' + order.customer_name + ' que no tienes este producto?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Sí', onPress: () => void changeStatus(order.id, 'rejected') },
+    ]);
+  }
+
+  const esVendedor = mode === 'business';
   return <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { setLoading(true); void refresh(); }} tintColor={colors.brown} />}>
-    {!!onBack && <Pressable onPress={onBack} style={styles.back}><ArrowLeft size={17} color={colors.brown} /><Text style={styles.backText}>{mode === 'business' ? 'Mi negocio' : 'Volver a Sava'}</Text></Pressable>}
-    <Text style={styles.eyebrow}>{mode === 'business' ? 'VENTAS LOCALES' : 'TU ACTIVIDAD EN SAVA'}</Text>
-    <Text style={styles.title}>{mode === 'business' ? 'Pedidos recibidos' : 'Mis pedidos'}</Text>
-    <Text style={styles.subtitle}>{mode === 'business' ? 'Revisa las solicitudes y confirma con cada cliente.' : 'Consulta el estado de tus solicitudes a negocios locales.'}</Text>
-    {orders.length === 0 && !loading ? <View style={styles.empty}><Store size={29} color={colors.brown} /><Text style={styles.emptyTitle}>Todavía no hay pedidos</Text><Text style={styles.emptyText}>{mode === 'business' ? 'Cuando un cliente solicite un producto, lo verás aquí.' : 'Los pedidos que hagas desde el catálogo aparecerán aquí.'}</Text></View> : orders.map((order) => <OrderCard key={order.id} order={order} mode={mode} busy={updating === order.id} onStatus={(status) => void changeStatus(order.id, status)} />)}
-    {mode === 'customer' && !!onSignOut && <Pressable onPress={onSignOut} style={styles.signOut}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}
+    {!!onBack && <Pressable onPress={onBack} style={styles.back}><ArrowLeft size={18} color={colors.brown} /><Text style={styles.backText}>Volver</Text></Pressable>}
+    <Text style={styles.title}>{esVendedor ? 'Consultas de compradores' : 'Mis consultas'}</Text>
+    <Text style={styles.subtitle}>{esVendedor ? 'Personas interesadas en lo que publicaste. Escríbeles y, si les vendes, toca «Ya le vendí».' : 'Lo que le preguntaste a los vendedores. Ellos te contactan para acordar.'}</Text>
+    {orders.length === 0 && !loading && <View style={styles.empty}><ClipboardList size={30} color={colors.brown} /><Text style={styles.emptyTitle}>Todavía no hay consultas</Text><Text style={styles.emptyText}>{esVendedor ? 'Cuando alguien pregunte por tu producto, aparecerá aquí.' : 'Abre una publicación y toca «Enviar consulta».'}</Text></View>}
+    {orders.map((order) => {
+      const status = order.status;
+      const bien = status === 'accepted' || status === 'completed';
+      let Icono = Clock3;
+      if (bien) Icono = BadgeCheck;
+      if (status === 'rejected') Icono = XCircle;
+      const fecha = new Date(order.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      const busy = updating === order.id;
+      let producto = 'Consulta';
+      let detalle = '';
+      if (order.order_items && order.order_items.length > 0) {
+        const item = order.order_items[0];
+        producto = item.product_name;
+        detalle = mostrarCantidad(Number(item.quantity)) + ' ' + textoUnidad(Number(item.quantity), item.unit) + ' × ' + dinero(Number(item.unit_price_cop));
+      }
+      return <View key={order.id} style={styles.card}>
+        <View style={styles.cardTop}>
+          <View style={styles.flex}><Text style={styles.cardTitle}>{producto}</Text><Text style={styles.meta}>{fecha}</Text></View>
+          <View style={[styles.badge, bien && styles.badgeGood, status === 'rejected' && styles.badgeBad]}><Icono size={13} color={bien ? colors.verde : '#775D50'} /><Text style={styles.badgeText}>{textoEstado(status, mode)}</Text></View>
+        </View>
+        {!esVendedor && order.business && <Text style={styles.merchant}>{order.business.name} · {order.business.municipality}</Text>}
+        <Text style={styles.itemLine}>{detalle}</Text>
+        <View style={styles.totalRow}><Text style={styles.meta}>Valor aproximado</Text><Text style={styles.total}>{dinero(Number(order.total_cop))}</Text></View>
+
+        {esVendedor && <View style={styles.customer}>
+          <Text style={styles.customerName}>{order.customer_name} · {order.customer_phone}</Text>
+          {!!order.delivery_address && <View style={styles.lugar}><MapPin size={13} color={colors.muted} /><Text style={styles.meta}>{order.delivery_address}</Text></View>}
+          {!!order.note && <Text style={styles.note}>«{order.note}»</Text>}
+        </View>}
+
+        {esVendedor && (status === 'pending' || status === 'accepted') && <View style={styles.actions}>
+          <Pressable accessibilityRole="button" disabled={busy} onPress={() => responder(order)} style={styles.whatsapp}><MessageCircle size={17} color={colors.white} /><Text style={styles.whatsappText}>Escribirle</Text></Pressable>
+          <View style={styles.fila}>
+            <Pressable accessibilityRole="button" disabled={busy} onPress={() => noTengo(order)} style={styles.reject}><Text style={styles.rejectText}>No tengo</Text></Pressable>
+            <Pressable accessibilityRole="button" disabled={busy} onPress={() => yaVendi(order)} style={styles.accept}><Text style={styles.acceptText}>{busy ? 'Guardando…' : 'Ya le vendí'}</Text></Pressable>
+          </View>
+        </View>}
+
+        {!esVendedor && status !== 'rejected' && status !== 'completed' && !!order.business && !!order.business.phone && <Pressable accessibilityRole="button" onPress={() => void abrirWhatsApp(order.business ? order.business.phone : '', 'Hola, te escribo por mi consulta de ' + producto + ' en Sava.')} style={styles.whatsapp}><MessageCircle size={17} color={colors.white} /><Text style={styles.whatsappText}>Escribirle al vendedor</Text></Pressable>}
+      </View>;
+    })}
+    {!!onLegal && <Pressable onPress={onLegal} style={styles.signOut}><Text style={styles.linkText}>Privacidad y términos de uso</Text></Pressable>}
+    {!esVendedor && !!onSignOut && <Pressable onPress={onSignOut} style={styles.signOut}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}
   </ScrollView>;
 }
 
-function OrderCard({ order, mode, busy, onStatus }: { order: OrderSummary; mode: Props['mode']; busy: boolean; onStatus: (status: OrderStatus) => void }) {
-  const status = order.status;
-  const StatusIcon = status === 'accepted' || status === 'completed' ? BadgeCheck : status === 'rejected' ? XCircle : Clock3;
-  const stamp = new Date(order.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  return <View style={styles.card}>
-    <View style={styles.cardTop}><View style={styles.orderTitleWrap}><Text style={styles.cardTitle}>{order.order_items?.[0]?.product_name ?? 'Pedido'}</Text><Text style={styles.orderDate}>{stamp}</Text></View><View style={[styles.badge, status === 'accepted' || status === 'completed' ? styles.badgeGood : status === 'rejected' ? styles.badgeBad : styles.badgePending]}><StatusIcon size={12} color={status === 'accepted' || status === 'completed' ? '#174B3F' : status === 'rejected' ? '#775D50' : '#775D50'} /><Text style={styles.badgeText}>{statusCopy[status]}</Text></View></View>
-    {mode === 'customer' && order.business && <Text style={styles.merchant}>{order.business.name} · {order.business.municipality}</Text>}
-    <Text style={styles.itemLine}>{order.order_items?.map((item) => `${item.quantity} ${item.unit} × ${money(item.unit_price_cop)}`).join('\n')}</Text>
-    <View style={styles.totalRow}><Text style={styles.meta}>Total solicitado</Text><Text style={styles.total}>{money(order.total_cop)}</Text></View>
-    {mode === 'business' && <><View style={styles.customer}><Text style={styles.customerName}>{order.customer_name}</Text><Pressable accessibilityRole="button" onPress={() => void Linking.openURL(`tel:${order.customer_phone}`)} style={styles.phone}><Phone size={13} color={colors.brown} /><Text style={styles.phoneText}>{order.customer_phone}</Text></Pressable>{!!order.delivery_address && <Text style={styles.meta}><MapPin size={12} color={colors.muted} />  {order.delivery_address}</Text>}{!!order.note && <Text style={styles.note}>Nota: {order.note}</Text>}</View>
-      {status === 'pending' && <View style={styles.actions}><Pressable disabled={busy} onPress={() => onStatus('rejected')} style={styles.reject}><Text style={styles.rejectText}>{busy ? 'Actualizando…' : 'No disponible'}</Text></Pressable><Pressable disabled={busy} onPress={() => onStatus('accepted')} style={styles.accept}><Text style={styles.acceptText}>Aceptar pedido</Text></Pressable></View>}
-      {status === 'accepted' && <Pressable disabled={busy} onPress={() => onStatus('completed')} style={styles.complete}><Text style={styles.acceptText}>{busy ? 'Actualizando…' : 'Marcar como completado'}</Text></Pressable>}</>}
-  </View>;
-}
-
-const styles = StyleSheet.create({ flex: { flex: 1 }, content: { padding: 21, paddingTop: 32, paddingBottom: 38 }, back: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 20 }, backText: { color: colors.brown, fontSize: 12, fontWeight: '700' }, eyebrow: { color: '#636A64', fontSize: 9, letterSpacing: 1.2, fontWeight: '800' }, title: { color: colors.ink, fontSize: 27, fontWeight: '900', marginTop: 4 }, subtitle: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 5, marginBottom: 17 }, empty: { alignItems: 'center', backgroundColor: '#fff', borderColor: colors.line, borderWidth: 1, borderRadius: 18, padding: 24, marginTop: 6 }, emptyTitle: { color: colors.ink, fontSize: 15, fontWeight: '800', marginTop: 10 }, emptyText: { color: colors.muted, fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 5 }, card: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 17, padding: 14, marginBottom: 10 }, cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 }, orderTitleWrap: { flex: 1 }, cardTitle: { color: colors.ink, fontSize: 13, fontWeight: '800' }, orderDate: { color: colors.muted, fontSize: 10, marginTop: 3 }, badge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 5 }, badgeGood: { backgroundColor: '#E8F2EE' }, badgeBad: { backgroundColor: '#F5E7E2' }, badgePending: { backgroundColor: '#F5E7E2' }, badgeText: { color: colors.ink, fontSize: 9, fontWeight: '700' }, merchant: { color: colors.muted, fontSize: 11, marginTop: 7 }, itemLine: { color: colors.ink, fontSize: 11, lineHeight: 17, marginTop: 9 }, totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.line, marginTop: 10, paddingTop: 9 }, meta: { color: colors.muted, fontSize: 10 }, total: { color: colors.brown, fontSize: 14, fontWeight: '900' }, customer: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: 10, paddingTop: 9, gap: 6 }, customerName: { color: colors.ink, fontSize: 11, fontWeight: '800' }, phone: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start' }, phoneText: { color: colors.brown, fontSize: 10, fontWeight: '700' }, note: { color: colors.muted, fontSize: 10, lineHeight: 15 }, actions: { flexDirection: 'row', gap: 8, marginTop: 12 }, reject: { flex: 1, borderRadius: 18, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', padding: 10 }, rejectText: { color: colors.muted, fontWeight: '700', fontSize: 10 }, accept: { flex: 1, borderRadius: 18, backgroundColor: colors.brown, alignItems: 'center', justifyContent: 'center', padding: 10 }, complete: { borderRadius: 18, backgroundColor: colors.brown, alignItems: 'center', justifyContent: 'center', padding: 11, marginTop: 12 }, acceptText: { color: '#fff', fontWeight: '800', fontSize: 10 }, signOut: { alignItems: 'center', padding: 18, marginTop: 8 }, signOutText: { color: '#775D50', fontWeight: '700', fontSize: 11 } });
+const styles = StyleSheet.create({
+  flex: { flex: 1 }, content: { padding: 20, paddingTop: 32, paddingBottom: 38 },
+  back: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 18 }, backText: { color: colors.brown, fontSize: 14, fontWeight: '700' },
+  title: { color: colors.ink, fontSize: 26, fontWeight: '900' }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5, marginBottom: 16 },
+  empty: { alignItems: 'center', gap: 6, backgroundColor: colors.white, borderColor: colors.line, borderWidth: 1, borderRadius: 18, padding: 24 },
+  emptyTitle: { color: colors.ink, fontSize: 16, fontWeight: '800', marginTop: 4 }, emptyText: { color: colors.muted, fontSize: 13, textAlign: 'center', lineHeight: 19 },
+  card: { backgroundColor: colors.white, borderColor: colors.line, borderWidth: 1, borderRadius: 18, padding: 15, marginBottom: 11 },
+  cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 }, cardTitle: { color: colors.ink, fontSize: 17, fontWeight: '900' },
+  meta: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: '#F5E7E2' },
+  badgeGood: { backgroundColor: colors.verdeClaro }, badgeBad: { backgroundColor: '#F5E7E2' }, badgeText: { color: colors.ink, fontSize: 12, fontWeight: '800' },
+  merchant: { color: colors.verde, fontSize: 13, fontWeight: '700', marginTop: 6 },
+  itemLine: { color: colors.ink, fontSize: 14, marginTop: 8 },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }, total: { color: colors.verde, fontSize: 17, fontWeight: '900' },
+  customer: { borderTopWidth: 1, borderTopColor: colors.line, marginTop: 11, paddingTop: 10, gap: 4 },
+  customerName: { color: colors.ink, fontSize: 14, fontWeight: '800' }, lugar: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  note: { color: colors.ink, fontSize: 13, fontStyle: 'italic', marginTop: 2 },
+  actions: { gap: 8, marginTop: 12 }, fila: { flexDirection: 'row', gap: 8 },
+  whatsapp: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 48, borderRadius: 24, backgroundColor: colors.verde, marginTop: 4 }, whatsappText: { color: colors.white, fontSize: 15, fontWeight: '800' },
+  reject: { flex: 1, minHeight: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5E7E2' }, rejectText: { color: '#775D50', fontSize: 14, fontWeight: '800' },
+  accept: { flex: 1, minHeight: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.verdeClaro }, acceptText: { color: colors.verde, fontSize: 14, fontWeight: '900' },
+  signOut: { alignItems: 'center', padding: 14 }, signOutText: { color: '#775D50', fontWeight: '700', fontSize: 14 }, linkText: { color: colors.verde, fontWeight: '700', fontSize: 14 },
+});

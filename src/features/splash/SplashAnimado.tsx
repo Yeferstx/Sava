@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Animated, Easing, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Animated, Easing, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { CREMA, LOGO_ALTO, LOGO_ANCHO, piezas } from './logoSava';
+import { pedirReducirMovimiento } from '../../shared/movimiento';
 
 const PathAnimado = Animated.createAnimatedComponent(Path);
 
@@ -38,7 +39,7 @@ export default function SplashAnimado({ onTerminar }: Props) {
 
   useEffect(() => {
     let cancelado = false;
-    AccessibilityInfo.isReduceMotionEnabled().then((reducir) => {
+    pedirReducirMovimiento().then((reducir) => {
       if (cancelado) return;
       if (reducir) {
         // si la persona pidio menos movimiento se muestra el logo listo y solo se desvanece

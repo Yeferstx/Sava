@@ -30,7 +30,7 @@ export async function listCustomerOrders(userId: string) {
   const supabase = getSupabaseClient();
   if (!supabase) return [] as OrderSummary[];
   const { data, error } = await supabase.from('orders')
-    .select('id,business_id,customer_id,customer_name,customer_phone,delivery_address,note,status,total_cop,created_at,order_items(product_name,quantity,unit,unit_price_cop,line_total_cop),business:businesses(name,municipality)')
+    .select('id,business_id,customer_id,customer_name,customer_phone,delivery_address,note,status,total_cop,created_at,order_items(product_id,product_name,quantity,unit,unit_price_cop,line_total_cop),business:businesses(name,municipality,phone)')
     .eq('customer_id', userId).order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as unknown as OrderSummary[];
@@ -43,7 +43,7 @@ export async function listBusinessOrders() {
   // el negocio de muestra solo existe en el celular, no tiene pedidos
   if (businessId === demoBusinessId) return [] as OrderSummary[];
   const { data, error } = await supabase.from('orders')
-    .select('id,business_id,customer_id,customer_name,customer_phone,delivery_address,note,status,total_cop,created_at,order_items(product_name,quantity,unit,unit_price_cop,line_total_cop)')
+    .select('id,business_id,customer_id,customer_name,customer_phone,delivery_address,note,status,total_cop,created_at,order_items(product_id,product_name,quantity,unit,unit_price_cop,line_total_cop)')
     .eq('business_id', businessId).order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as unknown as OrderSummary[];

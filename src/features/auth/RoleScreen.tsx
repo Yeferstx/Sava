@@ -1,68 +1,66 @@
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ShoppingBasket, Sprout } from 'lucide-react-native';
+import { CircleCheck } from 'lucide-react-native';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
 import SavaLogo from '../../shared/components/SavaLogo';
+import BotonEscuchar from '../../shared/components/BotonEscuchar';
+import ApoyoGobernacion from '../../shared/components/ApoyoGobernacion';
 import { colors } from '../../shared/theme';
-import { municipios } from '../../shared/validaciones';
+import { roles, type Rol } from '../../shared/roles';
 
-export type Rol = 'agricultor' | 'comprador';
+export type { Rol };
 
-// despues de crear la cuenta se elige como usar sava.
-// el rol y el municipio se guardan en los datos del usuario de supabase
-export default function RoleScreen({ onElegido, onSignOut }: { onElegido: (rol: Rol, municipio: string) => void; onSignOut: () => void }) {
+// para cuentas que todavia no dicen como usan sava.
+// tarjetas grandes con dibujo y boton para escuchar, pensado para quien lee poco
+export default function RoleScreen({ onElegido, onSignOut }: { onElegido: (rol: Rol) => void; onSignOut: () => void }) {
   const [rol, setRol] = useState<Rol | null>(null);
-  const [municipio, setMunicipio] = useState('');
   const [guardando, setGuardando] = useState(false);
 
   async function continuar() {
-    if (!rol) { Alert.alert('Elige una opción', 'Cuéntanos si vas a vender o a comprar.'); return; }
-    if (rol === 'comprador' && municipios.includes(municipio) === false) { Alert.alert('Elige tu municipio', 'Así te mostramos primero las cosechas cercanas.'); return; }
+    if (!rol) { Alert.alert('Toca una opción', 'Elige lo que eres para seguir.'); return; }
     const supabase = getSupabaseClient();
     if (!supabase) return;
     setGuardando(true);
     try {
-      const { error } = await supabase.auth.updateUser({ data: { rol, municipio } });
+      const { error } = await supabase.auth.updateUser({ data: { rol } });
       if (error) throw error;
-      onElegido(rol, municipio);
+      onElegido(rol);
     } catch { Alert.alert('No se pudo guardar', 'Revisa tu conexión e intenta de nuevo.'); }
     finally { setGuardando(false); }
   }
 
   return <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
-    <SavaLogo size="small" />
-    <Text style={styles.title}>¿Cómo vas a usar Sava?</Text>
-    <Text style={styles.subtitle}>Puedes cambiarlo más adelante.</Text>
-    <Pressable accessibilityRole="button" accessibilityState={{ selected: rol === 'agricultor' }} onPress={() => setRol('agricultor')} style={[styles.card, rol === 'agricultor' && styles.cardSelected]}>
-      <View style={styles.icon}><Sprout size={26} color={colors.brown} /></View>
-      <View style={styles.flex}><Text style={styles.cardTitle}>Soy agricultor o productor</Text><Text style={styles.cardBody}>Quiero publicar mis cosechas, llevar mi inventario y registrar ventas.</Text></View>
-    </Pressable>
-    <Pressable accessibilityRole="button" accessibilityState={{ selected: rol === 'comprador' }} onPress={() => setRol('comprador')} style={[styles.card, rol === 'comprador' && styles.cardSelected]}>
-      <View style={styles.icon}><ShoppingBasket size={26} color={colors.brown} /></View>
-      <View style={styles.flex}><Text style={styles.cardTitle}>Soy comprador</Text><Text style={styles.cardBody}>Persona, restaurante, frutería, tienda o distribuidor que busca productos del campo.</Text></View>
-    </Pressable>
-    {rol === 'comprador' && <>
-      <Text style={styles.label}>¿En qué municipio compras?</Text>
-      <View style={styles.options}>{municipios.map((item) => <Pressable key={item} onPress={() => setMunicipio(item)} style={[styles.option, municipio === item && styles.optionSelected]}><Text style={[styles.optionText, municipio === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
-    </>}
-    {rol === 'agricultor' && <Text style={styles.hint}>En el siguiente paso registras tu finca o emprendimiento.</Text>}
-    <Pressable disabled={guardando} onPress={() => void continuar()} style={[styles.submit, guardando && styles.disabled]}>{guardando ? <ActivityIndicator color={colors.white} /> : <Text style={styles.submitText}>Continuar</Text>}</Pressable>
+    <SavaLogo size="small" centrado />
+    <Text style={styles.title}>¿Qué eres?</Text>
+    <View style={styles.centro}><BotonEscuchar centrado texto="¿Qué eres? Toca una de las tres opciones. Campesino, tienda del campo o comprador." /></View>
+    {roles.map((item) => {
+      const elegido = rol === item.rol;
+      return <Pressable key={item.rol} accessibilityRole="radio" accessibilityState={{ checked: elegido }} accessibilityLabel={item.titulo + '. ' + item.texto} onPress={() => setRol(item.rol)} style={[styles.card, elegido && styles.cardSelected]}>
+        <View style={[styles.icon, elegido && styles.iconSelected]}><item.Icon size={38} color={elegido ? colors.white : colors.verde} strokeWidth={1.8} /></View>
+        <View style={styles.flex}>
+          <Text style={styles.cardTitle}>{item.titulo}</Text>
+          <Text style={styles.cardBody}>{item.texto}</Text>
+          <View style={styles.escuchar}><BotonEscuchar texto={item.voz} /></View>
+        </View>
+        {elegido && <CircleCheck size={26} color={colors.verde} />}
+      </Pressable>;
+    })}
+    <Pressable accessibilityRole="button" disabled={guardando} onPress={() => void continuar()} style={[styles.submit, (guardando || !rol) && styles.disabled]}>{guardando ? <ActivityIndicator color={colors.white} /> : <Text style={styles.submitText}>Seguir</Text>}</Pressable>
     <Pressable onPress={onSignOut} style={styles.link}><Text style={styles.linkText}>Cerrar sesión</Text></Pressable>
+    <ApoyoGobernacion conMapa />
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 24, paddingTop: 44, paddingBottom: 40 },
-  title: { color: colors.ink, fontSize: 26, fontWeight: '900', marginTop: 22 }, subtitle: { color: colors.muted, fontSize: 14, marginTop: 5, marginBottom: 18 },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 16, borderRadius: 18, borderWidth: 2, borderColor: colors.line, backgroundColor: colors.white, marginBottom: 11 },
-  cardSelected: { borderColor: colors.brown, backgroundColor: colors.verdeClaro },
-  icon: { width: 50, height: 50, borderRadius: 16, backgroundColor: colors.crema, alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { color: colors.ink, fontSize: 16, fontWeight: '800' }, cardBody: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 3 },
-  label: { color: colors.ink, fontSize: 14, fontWeight: '800', marginTop: 12, marginBottom: 8 },
-  options: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  option: { borderRadius: 18, paddingHorizontal: 13, paddingVertical: 9, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white },
-  optionSelected: { backgroundColor: colors.verdeClaro, borderColor: colors.brown }, optionText: { color: colors.ink, fontSize: 13 }, optionTextSelected: { color: colors.brown, fontWeight: '800' },
-  hint: { color: colors.muted, fontSize: 13, marginTop: 6 },
-  submit: { backgroundColor: colors.brown, borderRadius: 25, alignItems: 'center', justifyContent: 'center', height: 50, marginTop: 24 }, disabled: { opacity: 0.65 }, submitText: { color: colors.white, fontWeight: '800', fontSize: 15 },
-  link: { alignItems: 'center', padding: 14 }, linkText: { color: colors.brown, fontWeight: '700', fontSize: 13 },
+  flex: { flex: 1 }, content: { padding: 22, paddingTop: 40, paddingBottom: 30, backgroundColor: colors.crema, flexGrow: 1 },
+  title: { color: colors.verde, fontSize: 30, fontWeight: '900', textAlign: 'center', marginTop: 16 },
+  centro: { alignItems: 'center', marginTop: 8, marginBottom: 18 },
+  card: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 20, borderWidth: 2, borderColor: colors.line, backgroundColor: colors.white, marginBottom: 12 },
+  cardSelected: { borderColor: colors.verde, backgroundColor: colors.verdeClaro },
+  icon: { width: 70, height: 70, borderRadius: 22, backgroundColor: colors.verdeClaro, alignItems: 'center', justifyContent: 'center' },
+  iconSelected: { backgroundColor: colors.verde },
+  cardTitle: { color: colors.grafito, fontSize: 19, fontWeight: '900' }, cardBody: { color: colors.muted, fontSize: 14, lineHeight: 19, marginTop: 3 },
+  escuchar: { marginTop: 8 },
+  submit: { backgroundColor: colors.verde, borderRadius: 28, alignItems: 'center', justifyContent: 'center', height: 56, marginTop: 10 }, disabled: { opacity: 0.55 }, submitText: { color: colors.white, fontWeight: '900', fontSize: 18 },
+  link: { alignItems: 'center', padding: 14 }, linkText: { color: colors.verde, fontWeight: '700', fontSize: 14 },
 });

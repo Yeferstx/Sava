@@ -57,7 +57,7 @@ export default function PaisajeLlanero({ posicion, moverse }: Props) {
         </Animated.View>
         <Animated.View style={[styles.capa, { transform: [{ translateX: izquierda }] }]}>
           <Svg width={ancho} height={alto} viewBox={`0 0 ${ancho} ${alto}`}>
-            <Path d={`M${ancho * 0.45} ${alto} C ${ancho * 0.62} ${alto * 0.62}, ${ancho * 0.82} ${alto * 0.6}, ${ancho} ${alto * 0.74} L ${ancho} ${alto} Z`} fill={colors.verde} fillOpacity={0.1} />
+            <Path d={`M${ancho * 0.7} ${alto} C ${ancho * 0.78} ${alto * 0.66}, ${ancho * 0.88} ${alto * 0.6}, ${ancho} ${alto * 0.74} L ${ancho} ${alto} Z`} fill={colors.verde} fillOpacity={0.1} />
           </Svg>
         </Animated.View>
       </View>
