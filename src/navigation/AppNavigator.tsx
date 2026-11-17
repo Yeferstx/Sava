@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Pressable, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { User } from '@supabase/supabase-js';
 import ChatScreen from '../features/chat/ChatScreen';
@@ -32,7 +32,7 @@ import SeguimientoModal from '../features/seguimiento/SeguimientoModal';
 import { pendientesDeSeguimiento, type Seguimiento } from '../features/seguimiento/seguimientoRepository';
 import OrderCheckoutScreen from '../features/orders/OrderCheckoutScreen';
 import OrdersScreen from '../features/orders/OrdersScreen';
-import TabBar from '../shared/components/TabBar';
+import TabBar, { alturaBarra } from '../shared/components/TabBar';
 import { colors } from '../shared/theme';
 import SavaLogo from '../shared/components/SavaLogo';
 import type { AppTab } from './types';
@@ -83,6 +83,7 @@ export default function AppNavigator() {
   if (stage === 'signedIn') tipoChat = tipoNegocio;
   const chat = useAssistantChat(tipoChat);
   const bordes = useSafeAreaInsets();
+  const pantallaAncho = useWindowDimensions().width;
   const supabase = getSupabaseClient();
 
   useEffect(() => {
@@ -281,7 +282,7 @@ export default function AppNavigator() {
   const verMaria = !isChat && !enVideos && (conBarra || !!selectedProduct || !!selectedBusiness);
   // la barra de abajo llega hasta el borde del celular; maria queda encima de ella
   let alturaMaria = 20 + bordes.bottom;
-  if (conBarra) alturaMaria = 82 + bordes.bottom;
+  if (conBarra) alturaMaria = alturaBarra(pantallaAncho, bordes.bottom) + 12;
 
   // solo se respeta el borde de arriba: abajo la barra de pestanas pinta hasta el final
   return <SafeAreaView edges={conBarra ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']} style={[styles.safe, enVideos && styles.oscuro]}>

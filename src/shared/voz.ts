@@ -6,6 +6,8 @@ import * as Speech from 'expo-speech';
 type VozElegida = { identificador: string; idioma: string } | null;
 let vozElegida: VozElegida | undefined;
 const oyentes: Array<(hablando: boolean) => void> = [];
+// avisos de cada palabra que dice la voz (para que maria se mueva con el audio)
+const oyentesPalabra: Array<() => void> = [];
 
 async function buscarVoz() {
   if (vozElegida !== undefined) return vozElegida;
@@ -47,6 +49,14 @@ export function escucharVoz(oyente: (hablando: boolean) => void) {
   };
 }
 
+export function escucharPalabras(oyente: () => void) {
+  oyentesPalabra.push(oyente);
+  return () => {
+    const i = oyentesPalabra.indexOf(oyente);
+    if (i >= 0) oyentesPalabra.splice(i, 1);
+  };
+}
+
 // quita simbolos que la voz lee raro ($ 2.500 -> 2.500 pesos)
 function limpiarParaVoz(texto: string) {
   return texto.replace(/\$\s?([\d.]+)/g, '$1 pesos').replace(/[«»"]/g, '').replace(/\bkg\b/g, 'kilos').replace(/\n/g, '. ');
@@ -64,6 +74,7 @@ export async function hablar(texto: string) {
     onDone: () => avisar(false),
     onStopped: () => avisar(false),
     onError: () => avisar(false),
+    onBoundary: () => { for (const oyente of oyentesPalabra) oyente(); },
   };
   if (voz) {
     opciones.language = voz.idioma;
