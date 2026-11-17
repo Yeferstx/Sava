@@ -1,6 +1,7 @@
 import { createLocalId, enqueueSync, getActiveBusinessId, getDatabase } from '../../../infrastructure/database/database';
 import { syncPendingChanges } from '../../../infrastructure/sync/syncService';
 import type { Product } from '../types';
+import { CANTIDAD_MAXIMA, PRECIO_MAXIMO, errorCantidad, redondear } from '../../../shared/validaciones';
 
 export type NewProduct = Pick<Product, 'name' | 'category' | 'description' | 'price_cop' | 'stock' | 'unit'> & { photo_uri?: string | null };
 
@@ -24,6 +25,12 @@ export async function listProducts() {
 }
 
 export async function createProduct(input: NewProduct) {
+  // se revisa otra vez aqui porque maria guarda sin pasar por el formulario
+  if (input.name.trim().length < 3) throw new Error('El nombre debe tener al menos 3 letras.');
+  if (!Number.isInteger(input.price_cop) || input.price_cop <= 0 || input.price_cop > PRECIO_MAXIMO) throw new Error('El precio debe ser mayor que 0.');
+  const errorStock = errorCantidad(input.stock, input.unit);
+  if (errorStock !== '') throw new Error(errorStock);
+  if (input.stock > CANTIDAD_MAXIMA) throw new Error('La cantidad no puede pasar de ' + CANTIDAD_MAXIMA + '.');
   const db = await getDatabase();
   const businessId = await getActiveBusinessId();
   const id = createLocalId('product');
@@ -44,7 +51,7 @@ export async function adjustStock(productId: string, delta: number) {
   await db.withExclusiveTransactionAsync(async (transaction) => {
     const product = await transaction.getFirstAsync<Product>('SELECT * FROM products WHERE id = ? AND business_id = ?', productId, businessId);
     if (!product) throw new Error('No encontramos ese producto.');
-    const nextStock = product.stock + delta;
+    const nextStock = redondear(product.stock + delta);
     if (nextStock < 0) throw new Error('El inventario no puede quedar en negativo.');
     await transaction.runAsync('UPDATE products SET stock = ?, sync_status = ?, updated_at = ? WHERE id = ?', nextStock, 'pending', now, productId);
     await enqueueSync(transaction, 'product', 'upsert', { ...product, stock: nextStock, sync_status: 'pending', updated_at: now });

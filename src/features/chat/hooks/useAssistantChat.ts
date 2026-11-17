@@ -25,11 +25,14 @@ export function useAssistantChat() {
 }
 
 function parseProductDraft(message: string): ProductDraft | null {
-  const match = message.match(/(?:voy a\s+)?(?:vender|publicar|ofrezco|vendo)\s+(\d+(?:[.,]\d+)?)\s+([\p{L}]+)\s+de\s+([\p{L}\s]+?)\s+a\s+(\d[\d.,]*)\s*(mil|mill[oó]n(?:es)?)?\s*(?:pesos)?/iu);
+  const match = message.match(/(?:voy a\s+)?(?:vender|publicar|ofrezco|vendo)\s+(\d+(?:[.,]\d+)?)\s+([\p{L}]+)\s+de\s+([\p{L}\s]+?)\s+a\s+(\d[\d.,]*)\s*(mill[oó]n(?:es)?|mil)?\s*(?:pesos)?/iu);
   if (!match) return null;
   const stock = Number(match[1].replace(',', '.'));
-  const rawPrice = Number(match[4].replace(/[.,]/g, ''));
-  const multiplier = match[5]?.toLowerCase().startsWith('mil') ? 1_000 : match[5] ? 1_000_000 : 1;
+  // ojo: "millones" tambien empieza por "mil"
+  const multiplier = match[5]?.toLowerCase() === 'mil' ? 1_000 : match[5] ? 1_000_000 : 1;
+  // "80,5 mil" es 80.500, pero "80.000" son ochenta mil
+  let rawPrice = Number(match[4].replace(/[.,]/g, ''));
+  if (multiplier > 1 && /^\d+[.,]\d{1,2}$/.test(match[4])) rawPrice = Number(match[4].replace(',', '.'));
   const price = Math.round(rawPrice * multiplier);
   if (!Number.isFinite(stock) || stock <= 0 || !Number.isFinite(price) || price <= 0) return null;
   const rawName = match[3].trim().replace(/\s+$/, '');

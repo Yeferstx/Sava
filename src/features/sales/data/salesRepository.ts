@@ -2,11 +2,12 @@ import { createLocalId, enqueueSync, getActiveBusinessId, getDatabase } from '..
 import type { Product } from '../../inventory/types';
 import type { SaleSummary } from '../types';
 import { syncPendingChanges } from '../../../infrastructure/sync/syncService';
+import { errorCantidad, redondear } from '../../../shared/validaciones';
 
 export async function listSales() {
   const db = await getDatabase();
   const businessId = await getActiveBusinessId();
-  return db.getAllAsync<SaleSummary>(`SELECT sales.id, products.name AS product_name, sale_items.quantity, sales.total_cop, sales.sold_at
+  return db.getAllAsync<SaleSummary>(`SELECT sales.id, products.name AS product_name, products.unit, sale_items.quantity, sales.total_cop, sales.sold_at
     FROM sales JOIN sale_items ON sale_items.sale_id = sales.id JOIN products ON products.id = sale_items.product_id
     WHERE sales.business_id = ? ORDER BY sales.sold_at DESC LIMIT 50`, businessId);
 }
@@ -34,12 +35,16 @@ export async function recordSale(productId: string, quantity = 1) {
   await db.withExclusiveTransactionAsync(async (transaction) => {
     const product = await transaction.getFirstAsync<Product>('SELECT * FROM products WHERE id = ? AND business_id = ?', productId, businessId);
     if (!product) throw new Error('No encontramos ese producto.');
-    if (product.stock < quantity) throw new Error('No hay suficiente inventario para registrar esta venta.');
-    const total = product.price_cop * quantity;
+    const errorVenta = errorCantidad(quantity, product.unit);
+    if (errorVenta !== '') throw new Error(errorVenta);
+    if (redondear(product.stock) < redondear(quantity)) throw new Error('No hay suficiente inventario para registrar esta venta.');
+    // en supabase el total es entero, por eso se redondea
+    const total = Math.round(product.price_cop * quantity);
+    const nuevoStock = redondear(product.stock - quantity);
     await transaction.runAsync('INSERT INTO sales (id, business_id, total_cop, sold_at, sync_status) VALUES (?, ?, ?, ?, ?)', saleId, businessId, total, now, 'pending');
     await transaction.runAsync('INSERT INTO sale_items (id, sale_id, product_id, quantity, unit_price_cop) VALUES (?, ?, ?, ?, ?)', itemId, saleId, productId, quantity, product.price_cop);
-    await transaction.runAsync('UPDATE products SET stock = ?, sync_status = ?, updated_at = ? WHERE id = ?', product.stock - quantity, 'pending', now, productId);
-    await enqueueSync(transaction, 'product', 'upsert', { ...product, stock: product.stock - quantity, sync_status: 'pending', updated_at: now });
+    await transaction.runAsync('UPDATE products SET stock = ?, sync_status = ?, updated_at = ? WHERE id = ?', nuevoStock, 'pending', now, productId);
+    await enqueueSync(transaction, 'product', 'upsert', { ...product, stock: nuevoStock, sync_status: 'pending', updated_at: now });
     await enqueueSync(transaction, 'sale', 'create', { id: saleId, item_id: itemId, business_id: businessId, product_id: productId, quantity, unit_price_cop: product.price_cop, total_cop: total, sold_at: now });
   });
   void syncPendingChanges().catch(() => undefined);

@@ -27,6 +27,7 @@ import OrderCheckoutScreen from '../features/orders/OrderCheckoutScreen';
 import OrdersScreen from '../features/orders/OrdersScreen';
 import TabBar from '../shared/components/TabBar';
 import { colors } from '../shared/theme';
+import SavaLogo from '../shared/components/SavaLogo';
 import type { AppTab } from './types';
 
 type AppStage = 'loading' | 'demo' | 'guest' | 'signedOut' | 'checkingBusiness' | 'setupBusiness' | 'signedIn' | 'error';
@@ -144,7 +145,7 @@ export default function AppNavigator() {
   async function confirmProductDraft() {
     if (!chat.draft) return;
     try { const { createProduct } = await import('../features/inventory/data/inventoryRepository'); await createProduct(chat.draft); chat.confirmDraft(); }
-    catch { Alert.alert('No se pudo guardar', 'El borrador sigue aquí. Intenta de nuevo.'); }
+    catch (error) { Alert.alert('No se pudo guardar', error instanceof Error ? error.message + ' Toca Editar para corregir el borrador.' : 'El borrador sigue aquí. Intenta de nuevo.'); }
   }
   function editProductDraft() { if (chat.draft) { setDraftForPublish(chat.draft); setActiveTab('Publicar'); } }
   async function onBusinessCreated(business: RemoteBusiness) {
@@ -155,10 +156,10 @@ export default function AppNavigator() {
   }
   async function signOut() { const { error } = await supabase?.auth.signOut() ?? { error: null }; if (error) Alert.alert('No se pudo cerrar sesión', error.message); }
 
-  if (stage === 'loading' || stage === 'checkingBusiness') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><View style={styles.loading}><Text style={styles.brand}>Sava</Text><ActivityIndicator color={colors.brown} style={styles.spinner} /><Text style={styles.loadingText}>{stage === 'checkingBusiness' ? 'Conectando tu negocio…' : 'Preparando tu espacio…'}</Text></View></SafeAreaView>;
+  if (stage === 'loading' || stage === 'checkingBusiness') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><View style={styles.loading}><SavaLogo size="large" centrado /><ActivityIndicator color={colors.brown} style={styles.spinner} /><Text style={styles.loadingText}>{stage === 'checkingBusiness' ? 'Conectando tu negocio…' : 'Preparando tu espacio…'}</Text></View></SafeAreaView>;
   if (stage === 'signedOut') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><AuthScreen onContinueGuest={continueAsGuest} purpose={orderIntent ? 'buyer' : merchantIntent ? 'seller' : 'general'} /></SafeAreaView>;
   if (stage === 'setupBusiness' && user) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><BusinessSetupScreen user={user} onCreated={(business) => { void onBusinessCreated(business).catch((error) => { setStartupError(error instanceof Error ? error.message : 'No se pudo preparar el negocio.'); setStage('error'); }); }} /></SafeAreaView>;
-  if (stage === 'error') return <SafeAreaView style={styles.safe}><View style={styles.errorScreen}><Text style={styles.brand}>Sava</Text><Text style={styles.errorTitle}>No pudimos conectar</Text><Text style={styles.loadingText}>{startupError}</Text><Pressable onPress={() => setStage(user ? 'checkingBusiness' : 'signedOut')} style={styles.retry}><Text style={styles.retryText}>Intentar de nuevo</Text></Pressable>{!!user && <Pressable onPress={() => void signOut()} style={styles.signOut}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}</View></SafeAreaView>;
+  if (stage === 'error') return <SafeAreaView style={styles.safe}><View style={styles.errorScreen}><SavaLogo size="large" centrado /><Text style={styles.errorTitle}>No pudimos conectar</Text><Text style={styles.loadingText}>{startupError}</Text><Pressable onPress={() => setStage(user ? 'checkingBusiness' : 'signedOut')} style={styles.retry}><Text style={styles.retryText}>Intentar de nuevo</Text></Pressable>{!!user && <Pressable onPress={() => void signOut()} style={styles.signOut}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}</View></SafeAreaView>;
 
   if (orderIntent && user && (stage === 'guest' || stage === 'signedIn')) return <SafeAreaView style={styles.safe}><OrderCheckoutScreen product={orderIntent.product} business={orderIntent.business} quantity={orderIntent.quantity} user={user} onBack={() => setOrderIntent(null)} onCreated={orderCreated} /></SafeAreaView>;
   const isChat = activeTab === 'María';

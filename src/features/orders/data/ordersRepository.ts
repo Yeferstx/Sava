@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '../../../infrastructure/supabase/client';
-import { getActiveBusinessId } from '../../../infrastructure/database/database';
+import { demoBusinessId, getActiveBusinessId } from '../../../infrastructure/database/database';
 import type { OrderStatus, OrderSummary } from '../types';
 
 export async function placeProductOrder(input: {
@@ -40,6 +40,8 @@ export async function listBusinessOrders() {
   const supabase = getSupabaseClient();
   if (!supabase) return [] as OrderSummary[];
   const businessId = await getActiveBusinessId();
+  // el negocio de muestra solo existe en el celular, no tiene pedidos
+  if (businessId === demoBusinessId) return [] as OrderSummary[];
   const { data, error } = await supabase.from('orders')
     .select('id,business_id,customer_id,customer_name,customer_phone,delivery_address,note,status,total_cop,created_at,order_items(product_name,quantity,unit,unit_price_cop,line_total_cop)')
     .eq('business_id', businessId).order('created_at', { ascending: false });
