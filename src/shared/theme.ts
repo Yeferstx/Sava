@@ -14,6 +14,7 @@ export const colors = {
   arcilla: '#C98770',
   verdeClaro: '#E8F2EE',
   grafito: '#26332F',
+  salvia: '#DCEBE2', // verde salvia, cuerpo del asistente y detalles suaves
 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 18, xl: 24, xxl: 32 } as const;

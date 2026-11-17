@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ChevronDown, ChevronRight, MapPin, Moon, Play, Search, ShoppingBasket, Sparkles, Sprout, Sun, WifiOff } from 'lucide-react-native';
+import { ChevronDown, ChevronRight, MapPin, Moon, Play, Search, ShoppingBasket, Sprout, Sun, WifiOff } from 'lucide-react-native';
 import CategoriaIcono from './components/CategoriaIcono';
+import AsistenteOrbe from '../chat/components/AsistenteOrbe';
 import { TarjetaEsqueleto } from '../../shared/components/Esqueleto';
 import { detectarMunicipio, guardarMunicipio, leerMunicipioGuardado } from '../../shared/ubicacion';
 import { LocateFixed } from 'lucide-react-native';
@@ -213,7 +214,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
       </ScrollView>
 
       <Pressable accessibilityRole="button" onPress={onOpenMaria} style={({ pressed }) => [styles.maria, pressed && styles.presionado]}>
-        <View style={styles.mariaIcono}><Sparkles size={24} color={colors.grafito} /></View>
+        <View style={styles.mariaIcono}><AsistenteOrbe estado="reposo" tamano={44} quieto /></View>
         <View style={styles.flex}><Text style={styles.mariaTitulo}>¿No lo encuentras? Pregúntale a María</Text><Text style={styles.mariaTexto}>Dile «necesito plátano en Yopal» y te dice quién lo vende.</Text></View>
         <ChevronRight size={20} color={colors.verde} />
       </Pressable>
@@ -271,8 +272,8 @@ const styles = StyleSheet.create({
   greeting: { color: colors.ink, fontSize: 27, fontWeight: '900' },
   categorias: { paddingTop: 14, paddingBottom: 12, gap: 4 },
   presionado: { transform: [{ scale: 0.97 }] },
-  maria: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.white, borderRadius: 18, borderWidth: 1.5, borderColor: colors.arcilla, padding: 14, marginBottom: 18 },
-  mariaIcono: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.arcilla, alignItems: 'center', justifyContent: 'center' },
+  maria: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.white, borderRadius: 18, borderWidth: 1.5, borderColor: colors.salvia, padding: 14, marginBottom: 18 },
+  mariaIcono: { width: 60, height: 52, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   mariaTitulo: { color: colors.grafito, fontSize: 15, fontWeight: '900' }, mariaTexto: { color: colors.muted, fontSize: 13, marginTop: 2, lineHeight: 18 },
   videos: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.grafito, borderRadius: 18, padding: 14, marginBottom: 20 },
   videosPlay: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.arcilla, alignItems: 'center', justifyContent: 'center' },

@@ -120,7 +120,7 @@ export function useAssistantChat(tipo: TipoVendedor) {
     if (intencion.tipo === 'gracias') { responder('¡Con gusto! Aquí estoy cuando me necesites.'); return; }
     if (intencion.tipo === 'ayuda') { responder(bienvenida(tipo).text + ' También puedes hablarme: toca el micrófono de tu teclado.'); return; }
 
-    if (intencion.tipo === 'buscar') { await buscar(intencion.producto, intencion.municipio, intencion.cantidad); return; }
+    if (intencion.tipo === 'buscar') { await buscar(nombreOriginal(valor, intencion.producto).toLocaleLowerCase('es-CO'), intencion.municipio, intencion.cantidad, intencion.soloPrecio); return; }
 
     // lo que sigue es para quien vende
     if (intencion.tipo === 'publicar' || intencion.tipo === 'venta' || intencion.tipo === 'inventario' || intencion.tipo === 'resumen') {
@@ -281,7 +281,7 @@ export function useAssistantChat(tipo: TipoVendedor) {
     responder('Vendiste ' + dinero(total) + ' ' + cuando + ' en ' + veces + '. Lo que más te dejó fue ' + mejor + ' con ' + dinero(mejorTotal) + '.');
   }
 
-  async function buscar(producto: string, municipio: string, cantidad: number) {
+  async function buscar(producto: string, municipio: string, cantidad: number, soloPrecio = false) {
     if (producto === '') { responder('¿Qué estás buscando? Dime el producto, por ejemplo «plátano» o «semillas de maíz».'); return; }
     let mercado;
     try { mercado = await cargarMercado(); }
@@ -297,6 +297,23 @@ export function useAssistantChat(tipo: TipoVendedor) {
     }
     let lugar = '';
     if (municipio !== '') lugar = ' en ' + municipio;
+    // pregunta de precio: se responde con el rango real de lo publicado en sava
+    if (soloPrecio && (opciones.length > 0 || otrasZonas.length > 0)) {
+      let lista = opciones;
+      if (lista.length === 0) lista = otrasZonas;
+      const unidad = lista[0].product.unit;
+      let menor = 0;
+      let mayor = 0;
+      for (const op of lista) {
+        if (op.product.unit !== unidad) continue;
+        if (menor === 0 || op.product.price_cop < menor) menor = op.product.price_cop;
+        if (op.product.price_cop > mayor) mayor = op.product.price_cop;
+      }
+      let rango = 'a ' + dinero(menor);
+      if (mayor > menor) rango = 'entre ' + dinero(menor) + ' y ' + dinero(mayor);
+      responder('En Sava, ' + producto + ' se está publicando ' + rango + ' por ' + unidad + lugar + '. Estas son algunas opciones:', lista.slice(0, 3));
+      return;
+    }
     if (opciones.length > 0) {
       let aviso = '';
       if (cantidad > 0) {

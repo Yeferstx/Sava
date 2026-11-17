@@ -11,7 +11,7 @@ export type Intencion =
   | { tipo: 'venta'; producto: string; cantidad: number; unidad: string; precio: number; total: number }
   | { tipo: 'inventario'; producto: string }
   | { tipo: 'resumen'; periodo: Periodo }
-  | { tipo: 'buscar'; producto: string; municipio: string; cantidad: number; unidad: string }
+  | { tipo: 'buscar'; producto: string; municipio: string; cantidad: number; unidad: string; soloPrecio: boolean }
   | { tipo: 'precio'; precio: number }
   | { tipo: 'ayuda' }
   | { tipo: 'saludo' }
@@ -123,7 +123,7 @@ function municipioEn(t: string) {
 // quita lo que no es el nombre del producto en una busqueda
 function productoBuscado(t: string) {
   let texto = t;
-  const frases = ['quiero comprar', 'quisiera comprar', 'necesito comprar', 'necesito', 'busco', 'estoy buscando', 'quien vende', 'quien tiene', 'donde consigo', 'donde compro', 'donde venden', 'donde hay', 'me interesa', 'comprar', 'hay', 'venden', 'alguien que venda', 'alguien vende', 'maria'];
+  const frases = ['a como esta', 'a como se vende', 'a como venden', 'a como', 'cuanto vale', 'cuanto cuesta', 'cuanto esta', 'precio del', 'precio de', 'precios de', 'precio', 'se vende', 'esta', 'quiero comprar', 'quisiera comprar', 'necesito comprar', 'necesito', 'busco', 'estoy buscando', 'quien vende', 'quien tiene', 'donde consigo', 'donde compro', 'donde venden', 'donde hay', 'me interesa', 'comprar', 'hay', 'venden', 'alguien que venda', 'alguien vende', 'maria'];
   for (const frase of frases) texto = texto.split(frase).join(' ');
   const municipio = municipioEn(texto);
   if (municipio !== '') texto = texto.split(normalizar(municipio)).join(' ');
@@ -171,10 +171,16 @@ export function entender(mensaje: string): Intencion {
     return { tipo: 'inventario', producto };
   }
 
+  // precios: "a como esta la pina", "cuanto vale el platano"
+  if (/\b(a como|cuanto (vale|cuesta|esta)|precios? (de|del))\b/.test(t)) {
+    const producto = productoBuscado(t);
+    if (producto !== '') return { tipo: 'buscar', producto, municipio: municipioEn(t), cantidad: 0, unidad: '', soloPrecio: true };
+  }
+
   // buscar para comprar
   if (/\b(necesito|busco|buscando|quiero comprar|quisiera comprar|quien vende|quien tiene|donde (consigo|compro|venden|hay)|me interesa|alguien (que )?vend)/.test(t)) {
     const datos = extraerCantidad(t);
-    return { tipo: 'buscar', producto: productoBuscado(t), municipio: municipioEn(t), cantidad: datos.cantidad, unidad: datos.unidad };
+    return { tipo: 'buscar', producto: productoBuscado(t), municipio: municipioEn(t), cantidad: datos.cantidad, unidad: datos.unidad, soloPrecio: false };
   }
 
   // publicar: "tengo 200 kilos de pina a 2500", "vendo 20 bultos de yuca"

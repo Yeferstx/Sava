@@ -251,7 +251,7 @@ export default function AppNavigator() {
 
   if (orderIntent && user && (stage === 'guest' || stage === 'signedIn')) return <SafeAreaView style={styles.safe}><OrderCheckoutScreen product={orderIntent.product} business={orderIntent.business} quantity={orderIntent.quantity} user={user} onBack={() => setOrderIntent(null)} onCreated={orderCreated} /></SafeAreaView>;
   const isChat = activeTab === 'María';
-  const isTransient = isChat || activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio' || activeTab === 'Legal' || productoEditar !== null;
+  const isTransient = activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio' || activeTab === 'Legal' || productoEditar !== null;
   const esAgricultor = stage === 'signedIn';
   const municipioComprador = datoUsuario(user, 'municipio');
   const abrirProducto = (product: Product, business: Business | null) => setSelectedProduct({ product, business });
@@ -285,7 +285,7 @@ export default function AppNavigator() {
 
   // solo se respeta el borde de arriba: abajo la barra de pestanas pinta hasta el final
   return <SafeAreaView edges={conBarra ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']} style={[styles.safe, enVideos && styles.oscuro]}>
-    <StatusBar barStyle={isChat || enVideos ? 'light-content' : 'dark-content'} />
+    <StatusBar barStyle={enVideos ? 'light-content' : 'dark-content'} />
     {pantalla}
     {verMaria && <MariaFlotante abajo={alturaMaria} onPress={openChat} />}
     {esAgricultor && <SeguimientoModal visible={verSeguimiento} pendientes={seguimientos} leerEnVoz={chat.leerEnVoz} onListo={seguimientoListo} onCerrar={() => setVerSeguimiento(false)} />}
