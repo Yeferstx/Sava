@@ -9,6 +9,8 @@ import { colors } from '../../shared/theme';
 import { dinero } from '../../shared/contacto';
 import { aceptaDecimales, limpiarTelefono, mostrarCantidad, redondear, telefonoValido, textoUnidad } from '../../shared/validaciones';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
+import GrabadorVoz from '../../shared/components/GrabadorVoz';
+import { enviarNotaVoz } from './data/notasVozRepository';
 
 type Props = { product: Product; business: Business | null; quantity: number; user: User; onBack: () => void; onCreated: (orderId: string) => void };
 
@@ -32,6 +34,7 @@ export default function OrderCheckoutScreen({ product, business, quantity, user,
   const [address, setAddress] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [notaVoz, setNotaVoz] = useState<{ uri: string; segundos: number } | null>(null);
 
   function cambiar(paso: number) {
     let nueva = redondear(cantidad + paso);
@@ -48,7 +51,13 @@ export default function OrderCheckoutScreen({ product, business, quantity, user,
     setSaving(true);
     try {
       const orderId = await placeProductOrder({ businessId: business.id, productId: product.id, quantity: cantidad, customerName: name.trim(), customerPhone: limpiarTelefono(phone), deliveryAddress: address.trim(), note: note.trim() });
-      Alert.alert('Consulta enviada', 'El vendedor la verá en Sava y te contactará. Puedes ver su estado en «Cuenta».');
+      // la nota de voz se sube despues de crear la consulta
+      let aviso = 'El vendedor la verá en Sava y te contactará. Puedes ver su estado en «Cuenta».';
+      if (notaVoz) {
+        try { await enviarNotaVoz(orderId, notaVoz.uri, notaVoz.segundos); }
+        catch { aviso = 'La consulta se envió, pero la nota de voz no se pudo subir. Puedes grabarla otra vez en «Cuenta».'; }
+      }
+      Alert.alert('Consulta enviada', aviso);
       onCreated(orderId);
     } catch (error) {
       Alert.alert('No se pudo enviar', error instanceof Error ? error.message : 'Revisa tu conexión e intenta de nuevo.');
@@ -77,10 +86,12 @@ export default function OrderCheckoutScreen({ product, business, quantity, user,
       <View style={styles.summaryRow}><Text style={styles.summaryText}>Valor aproximado</Text><Text style={styles.total}>{dinero(Math.round(cantidad * product.price_cop))}</Text></View>
     </View>
 
+    <Text style={styles.label}>¿No quieres escribir? Graba lo que necesitas</Text>
+    <GrabadorVoz onListo={setNotaVoz} texto="Grabar nota de voz para el vendedor" />
     <Text style={styles.label}>Tu nombre *</Text><TextInput value={name} onChangeText={setName} placeholder="Nombre y apellido" placeholderTextColor={colors.muted} style={styles.input} maxLength={60} />
     <Text style={styles.label}>Tu teléfono *</Text><TextInput value={phone} onChangeText={setPhone} placeholder="300 000 0000" placeholderTextColor={colors.muted} style={styles.input} keyboardType="phone-pad" maxLength={16} />
     <Text style={styles.label}>¿Dónde lo recibes? (opcional)</Text><TextInput value={address} onChangeText={setAddress} placeholder="Barrio, vereda o punto de encuentro" placeholderTextColor={colors.muted} style={styles.input} maxLength={120} />
-    <Text style={styles.label}>Mensaje (opcional)</Text><TextInput value={note} onChangeText={setNote} placeholder="Ej. lo necesito para el sábado" placeholderTextColor={colors.muted} style={[styles.input, styles.multiline]} multiline textAlignVertical="top" maxLength={200} />
+    <Text style={styles.label}>Mensaje escrito (opcional)</Text><TextInput value={note} onChangeText={setNote} placeholder="Ej. lo necesito para el sábado" placeholderTextColor={colors.muted} style={[styles.input, styles.multiline]} multiline textAlignVertical="top" maxLength={200} />
     <Pressable accessibilityRole="button" disabled={saving} onPress={() => void submit()} style={[styles.submit, saving && styles.disabled]}>{saving ? <ActivityIndicator color={colors.white} /> : <Text style={styles.submitText}>Enviar consulta</Text>}</Pressable>
     <Text style={styles.footnote}>Sava no cobra ni procesa pagos. El inventario del vendedor no cambia hasta que él confirme la venta.</Text>
   </ScrollView>;

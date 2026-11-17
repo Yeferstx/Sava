@@ -24,7 +24,13 @@
           "photosPermission": "Sava necesita acceder a tus fotos para agregar imágenes a tus productos."
         }
       ],
-      "expo-video"
+      "expo-video",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Sava usa el micrófono para que puedas dejar notas de voz en tus consultas."
+        }
+      ]
     ]
   }
 }

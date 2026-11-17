@@ -11,10 +11,10 @@ import { dinero } from '../../shared/contacto';
 import ApoyoGobernacion from '../../shared/components/ApoyoGobernacion';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
 
-type Props = { onNavigate: (tab: AppTab) => void; onEditFinca: () => void; onSignOut?: () => void; onLegal: () => void; tipo?: 'agricultor' | 'tienda' };
+type Props = { onNavigate: (tab: AppTab) => void; onEditFinca: () => void; onSignOut?: () => void; onLegal: () => void; tipo?: 'agricultor' | 'tienda'; porConfirmar?: number; onConfirmarVentas?: () => void };
 
 // panel del agricultor: accesos rapidos y un resumen corto, sin graficas
-export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSignOut, onLegal, tipo = 'agricultor' }: Props) {
+export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSignOut, onLegal, tipo = 'agricultor', porConfirmar = 0, onConfirmarVentas }: Props) {
   const esTienda = tipo === 'tienda';
   const [activas, setActivas] = useState(0);
   const [ventasSemana, setVentasSemana] = useState(0);
@@ -77,6 +77,11 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
     <Text style={styles.motto}>{esTienda ? 'Lleva tus productos a los campesinos de Casanare.' : 'Tu cosecha merece encontrar compradores.'}</Text>
     <View style={styles.escuchar}><BotonEscuchar texto={'Aquí ves lo que tienes publicado y tus ventas. Toca un botón grande para publicar, ver tus productos, anotar una venta o hablar con María.'} /></View>
 
+    {porConfirmar > 0 && !!onConfirmarVentas && <Pressable accessibilityRole="button" onPress={onConfirmarVentas} style={styles.confirmar}>
+      <View style={styles.confirmarNumero}><Text style={styles.confirmarNumeroTexto}>{porConfirmar}</Text></View>
+      <View style={styles.flex}><Text style={styles.confirmarTitulo}>{porConfirmar === 1 ? 'Una venta por confirmar' : porConfirmar + ' ventas por confirmar'}</Text><Text style={styles.confirmarTexto}>Cuéntale a María qué pasó con las personas que te escribieron.</Text></View>
+      <ArrowRight size={20} color={colors.grafito} />
+    </Pressable>}
     <View style={styles.metrics}>
       <View style={styles.metric}><Text style={styles.metricLabel}>{esTienda ? 'PRODUCTOS PUBLICADOS' : 'COSECHAS PUBLICADAS'}</Text><Text style={styles.metricValue}>{activas}</Text></View>
       <View style={styles.metric}><Text style={styles.metricLabel}>VENTAS 7 DÍAS</Text><Text style={styles.metricValue}>{dinero(ventasSemana)}</Text></View>
@@ -106,6 +111,10 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.muted, fontSize: 11, letterSpacing: 1.2, fontWeight: '800' }, title: { color: colors.ink, fontSize: 27, fontWeight: '900', marginTop: 4 },
   place: { color: colors.muted, fontSize: 13, marginTop: 2 }, motto: { color: colors.brown, fontSize: 14, fontWeight: '700', marginTop: 10 }, escuchar: { marginTop: 10 },
   metrics: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  confirmar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.arcilla, borderRadius: 18, padding: 14, marginTop: 16 },
+  confirmarNumero: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  confirmarNumeroTexto: { color: colors.grafito, fontSize: 18, fontWeight: '900' },
+  confirmarTitulo: { color: colors.grafito, fontSize: 16, fontWeight: '900' }, confirmarTexto: { color: colors.grafito, fontSize: 13, marginTop: 2 },
   metric: { flex: 1, borderRadius: 17, padding: 14, backgroundColor: colors.brown }, metricLabel: { color: colors.verdeClaro, fontSize: 10, letterSpacing: 0.8, fontWeight: '800' }, metricValue: { color: colors.white, fontSize: 22, fontWeight: '900', marginTop: 6 },
   sync: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 13, borderRadius: 14, backgroundColor: colors.verdeClaro, marginTop: 12, marginBottom: 14 },
   syncPending: { backgroundColor: '#F5E7E2' }, syncText: { flex: 1, color: colors.brown, fontSize: 13, fontWeight: '700' }, syncTextPending: { color: '#775D50' }, syncAction: { color: '#775D50', fontSize: 13, fontWeight: '900' },

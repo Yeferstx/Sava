@@ -4,6 +4,11 @@ import { ArrowLeft, BadgeCheck, ClipboardList, Clock3, MapPin, MessageCircle, XC
 import type { OrderStatus, OrderSummary } from './types';
 import { listBusinessOrders, listCustomerOrders, updateOrderStatus } from './data/ordersRepository';
 import { recordSale } from '../sales/data/salesRepository';
+import { enviarNotaVoz, listarNotasVoz, urlNotaVoz, type NotaVoz as Nota } from './data/notasVozRepository';
+import NotaVoz from '../../shared/components/NotaVoz';
+import GrabadorVoz from '../../shared/components/GrabadorVoz';
+import { getSupabaseClient } from '../../infrastructure/supabase/client';
+import { Mic } from 'lucide-react-native';
 import { colors } from '../../shared/theme';
 import { dinero } from '../../shared/contacto';
 import { limpiarTelefono, mostrarCantidad, textoUnidad } from '../../shared/validaciones';
@@ -29,11 +34,27 @@ export default function OrdersScreen({ mode, userId, onBack, onSignOut, onLegal 
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [notas, setNotas] = useState<Nota[]>([]);
+  const [miId, setMiId] = useState('');
+  // consulta en la que se esta grabando una respuesta de voz
+  const [respondiendo, setRespondiendo] = useState<string | null>(null);
+  const [grabacion, setGrabacion] = useState<{ uri: string; segundos: number } | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      if (mode === 'business') setOrders(await listBusinessOrders());
-      else setOrders(await listCustomerOrders(userId ?? ''));
+      let lista: OrderSummary[] = [];
+      if (mode === 'business') lista = await listBusinessOrders();
+      else lista = await listCustomerOrders(userId ?? '');
+      setOrders(lista);
+      const ids: string[] = [];
+      for (const order of lista) ids.push(order.id);
+      setNotas(await listarNotasVoz(ids));
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const { data } = await supabase.auth.getUser();
+        if (data.user) setMiId(data.user.id);
+      }
     }
     catch (error) { Alert.alert('No pudimos cargar las consultas', error instanceof Error ? error.message : 'Revisa tu conexión e intenta de nuevo.'); }
     finally { setLoading(false); }
@@ -76,6 +97,19 @@ export default function OrdersScreen({ mode, userId, onBack, onSignOut, onLegal 
     } catch (error) {
       Alert.alert('No se pudo registrar', error instanceof Error ? error.message : 'Intenta de nuevo.');
     } finally { setUpdating(null); }
+  }
+
+  async function enviarRespuesta(orderId: string) {
+    if (!grabacion) return;
+    setEnviando(true);
+    try {
+      await enviarNotaVoz(orderId, grabacion.uri, grabacion.segundos);
+      setRespondiendo(null);
+      setGrabacion(null);
+      await refresh();
+    } catch (error) {
+      Alert.alert('No se pudo enviar', error instanceof Error ? error.message : 'Revisa tu conexión e intenta de nuevo.');
+    } finally { setEnviando(false); }
   }
 
   function noTengo(order: OrderSummary) {
@@ -121,6 +155,23 @@ export default function OrdersScreen({ mode, userId, onBack, onSignOut, onLegal 
           {!!order.note && <Text style={styles.note}>«{order.note}»</Text>}
         </View>}
 
+        {notas.filter((nota) => nota.order_id === order.id).map((nota) => {
+          const mia = nota.autor_id === miId;
+          let autor = 'Tú';
+          if (!mia && esVendedor) autor = order.customer_name;
+          if (!mia && !esVendedor) autor = 'Vendedor';
+          return <View key={nota.id} style={[styles.nota, mia ? styles.notaMia : styles.notaOtro]}><NotaVoz uri={urlNotaVoz(nota.audio_path)} segundos={nota.duracion_seg} deOtro={!mia} autor={autor} /></View>;
+        })}
+
+        {respondiendo === order.id && <View style={styles.responder}>
+          <GrabadorVoz onListo={setGrabacion} texto="Grabar respuesta" />
+          <View style={styles.fila}>
+            <Pressable accessibilityRole="button" onPress={() => { setRespondiendo(null); setGrabacion(null); }} style={styles.reject}><Text style={styles.rejectText}>Cancelar</Text></Pressable>
+            <Pressable accessibilityRole="button" disabled={!grabacion || enviando} onPress={() => void enviarRespuesta(order.id)} style={[styles.accept, (!grabacion || enviando) && styles.apagado]}><Text style={styles.acceptText}>{enviando ? 'Enviando…' : 'Enviar'}</Text></Pressable>
+          </View>
+        </View>}
+        {respondiendo !== order.id && status !== 'rejected' && status !== 'completed' && <Pressable accessibilityRole="button" onPress={() => { setRespondiendo(order.id); setGrabacion(null); }} style={styles.voz}><Mic size={17} color={colors.verde} /><Text style={styles.vozTexto}>Responder con nota de voz</Text></Pressable>}
+
         {esVendedor && (status === 'pending' || status === 'accepted') && <View style={styles.actions}>
           <Pressable accessibilityRole="button" disabled={busy} onPress={() => responder(order)} style={styles.whatsapp}><MessageCircle size={17} color={colors.white} /><Text style={styles.whatsappText}>Escribirle</Text></Pressable>
           <View style={styles.fila}>
@@ -158,5 +209,8 @@ const styles = StyleSheet.create({
   whatsapp: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 48, borderRadius: 24, backgroundColor: colors.verde, marginTop: 4 }, whatsappText: { color: colors.white, fontSize: 15, fontWeight: '800' },
   reject: { flex: 1, minHeight: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5E7E2' }, rejectText: { color: '#775D50', fontSize: 14, fontWeight: '800' },
   accept: { flex: 1, minHeight: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.verdeClaro }, acceptText: { color: colors.verde, fontSize: 14, fontWeight: '900' },
+  nota: { marginTop: 8, maxWidth: '92%' }, notaMia: { alignSelf: 'flex-end' }, notaOtro: { alignSelf: 'flex-start' },
+  responder: { gap: 8, marginTop: 10 }, apagado: { opacity: 0.5 },
+  voz: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 44, borderRadius: 22, borderWidth: 1.5, borderColor: colors.verde, marginTop: 10 }, vozTexto: { color: colors.verde, fontSize: 14, fontWeight: '800' },
   signOut: { alignItems: 'center', padding: 14 }, signOutText: { color: '#775D50', fontWeight: '700', fontSize: 14 }, linkText: { color: colors.verde, fontWeight: '700', fontSize: 14 },
 });

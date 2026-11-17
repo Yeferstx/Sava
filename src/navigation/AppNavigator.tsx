@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { User } from '@supabase/supabase-js';
@@ -28,6 +28,8 @@ import LegalScreen from '../features/legal/LegalScreen';
 import { cacheRemoteSales } from '../features/sales/data/salesRepository';
 import VideosScreen from '../features/videos/VideosScreen';
 import MariaFlotante from '../features/chat/MariaFlotante';
+import SeguimientoModal from '../features/seguimiento/SeguimientoModal';
+import { pendientesDeSeguimiento, type Seguimiento } from '../features/seguimiento/seguimientoRepository';
 import OrderCheckoutScreen from '../features/orders/OrderCheckoutScreen';
 import OrdersScreen from '../features/orders/OrdersScreen';
 import TabBar from '../shared/components/TabBar';
@@ -71,6 +73,10 @@ export default function AppNavigator() {
   const [productoEditar, setProductoEditar] = useState<Product | null>(null);
   const [volverLegal, setVolverLegal] = useState<AppTab>('Inicio');
   const [volverDeMaria, setVolverDeMaria] = useState<AppTab>('Inicio');
+  // ventas que la app le pregunta al vendedor si se hicieron
+  const [seguimientos, setSeguimientos] = useState<Seguimiento[]>([]);
+  const [verSeguimiento, setVerSeguimiento] = useState(false);
+  const ultimaPregunta = useRef(0);
   // quien vende: campesino (finca) o tienda del campo
   const [tipoNegocio, setTipoNegocio] = useState<'agricultor' | 'tienda'>('agricultor');
   let tipoChat: 'agricultor' | 'tienda' | '' = '';
@@ -148,11 +154,33 @@ export default function AppNavigator() {
     return () => { active = false; };
   }, [stage, user, supabase, merchantIntent]);
 
+  // al entrar y al volver a abrir la app se revisa si hay ventas por confirmar.
+  // la ventana sale sola maximo cada 4 horas para no molestar
+  function revisarSeguimiento(mostrar: boolean) {
+    void pendientesDeSeguimiento().then((lista) => {
+      setSeguimientos(lista);
+      const ahora = Date.now();
+      if (mostrar && lista.length > 0 && ahora - ultimaPregunta.current > 4 * 60 * 60 * 1000) {
+        ultimaPregunta.current = ahora;
+        setVerSeguimiento(true);
+      }
+    }).catch(() => undefined);
+  }
+
   useEffect(() => {
     if (stage !== 'signedIn') return;
-    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') void syncPendingChanges().catch(() => undefined); });
-    return () => subscription.remove();
+    const espera = setTimeout(() => revisarSeguimiento(true), 3500);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') { void syncPendingChanges().catch(() => undefined); revisarSeguimiento(true); }
+    });
+    return () => { clearTimeout(espera); subscription.remove(); };
   }, [stage]);
+
+  function seguimientoListo(id: string) {
+    const quedan = seguimientos.filter((item) => item.id !== id);
+    setSeguimientos(quedan);
+    if (quedan.length === 0) setVerSeguimiento(false);
+  }
 
   function navigate(tab: AppTab) {
     if (tab === 'María') { openChat(); return; }
@@ -234,7 +262,7 @@ export default function AppNavigator() {
   else if (selectedBusiness) pantalla = <BusinessDetailScreen business={selectedBusiness} onBack={() => setSelectedBusiness(null)} />;
   else if (activeTab === 'Legal') pantalla = <LegalScreen onBack={() => setActiveTab(volverLegal)} />;
   else if (activeTab === 'Videos') pantalla = <VideosScreen canPublish={esAgricultor} onVender={startMerchantFlow} onOpenMaria={openChat} />;
-  else if (esAgricultor && activeTab === 'Mi negocio') pantalla = <BusinessDashboardScreen tipo={tipoNegocio} onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
+  else if (esAgricultor && activeTab === 'Mi negocio') pantalla = <BusinessDashboardScreen porConfirmar={seguimientos.length} onConfirmarVentas={() => setVerSeguimiento(true)} tipo={tipoNegocio} onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (esAgricultor && activeTab === 'Inventario') pantalla = <InventoryScreen tipo={tipoNegocio} onAddProduct={() => navigate('Publicar')} onEdit={editarCosecha} onOpenSales={() => setActiveTab('Ventas')} />;
   else if (esAgricultor && activeTab === 'Publicar') pantalla = <PublishScreen key={productoEditar ? productoEditar.id : 'nueva'} tipo={tipoNegocio} producto={productoEditar} initialDraft={draftForPublish} onBack={volverDePublicar} onCreated={() => { if (draftForPublish) chat.confirmDraft(); setDraftForPublish(null); setProductoEditar(null); setActiveTab('Inventario'); }} />;
   else if (esAgricultor && activeTab === 'Ventas') pantalla = <SalesScreen onBack={() => setActiveTab('Mi negocio')} />;
@@ -257,6 +285,7 @@ export default function AppNavigator() {
     <StatusBar barStyle={isChat || enVideos ? 'light-content' : 'dark-content'} />
     {pantalla}
     {verMaria && <MariaFlotante abajo={alturaMaria} onPress={openChat} />}
+    {esAgricultor && <SeguimientoModal visible={verSeguimiento} pendientes={seguimientos} leerEnVoz={chat.leerEnVoz} onListo={seguimientoListo} onCerrar={() => setVerSeguimiento(false)} />}
     {!isTransient && !selectedBusiness && !selectedProduct && <TabBar active={activeTab} onChange={(tab) => {
       if (!esAgricultor && tab === 'Publicar') { startMerchantFlow(); return; }
       if (!esAgricultor && tab === 'Mi negocio' && !user) { setMerchantIntent(false); setStage('signedOut'); return; }

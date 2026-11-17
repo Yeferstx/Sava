@@ -2,6 +2,7 @@ import { Alert, Linking, Share } from 'react-native';
 import type { Product } from '../features/inventory/types';
 import type { Business } from '../features/business/types';
 import { limpiarTelefono, mostrarCantidad, textoUnidad } from './validaciones';
+import { registrarContacto } from '../features/seguimiento/seguimientoRepository';
 
 export function dinero(valor: number) {
   return '$' + valor.toLocaleString('es-CO');
@@ -24,6 +25,8 @@ export async function escribirPorWhatsApp(product: Product, business: Business |
     return;
   }
   const mensaje = 'Hola, vi tu publicación en Sava y me interesa:\n' + textoCosecha(product, null) + '\n¿Sigue disponible?';
+  // se anota para que despues la app le pregunte al vendedor si vendio
+  registrarContacto(product.id);
   try { await Linking.openURL('https://wa.me/57' + limpiarTelefono(business.phone) + '?text=' + encodeURIComponent(mensaje)); }
   catch { Alert.alert('No se pudo abrir WhatsApp', 'Revisa que WhatsApp esté instalado e intenta de nuevo.'); }
 }
