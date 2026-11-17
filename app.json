@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Sava",
+    "slug": "sava-mvp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#f8f1e9"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#f8f1e9"
+      }
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Sava necesita acceder a tus fotos para agregar imágenes a tus productos."
+        }
+      ],
+      "expo-video"
+    ]
+  }
+}

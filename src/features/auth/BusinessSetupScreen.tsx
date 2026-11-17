@@ -1,0 +1,43 @@
+import { useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import type { User } from '@supabase/supabase-js';
+import { getSupabaseClient } from '../../infrastructure/supabase/client';
+import { colors } from '../../shared/theme';
+import SavaLogo from '../../shared/components/SavaLogo';
+
+export type RemoteBusiness = { id: string; owner_id: string; name: string; category: string; description: string; phone: string; municipality: string; is_published: boolean };
+const categories = ['Tienda', 'Restaurante', 'Agro', 'Servicios', 'Otro'];
+
+export default function BusinessSetupScreen({ user, onCreated }: { user: User; onCreated: (business: RemoteBusiness) => void }) {
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('Tienda');
+  const [description, setDescription] = useState('');
+  const [phone, setPhone] = useState('');
+  const [municipality, setMunicipality] = useState('Yopal');
+  const [working, setWorking] = useState(false);
+
+  async function submit() {
+    if (!name.trim() || !phone.trim()) { Alert.alert('Completa los datos', 'El nombre del negocio y el teléfono son necesarios.'); return; }
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    setWorking(true);
+    try {
+      const { data, error } = await supabase.from('businesses').insert({ owner_id: user.id, name: name.trim(), category, description: description.trim(), phone: phone.trim(), municipality: municipality.trim() || 'Yopal', is_published: true }).select('id,owner_id,name,category,description,phone,municipality,is_published').single();
+      if (error) throw error;
+      onCreated(data as RemoteBusiness);
+    } catch (error) { Alert.alert('No se pudo registrar el negocio', error instanceof Error ? error.message : 'Intenta de nuevo.'); }
+    finally { setWorking(false); }
+  }
+
+  return <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <SavaLogo size="small" /><Text style={styles.title}>Cuéntanos de tu negocio</Text><Text style={styles.subtitle}>Esta información crea tu espacio de trabajo en Sava.</Text>
+    <Text style={styles.label}>Nombre del negocio *</Text><TextInput value={name} onChangeText={setName} placeholder="Ej. Mercado Llanero" style={styles.input} />
+    <Text style={styles.label}>Actividad</Text><View style={styles.options}>{categories.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.option, category === item && styles.optionSelected]}><Text style={[styles.optionText, category === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
+    <Text style={styles.label}>Descripción</Text><TextInput value={description} onChangeText={setDescription} placeholder="¿Qué ofreces a tu comunidad?" style={[styles.input, styles.multiline]} multiline textAlignVertical="top" />
+    <Text style={styles.label}>Teléfono de contacto *</Text><TextInput value={phone} onChangeText={setPhone} placeholder="+57 300 000 0000" style={styles.input} keyboardType="phone-pad" />
+    <Text style={styles.label}>Municipio</Text><TextInput value={municipality} onChangeText={setMunicipality} placeholder="Yopal" style={styles.input} />
+    <Pressable disabled={working} onPress={() => void submit()} style={[styles.submit, working && styles.disabled]}>{working ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Crear mi negocio</Text>}</Pressable>
+  </ScrollView>;
+}
+
+const styles = StyleSheet.create({ flex: { flex: 1 }, content: { padding: 24, paddingTop: 44, paddingBottom: 40, backgroundColor: colors.paper }, mark: { width: 45, height: 45, borderRadius: 15, backgroundColor: '#f2e3d4', alignItems: 'center', justifyContent: 'center' }, markText: { color: colors.brown, fontWeight: '900', fontSize: 27 }, title: { color: colors.ink, fontSize: 25, fontWeight: '900', marginTop: 22 }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 5, marginBottom: 13 }, label: { color: colors.ink, fontSize: 12, fontWeight: '800', marginTop: 15, marginBottom: 6 }, input: { backgroundColor: '#fff', borderColor: colors.line, borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, paddingVertical: 12, color: colors.ink }, multiline: { height: 82 }, options: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, option: { borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: '#fff' }, optionSelected: { backgroundColor: '#f2e2d1', borderColor: colors.brown }, optionText: { color: colors.ink, fontSize: 10 }, optionTextSelected: { color: colors.brown, fontWeight: '800' }, submit: { backgroundColor: colors.brown, borderRadius: 24, alignItems: 'center', justifyContent: 'center', height: 48, marginTop: 24 }, disabled: { opacity: 0.65 }, submitText: { color: '#fff', fontWeight: '800', fontSize: 13 } });

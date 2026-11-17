@@ -1,0 +1,46 @@
+import { createLocalId, enqueueSync, getActiveBusinessId, getDatabase } from '../../../infrastructure/database/database';
+import type { Product } from '../../inventory/types';
+import type { SaleSummary } from '../types';
+import { syncPendingChanges } from '../../../infrastructure/sync/syncService';
+
+export async function listSales() {
+  const db = await getDatabase();
+  const businessId = await getActiveBusinessId();
+  return db.getAllAsync<SaleSummary>(`SELECT sales.id, products.name AS product_name, sale_items.quantity, sales.total_cop, sales.sold_at
+    FROM sales JOIN sale_items ON sale_items.sale_id = sales.id JOIN products ON products.id = sale_items.product_id
+    WHERE sales.business_id = ? ORDER BY sales.sold_at DESC LIMIT 50`, businessId);
+}
+
+export async function cacheRemoteSales(remoteSales: Array<{ id: string; business_id: string; total_cop: number; sold_at: string }>, remoteItems: Array<{ id: string; sale_id: string; product_id: string; quantity: number; unit_price_cop: number }>) {
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    for (const sale of remoteSales) {
+      await db.runAsync(`INSERT INTO sales (id, business_id, total_cop, sold_at, sync_status) VALUES (?, ?, ?, ?, 'synced')
+        ON CONFLICT(id) DO UPDATE SET total_cop = excluded.total_cop, sold_at = excluded.sold_at, sync_status = 'synced'`, sale.id, sale.business_id, sale.total_cop, sale.sold_at);
+    }
+    for (const item of remoteItems) {
+      await db.runAsync(`INSERT INTO sale_items (id, sale_id, product_id, quantity, unit_price_cop) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET quantity = excluded.quantity, unit_price_cop = excluded.unit_price_cop`, item.id, item.sale_id, item.product_id, item.quantity, item.unit_price_cop);
+    }
+  });
+}
+
+export async function recordSale(productId: string, quantity = 1) {
+  const db = await getDatabase();
+  const businessId = await getActiveBusinessId();
+  const saleId = createLocalId('sale');
+  const itemId = createLocalId('item');
+  const now = new Date().toISOString();
+  await db.withExclusiveTransactionAsync(async (transaction) => {
+    const product = await transaction.getFirstAsync<Product>('SELECT * FROM products WHERE id = ? AND business_id = ?', productId, businessId);
+    if (!product) throw new Error('No encontramos ese producto.');
+    if (product.stock < quantity) throw new Error('No hay suficiente inventario para registrar esta venta.');
+    const total = product.price_cop * quantity;
+    await transaction.runAsync('INSERT INTO sales (id, business_id, total_cop, sold_at, sync_status) VALUES (?, ?, ?, ?, ?)', saleId, businessId, total, now, 'pending');
+    await transaction.runAsync('INSERT INTO sale_items (id, sale_id, product_id, quantity, unit_price_cop) VALUES (?, ?, ?, ?, ?)', itemId, saleId, productId, quantity, product.price_cop);
+    await transaction.runAsync('UPDATE products SET stock = ?, sync_status = ?, updated_at = ? WHERE id = ?', product.stock - quantity, 'pending', now, productId);
+    await enqueueSync(transaction, 'product', 'upsert', { ...product, stock: product.stock - quantity, sync_status: 'pending', updated_at: now });
+    await enqueueSync(transaction, 'sale', 'create', { id: saleId, item_id: itemId, business_id: businessId, product_id: productId, quantity, unit_price_cop: product.price_cop, total_cop: total, sold_at: now });
+  });
+  void syncPendingChanges().catch(() => undefined);
+}
