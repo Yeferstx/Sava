@@ -77,11 +77,12 @@ export function useAssistantChat(tipo: TipoVendedor) {
     if (!valor || pensando) return;
     setMessages((actual) => [...actual, { id: nuevoId(), author: 'user', text: valor }]);
     setPensando(true);
-    // si maria esta esperando un dato corto (cantidad o precio) se usan las reglas;
-    // si no, primero se intenta con la ia y si no responde se usan las reglas
+    // primero las reglas del celular (gratis y sin internet).
+    // la ia solo se usa cuando las reglas no entienden el mensaje
     try {
       let resuelto = false;
-      if (!pendiente.current) resuelto = await usarIA(valor);
+      const entendido = entender(valor).tipo !== 'nada';
+      if (!pendiente.current && !entendido) resuelto = await usarIA(valor);
       setConIA(resuelto);
       if (!resuelto) await procesar(valor);
     }

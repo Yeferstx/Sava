@@ -8,6 +8,9 @@ import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY") });
 
+// mensajes con ia que puede usar cada persona al dia
+const LIMITE_DIARIO = 30;
+
 const cabeceras = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -47,7 +50,7 @@ Reglas:
 - Si te piden algo fuera de Sava o del campo, responde amable y breve y vuelve a lo que sí puedes ayudar.`;
 
 // strict: claude debe devolver exactamente estos campos
-const herramientas: Anthropic.Beta.BetaTool[] = [
+const herramientas: Anthropic.Tool[] = [
   {
     name: "preparar_publicacion",
     description: "Prepara una publicación de cosecha o producto para que la persona la revise y confirme. Úsala solo si la persona vende y dio el producto, la cantidad y el precio.",
@@ -120,13 +123,19 @@ Deno.serve(async (req) => {
   const { data: usuario } = await supabase.auth.getUser();
   if (!usuario.user) return responder({ error: "sin-sesion" }, 401);
 
+  // limite de mensajes con ia por persona al dia, para cuidar el saldo.
+  // al pasarlo la app sigue respondiendo con las reglas gratis del celular
+  const { data: permitido, error: errorLimite } = await supabase.rpc("usar_ia_maria", { p_limite: LIMITE_DIARIO });
+  if (errorLimite) return responder({ error: "limite-no-disponible" }, 500);
+  if (permitido !== true) return responder({ error: "limite-diario" }, 429);
+
   let datos: Peticion;
   try { datos = await req.json(); } catch { return responder({ error: "json-invalido" }, 400); }
   const mensaje = String(datos.mensaje ?? "").slice(0, 600).trim();
   if (mensaje === "") return responder({ error: "mensaje-vacio" }, 400);
 
   // ultimos mensajes de la conversacion, como texto
-  const mensajes: Anthropic.Beta.BetaMessageParam[] = [];
+  const mensajes: Anthropic.MessageParam[] = [];
   for (const item of (datos.historial ?? []).slice(-10)) {
     const texto = String(item.texto ?? "").slice(0, 600);
     if (texto === "") continue;
@@ -138,14 +147,12 @@ Deno.serve(async (req) => {
   mensajes.push({ role: "user", content: `Contexto de la persona (datos reales de la app):\n${String(datos.contexto ?? "").slice(0, 6000)}\n\nMensaje: ${mensaje}` });
 
   try {
-    const respuesta = await anthropic.beta.messages.create({
-      model: "claude-opus-5-5",
+    // haiku 5.5: el modelo mas economico, suficiente para frases del campo
+    const respuesta = await anthropic.messages.create({
+      model: "claude-haiku-5-5",
       max_tokens: 16000,
       // chat sencillo: poco esfuerzo, respuestas rapidas
       output_config: { effort: "low" },
-      // si el modelo declina por seguridad, la api reintenta sola con otro modelo
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
       cache_control: { type: "ephemeral" },
       system: sistema,
       tools: herramientas,
