@@ -88,7 +88,7 @@ export default function ProductDetailScreen({ product, business, onBack, onOpenB
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 100 },
+  flex: { flex: 1 }, content: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 100 },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 6 }, backText: { color: colors.brown, fontWeight: '700', fontSize: 14 },
   topActions: { flexDirection: 'row', gap: 8 }, round: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.verdeClaro, alignItems: 'center', justifyContent: 'center' },

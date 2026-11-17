@@ -170,7 +170,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 22, paddingTop: 35, paddingBottom: 40 }, back: { color: colors.brown, fontWeight: '700', fontSize: 15, marginBottom: 18 },
+  flex: { flex: 1 }, content: { padding: 22, paddingTop: 14, paddingBottom: 40 }, back: { color: colors.brown, fontWeight: '700', fontSize: 15, marginBottom: 18 },
   title: { color: colors.ink, fontSize: 27, fontWeight: '900' }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7, marginBottom: 8 },
   label: { color: colors.ink, fontSize: 14, fontWeight: '800', marginTop: 18, marginBottom: 8 },
   input: { backgroundColor: colors.white, borderColor: colors.line, borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, paddingVertical: 12, color: colors.ink, fontSize: 15 },

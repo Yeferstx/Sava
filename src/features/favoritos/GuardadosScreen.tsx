@@ -29,7 +29,7 @@ export default function GuardadosScreen({ onProductPress }: { onProductPress: (p
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 20, paddingTop: 40, paddingBottom: 96 },
+  flex: { flex: 1 }, content: { padding: 20, paddingTop: 14, paddingBottom: 96 },
   title: { color: colors.ink, fontSize: 27, fontWeight: '900' }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5, marginBottom: 18 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
   empty: { alignItems: 'center', gap: 12, padding: 26, borderRadius: 18, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },

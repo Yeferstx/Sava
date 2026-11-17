@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Pause, Pencil, Play, Share2, Sprout, Trash2, Wifi } from 'lucide-react-native';
+import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ChevronRight, Minus, Pause, Pencil, Play, Plus, Share2, Sprout, Trash2, Wifi } from 'lucide-react-native';
+import { getProductImageUri } from '../marketplace/getProductImageUri';
+import { FilaEsqueleto } from '../../shared/components/Esqueleto';
+import BotonEscuchar from '../../shared/components/BotonEscuchar';
 import { adjustStock, cambiarEstadoPublicacion, listProducts } from './data/inventoryRepository';
 import { getBusinessProfile } from '../business/data/businessRepository';
 import type { Product } from './types';
@@ -17,6 +20,7 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, tip
   const [vendidos, setVendidos] = useState<VendidoPorProducto[]>([]);
   const [finca, setFinca] = useState('');
   const [loading, setLoading] = useState(true);
+  const [filtro, setFiltro] = useState<'todas' | 'publicadas' | 'pausadas' | 'agotadas'>('todas');
 
   const refresh = useCallback(async () => {
     try {
@@ -59,90 +63,152 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, tip
     ]);
   }
 
-  let activas = 0;
+  let publicadas = 0;
+  let pausadas = 0;
   let agotadas = 0;
   for (const product of products) {
-    if (product.is_published === 1) activas = activas + 1;
+    if (product.is_published === 1) publicadas = publicadas + 1;
+    else pausadas = pausadas + 1;
     if (product.stock <= 0) agotadas = agotadas + 1;
   }
 
-  return (
-    <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.brown} />}>
-      {finca !== '' && <Text style={styles.eyebrow}>{finca.toUpperCase()}</Text>}
-      <Text style={styles.title}>{tipo === 'tienda' ? 'Mis productos' : 'Mis cosechas'}</Text>
-      <View style={styles.stats}>
-        <View style={styles.stat}><Text style={styles.statNumber}>{activas}</Text><Text style={styles.statLabel}>Publicadas</Text></View>
-        <View style={styles.stat}><Text style={[styles.statNumber, agotadas > 0 && styles.warning]}>{agotadas}</Text><Text style={styles.statLabel}>Agotadas</Text></View>
-        <Pressable style={styles.salesStat} onPress={onOpenSales}><Text style={styles.salesLabel}>Ventas</Text><Text style={styles.salesArrow}>›</Text></Pressable>
-      </View>
-      <View style={styles.heading}><Text style={styles.headingText}>Tus publicaciones</Text><Pressable onPress={onAddProduct}><Text style={styles.addText}>＋ Publicar</Text></Pressable></View>
+  const visibles: Product[] = [];
+  for (const product of products) {
+    if (filtro === 'publicadas' && product.is_published !== 1) continue;
+    if (filtro === 'pausadas' && product.is_published === 1) continue;
+    if (filtro === 'agotadas' && product.stock > 0) continue;
+    visibles.push(product);
+  }
 
-      {products.map((product) => {
-        let estado = 'Publicada';
-        if (product.is_published === 0) estado = 'Pausada';
-        // cantidad inicial = lo que queda + lo vendido
+  const filtros: Array<{ clave: typeof filtro; texto: string; numero: number }> = [
+    { clave: 'todas', texto: 'Todas', numero: products.length },
+    { clave: 'publicadas', texto: 'Publicadas', numero: publicadas },
+    { clave: 'pausadas', texto: 'Pausadas', numero: pausadas },
+    { clave: 'agotadas', texto: 'Agotadas', numero: agotadas },
+  ];
+
+  let titulo = 'Mis cosechas';
+  if (tipo === 'tienda') titulo = 'Mis productos';
+
+  return (
+    <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refresh()} tintColor={colors.brown} />}>
+      {finca !== '' && <Text style={styles.eyebrow}>{finca.toUpperCase()}</Text>}
+      <View style={styles.tituloFila}>
+        <Text style={styles.title}>{titulo}</Text>
+        <Pressable accessibilityRole="button" onPress={onAddProduct} style={styles.publicar}><Plus size={20} color={colors.white} strokeWidth={2.8} /><Text style={styles.publicarTexto}>Publicar</Text></Pressable>
+      </View>
+      <View style={styles.escuchar}><BotonEscuchar texto={'Aquí ves lo que tienes publicado. Toca más o menos para cambiar cuánto te queda. Abajo de cada producto puedes editarlo, pausarlo o compartirlo.'} /></View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtros}>
+        {filtros.map((item) => <Pressable key={item.clave} accessibilityRole="button" accessibilityState={{ selected: filtro === item.clave }} onPress={() => setFiltro(item.clave)} style={[styles.filtro, filtro === item.clave && styles.filtroActivo]}>
+          <Text style={[styles.filtroTexto, filtro === item.clave && styles.filtroTextoActivo]}>{item.texto}</Text>
+          <View style={[styles.filtroNumero, filtro === item.clave && styles.filtroNumeroActivo]}><Text style={[styles.filtroNumeroTexto, filtro === item.clave && styles.filtroNumeroTextoActivo]}>{item.numero}</Text></View>
+        </Pressable>)}
+      </ScrollView>
+
+      <Pressable accessibilityRole="button" onPress={onOpenSales} style={styles.ventas}>
+        <Text style={styles.ventasTexto}>Ver y anotar ventas</Text><ChevronRight size={20} color={colors.verde} />
+      </Pressable>
+
+      {loading && products.length === 0 && <><FilaEsqueleto /><FilaEsqueleto /><FilaEsqueleto /></>}
+
+      {visibles.map((product) => {
         let vendido = 0;
         let totalVendido = 0;
         for (const fila of vendidos) {
           if (fila.product_id === product.id) { vendido = fila.vendido; totalVendido = fila.total; }
         }
-        let sync = 'Sincronizada';
-        if (product.sync_status === 'pending') sync = 'Pendiente de sincronizar';
-        if (product.sync_status === 'local') sync = 'Solo en este celular';
-        return <View key={product.id} style={styles.product}>
+        const foto = getProductImageUri(product.photo_uri);
+        const pausada = product.is_published === 0;
+        const agotada = product.stock <= 0;
+        let estado = 'Publicada';
+        if (pausada) estado = 'Pausada';
+        if (agotada) estado = 'Agotada';
+        let sync = '';
+        if (product.sync_status === 'pending') sync = 'Falta subir a internet';
+        return <View key={product.id} style={[styles.product, pausada && styles.productPausado]}>
           <View style={styles.productTop}>
-            <View style={styles.productIcon}><Sprout size={22} color={colors.brown} /></View>
+            <View style={styles.foto}>{foto ? <Image source={{ uri: foto }} style={styles.fotoImagen} /> : <Sprout size={28} color={colors.brown} />}</View>
             <View style={styles.productInfo}>
-              <Text style={styles.productName}>{product.name}</Text>
+              <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
               <Text style={styles.productPrice}>{dinero(product.price_cop)} por {product.unit}</Text>
-              <Text style={[styles.stock, product.stock <= 0 && styles.warning]}>Quedan {mostrarCantidad(product.stock)} {textoUnidad(product.stock, product.unit)}</Text>
-              {vendido > 0 && <Text style={styles.productPrice}>Vendido: {mostrarCantidad(vendido)} de {mostrarCantidad(product.stock + vendido)} · {dinero(totalVendido)}</Text>}
               <View style={styles.badges}>
-                <Text style={[styles.badge, product.is_published === 0 && styles.badgePaused]}>{estado}</Text>
-                <Text style={[styles.sync, product.sync_status === 'pending' && styles.syncPending]}>● {sync}</Text>
+                <Text style={[styles.badge, (pausada || agotada) && styles.badgePaused]}>{estado}</Text>
+                {sync !== '' && <Text style={styles.syncPending}>● {sync}</Text>}
               </View>
             </View>
-            <View style={styles.quantity}>
-              <Pressable accessibilityLabel={'Sumar ' + product.name} onPress={() => changeStock(product, 1)} style={styles.quantityButton}><Text style={styles.quantityText}>＋</Text></Pressable>
-              <Pressable accessibilityLabel={'Restar ' + product.name} disabled={product.stock <= 0} onPress={() => changeStock(product, -1)} style={[styles.quantityButton, product.stock <= 0 && styles.quantityDisabled]}><Text style={styles.quantityText}>−</Text></Pressable>
-            </View>
           </View>
+
+          {/* cantidad grande con botones grandes para restar y sumar */}
+          <View style={styles.cantidadFila}>
+            <Pressable accessibilityRole="button" accessibilityLabel={'Restar 1 a ' + product.name} disabled={agotada} onPress={() => void changeStock(product, -1)} style={[styles.paso, agotada && styles.pasoApagado]}><Minus size={24} color={colors.verde} strokeWidth={2.8} /></Pressable>
+            <View style={styles.cantidadCentro}>
+              <Text style={[styles.cantidad, agotada && styles.warning]}>{mostrarCantidad(product.stock)}</Text>
+              <Text style={styles.cantidadUnidad}>{textoUnidad(product.stock, product.unit)} quedan</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel={'Sumar 1 a ' + product.name} onPress={() => void changeStock(product, 1)} style={styles.paso}><Plus size={24} color={colors.verde} strokeWidth={2.8} /></Pressable>
+          </View>
+          {vendido > 0 && <Text style={styles.vendido}>Vendiste {mostrarCantidad(vendido)} de {mostrarCantidad(product.stock + vendido)} · {dinero(totalVendido)}</Text>}
+
           <View style={styles.actions}>
-            <Pressable accessibilityRole="button" onPress={() => onEdit(product)} style={styles.action}><Pencil size={15} color={colors.brown} /><Text style={styles.actionText}>Editar</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={() => pausar(product)} style={styles.action}>{product.is_published === 0 ? <Play size={15} color={colors.brown} /> : <Pause size={15} color={colors.brown} />}<Text style={styles.actionText}>{product.is_published === 0 ? 'Reanudar' : 'Pausar'}</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={() => void compartirCosecha(product, null)} style={styles.action}><Share2 size={15} color={colors.brown} /><Text style={styles.actionText}>Compartir</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={() => retirar(product)} style={styles.action}><Trash2 size={15} color="#775D50" /><Text style={[styles.actionText, styles.warning]}>Retirar</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => onEdit(product)} style={styles.action}><Pencil size={20} color={colors.brown} /><Text style={styles.actionText}>Editar</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => pausar(product)} style={styles.action}>{pausada ? <Play size={20} color={colors.brown} /> : <Pause size={20} color={colors.brown} />}<Text style={styles.actionText}>{pausada ? 'Reanudar' : 'Pausar'}</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => void compartirCosecha(product, null)} style={styles.action}><Share2 size={20} color={colors.brown} /><Text style={styles.actionText}>Compartir</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => retirar(product)} style={styles.action}><Trash2 size={20} color="#775D50" /><Text style={[styles.actionText, styles.warning]}>Retirar</Text></Pressable>
           </View>
         </View>;
       })}
-      {products.length === 0 && !loading && <View style={styles.emptyBox}><Text style={styles.empty}>Aún no tienes nada publicado.</Text><Pressable onPress={onAddProduct} style={styles.emptyButton}><Text style={styles.emptyButtonText}>Publicar ahora</Text></Pressable></View>}
-      <View style={styles.offline}><Wifi size={16} color={colors.muted} /><Text style={styles.offlineText}>Tus cambios se guardan en este celular y se sincronizan cuando vuelve la conexión.</Text></View>
+      {!loading && products.length === 0 && <View style={styles.emptyBox}><Sprout size={34} color={colors.brown} /><Text style={styles.emptyTitle}>Aún no tienes nada publicado</Text><Text style={styles.empty}>Publica lo que tienes para que los compradores de Casanare lo vean.</Text><Pressable onPress={onAddProduct} style={styles.emptyButton}><Text style={styles.emptyButtonText}>Publicar ahora</Text></Pressable></View>}
+      {!loading && products.length > 0 && visibles.length === 0 && <Text style={styles.empty}>No tienes publicaciones en «{filtro}».</Text>}
+      <View style={styles.offline}><Wifi size={16} color={colors.muted} /><Text style={styles.offlineText}>Tus cambios se guardan en este celular y se suben solos cuando vuelve la conexión.</Text></View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 20, paddingTop: 37, paddingBottom: 96 },
-  eyebrow: { color: colors.muted, letterSpacing: 1.1, fontSize: 11, fontWeight: '800' }, title: { color: colors.ink, fontSize: 27, fontWeight: '900', marginTop: 4 },
-  stats: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 18, marginBottom: 22 },
-  stat: { flex: 1, backgroundColor: colors.verdeClaro, borderRadius: 15, padding: 13 }, statNumber: { color: colors.brown, fontSize: 23, fontWeight: '900' }, statLabel: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  flex: { flex: 1 }, content: { padding: 18, paddingTop: 14, paddingBottom: 96 },
+  eyebrow: { color: colors.muted, letterSpacing: 1.1, fontSize: 11, fontWeight: '800' },
+  tituloFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  title: { color: colors.ink, fontSize: 27, fontWeight: '900' },
+  publicar: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.verde, borderRadius: 22, paddingHorizontal: 15, paddingVertical: 10 },
+  publicarTexto: { color: colors.white, fontSize: 15, fontWeight: '900' },
+  escuchar: { marginTop: 10 },
+  filtros: { gap: 8, paddingVertical: 14 },
+  filtro: { flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 20, paddingLeft: 14, paddingRight: 6, paddingVertical: 6, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },
+  filtroActivo: { backgroundColor: colors.verde, borderColor: colors.verde },
+  filtroTexto: { color: colors.grafito, fontSize: 14, fontWeight: '700' }, filtroTextoActivo: { color: colors.white, fontWeight: '900' },
+  filtroNumero: { minWidth: 26, height: 26, borderRadius: 13, paddingHorizontal: 6, backgroundColor: colors.verdeClaro, alignItems: 'center', justifyContent: 'center' },
+  filtroNumeroActivo: { backgroundColor: colors.white },
+  filtroNumeroTexto: { color: colors.verde, fontSize: 13, fontWeight: '900' }, filtroNumeroTextoActivo: { color: colors.verde },
+  ventas: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.verdeClaro, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 13, marginBottom: 14 },
+  ventasTexto: { color: colors.verde, fontSize: 15, fontWeight: '900' },
   warning: { color: '#775D50' },
-  salesStat: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.brown, borderRadius: 15, padding: 13, minHeight: 68 }, salesLabel: { color: colors.white, fontWeight: '800', fontSize: 13 }, salesArrow: { color: colors.white, fontSize: 22, marginLeft: 8 },
-  heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 11 }, headingText: { color: colors.ink, fontWeight: '800', fontSize: 18 }, addText: { color: colors.brown, fontWeight: '800', fontSize: 14 },
-  product: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 17, padding: 12, marginBottom: 10 },
-  productTop: { flexDirection: 'row', alignItems: 'center' },
-  productIcon: { width: 46, height: 46, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginRight: 11, backgroundColor: colors.verdeClaro },
-  productInfo: { flex: 1 }, productName: { color: colors.ink, fontWeight: '800', fontSize: 15 }, productPrice: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  stock: { color: colors.brown, fontSize: 13, fontWeight: '700', marginTop: 4 },
+  product: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 20, padding: 14, marginBottom: 12 },
+  productPausado: { opacity: 0.8 },
+  productTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  foto: { width: 72, height: 72, borderRadius: 16, overflow: 'hidden', backgroundColor: colors.verdeClaro, alignItems: 'center', justifyContent: 'center' },
+  fotoImagen: { width: '100%', height: '100%' },
+  productInfo: { flex: 1 },
+  productName: { color: colors.ink, fontWeight: '900', fontSize: 18 },
+  productPrice: { color: colors.verde, fontSize: 14, fontWeight: '800', marginTop: 3 },
   badges: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 6 },
-  badge: { color: colors.brown, backgroundColor: colors.verdeClaro, fontSize: 11, fontWeight: '800', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 9, overflow: 'hidden' },
+  badge: { color: colors.brown, backgroundColor: colors.verdeClaro, fontSize: 12, fontWeight: '800', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 9, overflow: 'hidden' },
   badgePaused: { color: '#775D50', backgroundColor: '#F5E7E2' },
-  sync: { color: colors.muted, fontSize: 11 }, syncPending: { color: '#775D50', fontWeight: '700' },
-  quantity: { alignItems: 'center', gap: 6 }, quantityButton: { width: 36, height: 32, borderRadius: 10, backgroundColor: colors.verdeClaro, alignItems: 'center', justifyContent: 'center' }, quantityDisabled: { opacity: 0.35 },
-  quantityText: { color: colors.brown, fontWeight: '800', fontSize: 18, lineHeight: 21 },
-  actions: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.line, marginTop: 11, paddingTop: 8 },
-  action: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 4 }, actionText: { color: colors.brown, fontSize: 12, fontWeight: '700' },
-  emptyBox: { alignItems: 'center', gap: 12, padding: 22, backgroundColor: colors.white, borderRadius: 17, borderWidth: 1, borderColor: colors.line },
-  empty: { color: colors.muted, fontSize: 14 }, emptyButton: { backgroundColor: colors.brown, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 11 }, emptyButtonText: { color: colors.white, fontWeight: '800', fontSize: 13 },
-  offline: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, backgroundColor: colors.verdeClaro, borderRadius: 13, padding: 12 }, offlineText: { color: colors.muted, fontSize: 12, lineHeight: 17, flex: 1 },
+  syncPending: { color: '#775D50', fontSize: 12, fontWeight: '700' },
+  cantidadFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.crema, borderRadius: 18, padding: 8, marginTop: 12 },
+  paso: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.verde, alignItems: 'center', justifyContent: 'center' },
+  pasoApagado: { opacity: 0.35 },
+  cantidadCentro: { alignItems: 'center' },
+  cantidad: { color: colors.grafito, fontSize: 30, fontWeight: '900' },
+  cantidadUnidad: { color: colors.muted, fontSize: 13, fontWeight: '700' },
+  vendido: { color: colors.muted, fontSize: 13, textAlign: 'center', marginTop: 8 },
+  actions: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.line, marginTop: 12, paddingTop: 10 },
+  action: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4 },
+  actionText: { color: colors.brown, fontSize: 12, fontWeight: '800' },
+  emptyBox: { alignItems: 'center', gap: 10, padding: 24, backgroundColor: colors.white, borderRadius: 20, borderWidth: 1, borderColor: colors.line },
+  emptyTitle: { color: colors.ink, fontSize: 17, fontWeight: '900' },
+  empty: { color: colors.muted, fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  emptyButton: { backgroundColor: colors.brown, borderRadius: 24, paddingHorizontal: 20, paddingVertical: 12 }, emptyButtonText: { color: colors.white, fontWeight: '900', fontSize: 15 },
+  offline: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, backgroundColor: colors.verdeClaro, borderRadius: 13, padding: 12 },
+  offlineText: { color: colors.muted, fontSize: 12, lineHeight: 17, flex: 1 },
 });

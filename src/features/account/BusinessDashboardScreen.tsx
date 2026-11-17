@@ -71,8 +71,8 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
   if (pendientes > 1) textoPendientes = pendientes + ' cambios pendientes de sincronizar';
 
   return <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refresh()} tintColor={colors.brown} />}>
-    <Text style={styles.eyebrow}>{esTienda ? 'PANEL DE LA TIENDA' : 'PANEL DEL CAMPESINO'}</Text>
-    <Text style={styles.title}>{finca !== '' ? finca : esTienda ? 'Mi tienda' : 'Mi finca'}</Text>
+    <Text style={styles.eyebrow}>MI NEGOCIO</Text>
+    <Text style={styles.title}>{finca !== '' ? finca : 'Mi negocio'}</Text>
     {municipio !== '' && <Text style={styles.place}>{municipio}, Casanare</Text>}
     <Text style={styles.motto}>{esTienda ? 'Lleva tus productos a los campesinos de Casanare.' : 'Tu cosecha merece encontrar compradores.'}</Text>
     <View style={styles.escuchar}><BotonEscuchar texto={'Aquí ves lo que tienes publicado y tus ventas. Toca un botón grande para publicar, ver tus productos, anotar una venta o hablar con María.'} /></View>
@@ -99,7 +99,7 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
       <ArrowRight size={18} color={colors.brown} />
     </Pressable>)}
 
-    <Pressable onPress={onEditFinca} style={styles.link}><Text style={styles.linkText}>{esTienda ? 'Editar información de la tienda' : 'Editar información de la finca'}</Text></Pressable>
+    <Pressable onPress={onEditFinca} style={styles.link}><Text style={styles.linkText}>Editar información del negocio</Text></Pressable>
     <Pressable onPress={onLegal} style={styles.link}><Text style={styles.linkText}>Privacidad y términos de uso</Text></Pressable>
     {!!onSignOut && <Pressable onPress={onSignOut} style={styles.link}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}
     <ApoyoGobernacion conMapa />
@@ -107,7 +107,7 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 20, paddingTop: 38, paddingBottom: 96 },
+  flex: { flex: 1 }, content: { padding: 20, paddingTop: 14, paddingBottom: 96 },
   eyebrow: { color: colors.muted, fontSize: 11, letterSpacing: 1.2, fontWeight: '800' }, title: { color: colors.ink, fontSize: 27, fontWeight: '900', marginTop: 4 },
   place: { color: colors.muted, fontSize: 13, marginTop: 2 }, motto: { color: colors.brown, fontSize: 14, fontWeight: '700', marginTop: 10 }, escuchar: { marginTop: 10 },
   metrics: { flexDirection: 'row', gap: 10, marginTop: 18 },

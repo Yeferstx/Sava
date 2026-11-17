@@ -122,7 +122,7 @@ export default function ChatScreen(props: Props) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { paddingTop: 44, paddingBottom: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.verde },
+  header: { paddingTop: 10, paddingBottom: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.verde },
   headerBoton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   vozActiva: { backgroundColor: 'rgba(255,255,255,0.18)' },
   headerCentro: { flex: 1, alignItems: 'center' }, nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },

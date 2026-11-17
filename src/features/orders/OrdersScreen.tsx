@@ -6,6 +6,7 @@ import { listBusinessOrders, listCustomerOrders, updateOrderStatus } from './dat
 import { recordSale } from '../sales/data/salesRepository';
 import { enviarNotaVoz, listarNotasVoz, urlNotaVoz, type NotaVoz as Nota } from './data/notasVozRepository';
 import NotaVoz from '../../shared/components/NotaVoz';
+import { FilaEsqueleto } from '../../shared/components/Esqueleto';
 import GrabadorVoz from '../../shared/components/GrabadorVoz';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
 import { Mic } from 'lucide-react-native';
@@ -124,6 +125,7 @@ export default function OrdersScreen({ mode, userId, onBack, onSignOut, onLegal 
     {!!onBack && <Pressable onPress={onBack} style={styles.back}><ArrowLeft size={18} color={colors.brown} /><Text style={styles.backText}>Volver</Text></Pressable>}
     <Text style={styles.title}>{esVendedor ? 'Consultas de compradores' : 'Mis consultas'}</Text>
     <Text style={styles.subtitle}>{esVendedor ? 'Personas interesadas en lo que publicaste. Escríbeles y, si les vendes, toca «Ya le vendí».' : 'Lo que le preguntaste a los vendedores. Ellos te contactan para acordar.'}</Text>
+    {orders.length === 0 && loading && <><FilaEsqueleto /><FilaEsqueleto /></>}
     {orders.length === 0 && !loading && <View style={styles.empty}><ClipboardList size={30} color={colors.brown} /><Text style={styles.emptyTitle}>Todavía no hay consultas</Text><Text style={styles.emptyText}>{esVendedor ? 'Cuando alguien pregunte por tu producto, aparecerá aquí.' : 'Abre una publicación y toca «Enviar consulta».'}</Text></View>}
     {orders.map((order) => {
       const status = order.status;
@@ -189,7 +191,7 @@ export default function OrdersScreen({ mode, userId, onBack, onSignOut, onLegal 
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 20, paddingTop: 32, paddingBottom: 96 },
+  flex: { flex: 1 }, content: { padding: 20, paddingTop: 14, paddingBottom: 96 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 18 }, backText: { color: colors.brown, fontSize: 14, fontWeight: '700' },
   title: { color: colors.ink, fontSize: 26, fontWeight: '900' }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5, marginBottom: 16 },
   empty: { alignItems: 'center', gap: 6, backgroundColor: colors.white, borderColor: colors.line, borderWidth: 1, borderRadius: 18, padding: 24 },

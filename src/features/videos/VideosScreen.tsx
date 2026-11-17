@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { useEvent } from 'expo';
+import { Esqueleto } from '../../shared/components/Esqueleto';
 import { ImagePlus, MessageCircle, Play, Plus, Share2, Sparkles, Upload, Volume2, VolumeX, X } from 'lucide-react-native';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
 import { createLocalId, getActiveBusinessId } from '../../infrastructure/database/database';
@@ -55,7 +57,8 @@ export default function VideosScreen({ canPublish = false, onVender, onOpenMaria
       Alert.alert('Permiso para tus videos', 'Permite el acceso a tus fotos y videos para elegir uno.');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], videoMaxDuration: 60, quality: 1 });
+    // se comprime a 960x540 (h264): pesa menos, carga rapido y se ve en android y iphone
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], videoMaxDuration: 60, videoExportPreset: ImagePicker.VideoExportPreset.H264_960x540, videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium });
     if (result.canceled || result.assets.length === 0) return;
     const asset = result.assets[0];
     if (asset.fileSize && asset.fileSize > 50 * 1024 * 1024) {
@@ -121,7 +124,10 @@ export default function VideosScreen({ canPublish = false, onVender, onOpenMaria
   if (videos.length > 0) vacioTitulo = 'No hay videos de ' + category.toLowerCase();
 
   return <View style={styles.pantalla} onLayout={(e) => setAlto(e.nativeEvent.layout.height)}>
-    {loading && <ActivityIndicator color={colors.white} style={styles.cargando} />}
+    {loading && <View style={styles.esqueleto}>
+      <View style={styles.esqueletoInfo}><Esqueleto oscuro ancho="35%" alto={12} /><Esqueleto oscuro ancho="80%" alto={20} /><Esqueleto oscuro ancho="60%" alto={12} /></View>
+      <View style={styles.esqueletoAcciones}><Esqueleto oscuro ancho={46} alto={46} radio={23} /><Esqueleto oscuro ancho={46} alto={46} radio={23} /><Esqueleto oscuro ancho={46} alto={46} radio={23} /></View>
+    </View>}
 
     {!loading && visibles.length > 0 && alto > 0 && <FlatList
       data={visibles}
@@ -132,9 +138,12 @@ export default function VideosScreen({ canPublish = false, onVender, onOpenMaria
       viewabilityConfig={{ itemVisiblePercentThreshold: 70 }}
       getItemLayout={(_, index) => ({ length: alto, offset: alto * index, index })}
       windowSize={3}
+      initialNumToRender={1}
+      maxToRenderPerBatch={2}
+      removeClippedSubviews
       onRefresh={() => { setLoading(true); void refresh(); }}
       refreshing={false}
-      renderItem={({ item, index }) => <VideoCompleto video={item} alto={alto} activo={index === actual} cerca={Math.abs(index - actual) <= 1} silencio={silencio} onSilencio={() => setSilencio(!silencio)} onOpenMaria={onOpenMaria} />}
+      renderItem={({ item, index }) => <VideoCompleto video={item} alto={alto} activo={index === actual} silencio={silencio} onSilencio={() => setSilencio(!silencio)} onOpenMaria={onOpenMaria} />}
     />}
 
     {!loading && visibles.length === 0 && <View style={styles.vacio}>
@@ -177,24 +186,41 @@ function VideoPreview({ uri }: { uri: string }) {
   return <VideoView player={player} style={styles.preview} nativeControls contentFit="contain" />;
 }
 
-type ItemProps = { video: PublicVideo; alto: number; activo: boolean; cerca: boolean; silencio: boolean; onSilencio: () => void; onOpenMaria?: () => void };
+type ItemProps = { video: PublicVideo; alto: number; activo: boolean; silencio: boolean; onSilencio: () => void; onOpenMaria?: () => void };
 
-// un video a pantalla completa. solo se carga si esta cerca del que se ve, para no gastar datos
-function VideoCompleto({ video, alto, activo, cerca, silencio, onSilencio, onOpenMaria }: ItemProps) {
+// un video a pantalla completa. la lista solo deja montados los videos cercanos,
+// asi no se descargan todos a la vez
+function VideoCompleto({ video, alto, activo, silencio, onSilencio, onOpenMaria }: ItemProps) {
   const [pausado, setPausado] = useState(false);
+  const [intento, setIntento] = useState(0);
   const supabase = getSupabaseClient();
   let uri = '';
-  if (supabase && cerca) uri = supabase.storage.from('sava-media').getPublicUrl(video.video_path).data.publicUrl;
-  const player = useVideoPlayer(uri === '' ? null : uri, (instance) => { instance.loop = true; });
+  if (supabase) uri = supabase.storage.from('sava-media').getPublicUrl(video.video_path).data.publicUrl;
+  // el numero de intento cambia la fuente para volver a cargar si fallo
+  let fuente = null;
+  if (uri !== '') {
+    let direccion = uri;
+    if (intento > 0) direccion = uri + '?intento=' + intento;
+    fuente = { uri: direccion };
+  }
+  const player = useVideoPlayer(fuente, (instance) => {
+    instance.loop = true;
+    instance.muted = silencio;
+    // empezar a reproducir con poco video descargado (conexiones lentas del campo)
+    instance.bufferOptions = { preferredForwardBufferDuration: 6, waitsToMinimizeStalling: false, minBufferForPlayback: 1 };
+  });
+  // estado del video: cargando, listo o con error
+  const { status } = useEvent(player, 'statusChange', { status: player.status });
 
   useEffect(() => {
     player.muted = silencio;
   }, [player, silencio]);
 
+  // solo suena el video que se esta viendo, y apenas este listo
   useEffect(() => {
-    if (activo && !pausado) player.play();
-    else player.pause();
-  }, [player, activo, pausado]);
+    if (activo && !pausado && status === 'readyToPlay') player.play();
+    if (!activo || pausado) player.pause();
+  }, [player, activo, pausado, status]);
 
   // al pasar a otro video se quita la pausa
   useEffect(() => { if (!activo) setPausado(false); }, [activo]);
@@ -217,32 +243,32 @@ function VideoCompleto({ video, alto, activo, cerca, silencio, onSilencio, onOpe
   }
 
   return <View style={[styles.item, { height: alto }]}>
-    {uri !== '' && <VideoView player={player} style={styles.video} nativeControls={false} contentFit="cover" />}
+    {/* contain: se ve el video completo, sin cortarlo */}
+    {fuente !== null && <VideoView player={player} style={styles.video} nativeControls={false} contentFit="contain" />}
     <Pressable accessibilityRole="button" accessibilityLabel={pausado ? 'Reproducir video' : 'Pausar video'} onPress={() => setPausado(!pausado)} style={styles.toque}>
-      {pausado && <View style={styles.pausa}><Play size={40} color={colors.white} fill={colors.white} /></View>}
+      {status === 'loading' && activo && <View style={styles.cargandoVideo}><ActivityIndicator size="large" color={colors.white} /><Text style={styles.cargandoTexto}>Cargando video…</Text></View>}
+      {status === 'error' && <View style={styles.cargandoVideo}><Text style={styles.cargandoTexto}>No se pudo cargar este video.</Text><Pressable accessibilityRole="button" onPress={() => setIntento(intento + 1)} style={styles.reintentar}><Text style={styles.reintentarTexto}>Intentar de nuevo</Text></Pressable></View>}
+      {pausado && status === 'readyToPlay' && <View style={styles.pausa}><Play size={40} color={colors.white} fill={colors.white} /></View>}
     </Pressable>
 
-    {/* sombra suave abajo para que el texto se lea sobre cualquier video */}
-    <View pointerEvents="none" style={styles.sombra} />
-
     <View pointerEvents="none" style={styles.info}>
-      <View style={styles.etiqueta}><Text style={styles.etiquetaTexto}>{video.category}</Text></View>
-      <Text style={styles.videoTitulo} numberOfLines={3}>{video.title}</Text>
-      <Text style={styles.vendedor}>{vendedor} · {municipio} · {fechaCorta(video.created_at)}</Text>
+      <Text style={styles.etiquetaTexto}>{video.category}</Text>
+      <Text style={styles.videoTitulo} numberOfLines={2}>{video.title}</Text>
+      <Text style={styles.vendedor} numberOfLines={1}>{vendedor} · {municipio} · {fechaCorta(video.created_at)}</Text>
     </View>
 
     <View style={styles.acciones}>
       <Pressable accessibilityRole="button" accessibilityLabel="Escribir al vendedor por WhatsApp" onPress={() => void escribir()} style={styles.accion}>
-        <View style={[styles.accionCirculo, styles.accionVerde]}><MessageCircle size={24} color={colors.white} /></View><Text style={styles.accionTexto}>Escribir</Text>
+        <View style={[styles.accionCirculo, styles.accionVerde]}><MessageCircle size={22} color={colors.white} /></View><Text style={styles.accionTexto}>Escribir</Text>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Compartir video" onPress={() => void compartir()} style={styles.accion}>
-        <View style={styles.accionCirculo}><Share2 size={22} color={colors.white} /></View><Text style={styles.accionTexto}>Compartir</Text>
+        <View style={styles.accionCirculo}><Share2 size={20} color={colors.white} /></View><Text style={styles.accionTexto}>Compartir</Text>
       </Pressable>
       {!!onOpenMaria && <Pressable accessibilityRole="button" accessibilityLabel="Preguntarle a María" onPress={onOpenMaria} style={styles.accion}>
-        <View style={[styles.accionCirculo, styles.accionArcilla]}><Sparkles size={22} color={colors.grafito} /></View><Text style={styles.accionTexto}>María</Text>
+        <View style={[styles.accionCirculo, styles.accionArcilla]}><Sparkles size={20} color={colors.grafito} /></View><Text style={styles.accionTexto}>María</Text>
       </Pressable>}
       <Pressable accessibilityRole="button" accessibilityLabel={silencio ? 'Activar sonido' : 'Quitar sonido'} onPress={onSilencio} style={styles.accion}>
-        <View style={styles.accionCirculo}>{silencio ? <VolumeX size={22} color={colors.white} /> : <Volume2 size={22} color={colors.white} />}</View><Text style={styles.accionTexto}>{silencio ? 'Sin sonido' : 'Sonido'}</Text>
+        <View style={styles.accionCirculo}>{silencio ? <VolumeX size={20} color={colors.white} /> : <Volume2 size={20} color={colors.white} />}</View><Text style={styles.accionTexto}>{silencio ? 'Mudo' : 'Sonido'}</Text>
       </Pressable>
     </View>
   </View>;
@@ -250,32 +276,36 @@ function VideoCompleto({ video, alto, activo, cerca, silencio, onSilencio, onOpe
 
 const styles = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: colors.grafito },
-  cargando: { marginTop: 160 },
+  esqueleto: { flex: 1, justifyContent: 'flex-end', flexDirection: 'row', alignItems: 'flex-end', padding: 14, paddingBottom: 20, gap: 14 },
+  esqueletoInfo: { flex: 1, gap: 8 },
+  esqueletoAcciones: { gap: 14 },
+  cargandoVideo: { alignItems: 'center', gap: 10 },
+  cargandoTexto: { color: colors.white, fontSize: 14, fontWeight: '700' },
+  reintentar: { backgroundColor: colors.arcilla, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 9 },
+  reintentarTexto: { color: colors.grafito, fontSize: 14, fontWeight: '900' },
   item: { width: '100%', backgroundColor: colors.grafito },
   video: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   toque: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   pausa: { width: 84, height: 84, borderRadius: 42, backgroundColor: 'rgba(38,51,47,0.55)', alignItems: 'center', justifyContent: 'center', paddingLeft: 6 },
-  sombra: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 220, backgroundColor: 'rgba(38,51,47,0.45)' },
-  info: { position: 'absolute', left: 16, right: 96, bottom: 22 },
-  etiqueta: { alignSelf: 'flex-start', backgroundColor: colors.arcilla, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 8 },
-  etiquetaTexto: { color: colors.grafito, fontSize: 12, fontWeight: '900' },
-  videoTitulo: { color: colors.white, fontSize: 19, fontWeight: '900', lineHeight: 24 },
-  vendedor: { color: colors.verdeClaro, fontSize: 13, fontWeight: '600', marginTop: 6 },
-  acciones: { position: 'absolute', right: 12, bottom: 24, alignItems: 'center', gap: 16 },
+  info: { position: 'absolute', left: 14, right: 84, bottom: 16, padding: 10, borderRadius: 14, backgroundColor: 'rgba(38,51,47,0.55)' },
+  etiquetaTexto: { color: colors.arcilla, fontSize: 12, fontWeight: '900', marginBottom: 2 },
+  videoTitulo: { color: colors.white, fontSize: 16, fontWeight: '900', lineHeight: 21 },
+  vendedor: { color: colors.verdeClaro, fontSize: 12, fontWeight: '600', marginTop: 4 },
+  acciones: { position: 'absolute', right: 10, bottom: 16, alignItems: 'center', gap: 12 },
   accion: { alignItems: 'center', gap: 4 },
-  accionCirculo: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(38,51,47,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center' },
+  accionCirculo: { width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(38,51,47,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center' },
   accionVerde: { backgroundColor: colors.verde, borderColor: colors.verde },
   accionArcilla: { backgroundColor: colors.arcilla, borderColor: colors.arcilla },
-  accionTexto: { color: colors.white, fontSize: 12, fontWeight: '800' },
-  arriba: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: 12, backgroundColor: 'rgba(38,51,47,0.35)' },
+  accionTexto: { color: colors.white, fontSize: 11, fontWeight: '800', textShadowColor: 'rgba(38,51,47,0.8)', textShadowRadius: 4 },
+  arriba: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: 8 },
   arribaFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
-  titulo: { color: colors.white, fontSize: 21, fontWeight: '900' },
+  titulo: { color: colors.white, fontSize: 20, fontWeight: '900', textShadowColor: 'rgba(38,51,47,0.8)', textShadowRadius: 6 },
   subir: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.arcilla, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   subirTexto: { color: colors.grafito, fontSize: 14, fontWeight: '900' },
-  categorias: { gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 },
-  chip: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  categorias: { gap: 6, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
+  chip: { borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(38,51,47,0.55)' },
   chipActivo: { backgroundColor: colors.white, borderColor: colors.white },
-  chipTexto: { color: colors.white, fontSize: 13, fontWeight: '700' }, chipTextoActivo: { color: colors.grafito, fontWeight: '900' },
+  chipTexto: { color: colors.white, fontSize: 12, fontWeight: '700' }, chipTextoActivo: { color: colors.grafito, fontWeight: '900' },
   vacio: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30, gap: 10 },
   vacioIcono: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.verde, alignItems: 'center', justifyContent: 'center', paddingLeft: 5 },
   vacioTitulo: { color: colors.white, fontSize: 20, fontWeight: '900', textAlign: 'center', marginTop: 6 },

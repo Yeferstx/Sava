@@ -98,7 +98,7 @@ export default function OrderCheckoutScreen({ product, business, quantity, user,
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 22, paddingTop: 28, paddingBottom: 36 },
+  flex: { flex: 1 }, content: { padding: 22, paddingTop: 14, paddingBottom: 36 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 18 }, backText: { color: colors.brown, fontWeight: '700', fontSize: 14 },
   headingIcon: { width: 50, height: 50, borderRadius: 16, backgroundColor: colors.verdeClaro, alignItems: 'center', justifyContent: 'center' },
   title: { color: colors.ink, fontSize: 26, fontWeight: '900', marginTop: 14 }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5, marginBottom: 12 },

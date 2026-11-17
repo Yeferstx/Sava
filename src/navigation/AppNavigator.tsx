@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { User } from '@supabase/supabase-js';
 import ChatScreen from '../features/chat/ChatScreen';
 import { useAssistantChat } from '../features/chat/hooks/useAssistantChat';
@@ -82,6 +82,7 @@ export default function AppNavigator() {
   let tipoChat: 'agricultor' | 'tienda' | '' = '';
   if (stage === 'signedIn') tipoChat = tipoNegocio;
   const chat = useAssistantChat(tipoChat);
+  const bordes = useSafeAreaInsets();
   const supabase = getSupabaseClient();
 
   useEffect(() => {
@@ -278,10 +279,12 @@ export default function AppNavigator() {
   // en videos maria esta en los botones de la derecha, no hace falta el flotante
   const enVideos = activeTab === 'Videos' && conBarra;
   const verMaria = !isChat && !enVideos && (conBarra || !!selectedProduct || !!selectedBusiness);
-  let alturaMaria = 24;
-  if (conBarra) alturaMaria = 92;
+  // la barra de abajo llega hasta el borde del celular; maria queda encima de ella
+  let alturaMaria = 20 + bordes.bottom;
+  if (conBarra) alturaMaria = 82 + bordes.bottom;
 
-  return <SafeAreaView style={[styles.safe, enVideos && styles.oscuro]}>
+  // solo se respeta el borde de arriba: abajo la barra de pestanas pinta hasta el final
+  return <SafeAreaView edges={conBarra ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']} style={[styles.safe, enVideos && styles.oscuro]}>
     <StatusBar barStyle={isChat || enVideos ? 'light-content' : 'dark-content'} />
     {pantalla}
     {verMaria && <MariaFlotante abajo={alturaMaria} onPress={openChat} />}

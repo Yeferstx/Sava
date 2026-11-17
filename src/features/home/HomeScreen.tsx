@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ChevronDown, ChevronRight, MapPin, Moon, Play, Search, ShoppingBasket, Sparkles, Sprout, Sun, WifiOff } from 'lucide-react-native';
 import CategoriaIcono from './components/CategoriaIcono';
+import { TarjetaEsqueleto } from '../../shared/components/Esqueleto';
+import { detectarMunicipio, guardarMunicipio, leerMunicipioGuardado } from '../../shared/ubicacion';
+import { LocateFixed } from 'lucide-react-native';
 import type { Business } from '../business/types';
 import type { Product } from '../inventory/types';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
@@ -43,6 +46,8 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   const [query, setQuery] = useState('');
   const [categoria, setCategoria] = useState('');
   const [municipio, setMunicipio] = useState(municipioInicial);
+  const [buscandoUbicacion, setBuscandoUbicacion] = useState(false);
+  const [porUbicacion, setPorUbicacion] = useState(false);
   const [verMunicipios, setVerMunicipios] = useState(false);
   const [mercado, setMercado] = useState<Mercado>(vacio);
   const [cargando, setCargando] = useState(true);
@@ -73,6 +78,39 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
     }
   }, []);
   useEffect(() => { void refreshFeed(); }, [refreshFeed]);
+
+  // la primera vez la app busca sola en que municipio esta la persona.
+  // despues recuerda lo que eligio
+  useEffect(() => {
+    void leerMunicipioGuardado().then((guardado) => {
+      if (guardado !== null) { setMunicipio(guardado); return; }
+      void usarUbicacion(false);
+    }).catch(() => undefined);
+  }, []);
+
+  async function usarUbicacion(avisar: boolean) {
+    setBuscandoUbicacion(true);
+    const resultado = await detectarMunicipio();
+    setBuscandoUbicacion(false);
+    if (resultado.motivo === 'ok') {
+      setMunicipio(resultado.municipio);
+      setPorUbicacion(true);
+      setVerMunicipios(false);
+      void guardarMunicipio(resultado.municipio).catch(() => undefined);
+      return;
+    }
+    if (!avisar) return;
+    if (resultado.motivo === 'sin-permiso') Alert.alert('Ubicación apagada', 'Permite que Sava use tu ubicación o elige tu municipio de la lista.');
+    else if (resultado.motivo === 'fuera') Alert.alert('Estás fuera de Casanare', 'Elige de la lista el municipio donde quieres buscar.');
+    else Alert.alert('No encontramos tu ubicación', 'Revisa que el GPS esté prendido o elige tu municipio de la lista.');
+  }
+
+  function elegirMunicipio(item: string) {
+    setMunicipio(item);
+    setPorUbicacion(false);
+    setVerMunicipios(false);
+    void guardarMunicipio(item).catch(() => undefined);
+  }
 
   function cambiarSeccion(nueva: Seccion) {
     setSeccion(nueva);
@@ -126,17 +164,28 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refreshFeed()} tintColor={colors.brown} />}>
       <View style={styles.header}>
-        <SavaLogo size="small" />
-        <Pressable accessibilityRole="button" accessibilityLabel="Elegir municipio" onPress={() => setVerMunicipios(!verMunicipios)} style={styles.location}>
-          <MapPin size={15} color={colors.brown} /><Text style={styles.locationText}>{nombreMunicipio}</Text><ChevronDown size={15} color={colors.brown} />
+        <SavaLogo size="medio" />
+        <Pressable accessibilityRole="button" accessibilityLabel={'Buscando en ' + nombreMunicipio + '. Toca para cambiar'} onPress={() => setVerMunicipios(!verMunicipios)} style={styles.location}>
+          {porUbicacion ? <LocateFixed size={17} color={colors.brown} /> : <MapPin size={17} color={colors.brown} />}
+          <View>
+            <Text style={styles.locationSmall}>{buscandoUbicacion ? 'Buscando…' : porUbicacion ? 'Estás en' : 'Buscando en'}</Text>
+            <Text style={styles.locationText}>{nombreMunicipio}</Text>
+          </View>
+          <ChevronDown size={16} color={colors.brown} />
         </Pressable>
       </View>
-      {verMunicipios && <View style={styles.municipios}>
-        {[''].concat(municipios).map((item) => {
-          let nombre = item;
-          if (item === '') nombre = 'Todo Casanare';
-          return <Pressable key={nombre} onPress={() => { setMunicipio(item); setVerMunicipios(false); }} style={[styles.chip, municipio === item && styles.chipSelected]}><Text style={[styles.chipText, municipio === item && styles.chipTextSelected]}>{nombre}</Text></Pressable>;
-        })}
+      {verMunicipios && <View style={styles.municipiosCaja}>
+        <Pressable accessibilityRole="button" onPress={() => void usarUbicacion(true)} style={styles.miUbicacion}>
+          <LocateFixed size={20} color={colors.white} /><Text style={styles.miUbicacionTexto}>{buscandoUbicacion ? 'Buscando dónde estás…' : 'Usar mi ubicación'}</Text>
+        </Pressable>
+        <Text style={styles.municipiosTitulo}>O elige dónde buscar:</Text>
+        <View style={styles.municipios}>
+          {[''].concat(municipios).map((item) => {
+            let nombre = item;
+            if (item === '') nombre = 'Todo Casanare';
+            return <Pressable key={nombre} onPress={() => elegirMunicipio(item)} style={[styles.chip, municipio === item && styles.chipSelected]}><Text style={[styles.chipText, municipio === item && styles.chipTextSelected]}>{nombre}</Text></Pressable>;
+          })}
+        </View>
       </View>}
 
       <View style={styles.saludoFila}>
@@ -176,7 +225,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
 
       {copiaDe !== '' && <View style={styles.copia}><WifiOff size={16} color="#775D50" /><Text style={styles.copiaTexto}>Sin internet. Ves lo que se cargó el {copiaDe}; puede haber cambiado.</Text></View>}
 
-      {cargando && <ActivityIndicator color={colors.brown} style={styles.loading} />}
+      {cargando && <View style={styles.grid}>{[1, 2, 3, 4].map((n) => <TarjetaEsqueleto key={n} enGrilla />)}</View>}
       {!cargando && error !== '' && <View style={styles.errorBox}>
         <WifiOff size={22} color={colors.brown} /><Text style={styles.errorText}>{error}</Text>
         {getSupabaseClient() !== null && <Pressable onPress={() => { setCargando(true); void refreshFeed(); }} style={styles.retry}><Text style={styles.retryText}>Intentar de nuevo</Text></Pressable>}
@@ -208,11 +257,16 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { paddingHorizontal: 20, paddingTop: 40, paddingBottom: 96 },
+  flex: { flex: 1 }, content: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 96 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  location: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: colors.verdeClaro },
-  locationText: { color: colors.brown, fontWeight: '800', fontSize: 12 },
-  municipios: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 16 },
+  location: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: colors.verdeClaro },
+  locationText: { color: colors.brown, fontWeight: '900', fontSize: 14 },
+  locationSmall: { color: colors.muted, fontSize: 10, fontWeight: '700' },
+  municipiosCaja: { backgroundColor: colors.white, borderRadius: 18, borderWidth: 1, borderColor: colors.line, padding: 12, marginBottom: 16 },
+  miUbicacion: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, borderRadius: 25, backgroundColor: colors.verde },
+  miUbicacionTexto: { color: colors.white, fontSize: 15, fontWeight: '900' },
+  municipiosTitulo: { color: colors.grafito, fontSize: 13, fontWeight: '800', marginTop: 12, marginBottom: 8 },
+  municipios: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   saludoFila: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   greeting: { color: colors.ink, fontSize: 27, fontWeight: '900' },
   categorias: { paddingTop: 14, paddingBottom: 12, gap: 4 },

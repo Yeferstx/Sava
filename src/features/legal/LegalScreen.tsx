@@ -31,7 +31,7 @@ export default function LegalScreen({ onBack }: { onBack: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 22, paddingTop: 35, paddingBottom: 40 },
+  flex: { flex: 1 }, content: { padding: 22, paddingTop: 14, paddingBottom: 40 },
   back: { color: colors.brown, fontWeight: '700', fontSize: 15, marginBottom: 18 }, title: { color: colors.ink, fontSize: 26, fontWeight: '900' },
   note: { color: '#775D50', backgroundColor: '#F5E7E2', borderRadius: 13, padding: 12, fontSize: 13, lineHeight: 19, marginTop: 12, overflow: 'hidden' },
   apoyo: { marginTop: 20 },
