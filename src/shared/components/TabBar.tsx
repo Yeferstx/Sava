@@ -1,26 +1,26 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Bookmark, CirclePlus, House, MessageCircle, Sprout, Store, UserRound } from 'lucide-react-native';
+import { Bookmark, CirclePlus, House, Play, Sprout, Store, UserRound } from 'lucide-react-native';
 import type { AppTab } from '../../navigation/types';
 import { colors } from '../theme';
 
 type Props = { active: AppTab; onChange: (tab: AppTab) => void; guest?: boolean; tienda?: boolean };
 
 export default function TabBar({ active, onChange, guest = false, tienda = false }: Props) {
-  // comprador o invitado: mercado y guardados. agricultor: su panel y sus cosechas
+  // inicio siempre es el mercado. maria esta en el boton flotante de todas las pantallas
   let tabs = [
     { name: 'Inicio' as AppTab, label: 'Inicio', Icon: House },
-    { name: 'Guardados' as AppTab, label: 'Guardados', Icon: Bookmark },
-    { name: 'María' as AppTab, label: 'María', Icon: MessageCircle },
+    { name: 'Videos' as AppTab, label: 'Videos', Icon: Play },
     { name: 'Publicar' as AppTab, label: 'Vender', Icon: CirclePlus },
+    { name: 'Guardados' as AppTab, label: 'Guardados', Icon: Bookmark },
     { name: 'Mi negocio' as AppTab, label: 'Cuenta', Icon: UserRound },
   ];
   if (guest === false) {
     tabs = [
       { name: 'Inicio' as AppTab, label: 'Inicio', Icon: House },
-      { name: 'Explorar' as AppTab, label: 'Mercado', Icon: Store },
+      { name: 'Videos' as AppTab, label: 'Videos', Icon: Play },
       { name: 'Publicar' as AppTab, label: 'Publicar', Icon: CirclePlus },
       { name: 'Inventario' as AppTab, label: tienda ? 'Productos' : 'Cosechas', Icon: Sprout },
-      { name: 'María' as AppTab, label: 'María', Icon: MessageCircle },
+      { name: 'Mi negocio' as AppTab, label: tienda ? 'Mi tienda' : 'Mi finca', Icon: Store },
     ];
   }
 

@@ -27,6 +27,7 @@ import GuardadosScreen from '../features/favoritos/GuardadosScreen';
 import LegalScreen from '../features/legal/LegalScreen';
 import { cacheRemoteSales } from '../features/sales/data/salesRepository';
 import VideosScreen from '../features/videos/VideosScreen';
+import MariaFlotante from '../features/chat/MariaFlotante';
 import OrderCheckoutScreen from '../features/orders/OrderCheckoutScreen';
 import OrdersScreen from '../features/orders/OrdersScreen';
 import TabBar from '../shared/components/TabBar';
@@ -69,6 +70,7 @@ export default function AppNavigator() {
   const [startupError, setStartupError] = useState('');
   const [productoEditar, setProductoEditar] = useState<Product | null>(null);
   const [volverLegal, setVolverLegal] = useState<AppTab>('Inicio');
+  const [volverDeMaria, setVolverDeMaria] = useState<AppTab>('Inicio');
   // quien vende: campesino (finca) o tienda del campo
   const [tipoNegocio, setTipoNegocio] = useState<'agricultor' | 'tienda'>('agricultor');
   let tipoChat: 'agricultor' | 'tienda' | '' = '';
@@ -152,7 +154,11 @@ export default function AppNavigator() {
     return () => subscription.remove();
   }, [stage]);
 
-  function navigate(tab: AppTab) { setSelectedBusiness(null); setSelectedProduct(null); setProductoEditar(null); setActiveTab(tab); if (tab === 'Pedidos') setOrdersMode('business'); }
+  function navigate(tab: AppTab) {
+    if (tab === 'María') { openChat(); return; }
+    setSelectedBusiness(null); setSelectedProduct(null); setProductoEditar(null); setActiveTab(tab);
+    if (tab === 'Pedidos') setOrdersMode('business');
+  }
   function abrirLegal(volver: AppTab) { setVolverLegal(volver); setActiveTab('Legal'); }
   function editarCosecha(product: Product) { setProductoEditar(product); setDraftForPublish(null); setActiveTab('Publicar'); }
   function rolElegido(rol: Rol) {
@@ -187,7 +193,12 @@ export default function AppNavigator() {
     setStage('signedOut');
   }
   function continueAsGuest() { setMerchantIntent(false); setActiveTab('Inicio'); setStage('guest'); }
-  function openChat(prompt?: string) { if (prompt) chat.sendMessage(prompt); setActiveTab('María'); }
+  // maria se abre desde cualquier pantalla y al cerrar vuelve a donde estaba
+  function openChat() {
+    if (activeTab !== 'María') setVolverDeMaria(activeTab);
+    setActiveTab('María');
+    chat.alAbrir();
+  }
   async function confirmProductDraft() {
     if (!chat.draft) return;
     try { const { createProduct } = await import('../features/inventory/data/inventoryRepository'); await createProduct(chat.draft); chat.confirmDraft(); }
@@ -218,24 +229,32 @@ export default function AppNavigator() {
 
   // cada pestana muestra una pantalla distinta segun el rol
   let pantalla;
-  if (selectedProduct) pantalla = <ProductDetailScreen product={selectedProduct.product} business={selectedProduct.business} onBack={() => setSelectedProduct(null)} onOpenBusiness={(business) => { setSelectedProduct(null); setSelectedBusiness(business); }} onConsultar={startOrder} />;
+  if (isChat) pantalla = <ChatScreen messages={chat.messages} draft={chat.draft} venta={chat.venta} pensando={chat.pensando} leerEnVoz={chat.leerEnVoz} tipo={tipoChat} onSend={(texto) => void chat.sendMessage(texto)} onReset={chat.resetChat} onBack={() => setActiveTab(volverDeMaria)} onCambiarVoz={chat.cambiarVoz} onConfirmDraft={() => void confirmProductDraft()} onEditDraft={editProductDraft} onConfirmarVenta={() => void chat.confirmarVenta()} onCancelarVenta={chat.cancelarVenta} onOpenProduct={(product, business) => { setActiveTab(volverDeMaria); abrirProducto(product, business); }} />;
+  else if (selectedProduct) pantalla = <ProductDetailScreen product={selectedProduct.product} business={selectedProduct.business} onBack={() => setSelectedProduct(null)} onOpenBusiness={(business) => { setSelectedProduct(null); setSelectedBusiness(business); }} onConsultar={startOrder} />;
   else if (selectedBusiness) pantalla = <BusinessDetailScreen business={selectedBusiness} onBack={() => setSelectedBusiness(null)} />;
   else if (activeTab === 'Legal') pantalla = <LegalScreen onBack={() => setActiveTab(volverLegal)} />;
-  else if (isChat) pantalla = <ChatScreen messages={chat.messages} draft={chat.draft} venta={chat.venta} pensando={chat.pensando} leerEnVoz={chat.leerEnVoz} tipo={tipoChat} onSend={(texto) => void chat.sendMessage(texto)} onReset={chat.resetChat} onBack={() => setActiveTab('Inicio')} onCambiarVoz={chat.cambiarVoz} onConfirmDraft={() => void confirmProductDraft()} onEditDraft={editProductDraft} onConfirmarVenta={() => void chat.confirmarVenta()} onCancelarVenta={chat.cancelarVenta} onOpenProduct={abrirProducto} />;
-  else if (esAgricultor && (activeTab === 'Inicio' || activeTab === 'Mi negocio')) pantalla = <BusinessDashboardScreen tipo={tipoNegocio} onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Inicio')} onSignOut={() => void signOut()} />;
+  else if (activeTab === 'Videos') pantalla = <VideosScreen canPublish={esAgricultor} onVender={startMerchantFlow} />;
+  else if (esAgricultor && activeTab === 'Mi negocio') pantalla = <BusinessDashboardScreen tipo={tipoNegocio} onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (esAgricultor && activeTab === 'Inventario') pantalla = <InventoryScreen tipo={tipoNegocio} onAddProduct={() => navigate('Publicar')} onEdit={editarCosecha} onOpenSales={() => setActiveTab('Ventas')} />;
   else if (esAgricultor && activeTab === 'Publicar') pantalla = <PublishScreen key={productoEditar ? productoEditar.id : 'nueva'} tipo={tipoNegocio} producto={productoEditar} initialDraft={draftForPublish} onBack={volverDePublicar} onCreated={() => { if (draftForPublish) chat.confirmDraft(); setDraftForPublish(null); setProductoEditar(null); setActiveTab('Inventario'); }} />;
-  else if (esAgricultor && activeTab === 'Ventas') pantalla = <SalesScreen onBack={() => setActiveTab('Inicio')} />;
-  else if (esAgricultor && activeTab === 'Pedidos') pantalla = <OrdersScreen mode={ordersMode} userId={user?.id} onBack={() => setActiveTab('Inicio')} />;
-  else if (esAgricultor && activeTab === 'Editar negocio') pantalla = <ProfileScreen onBack={() => setActiveTab('Inicio')} />;
+  else if (esAgricultor && activeTab === 'Ventas') pantalla = <SalesScreen onBack={() => setActiveTab('Mi negocio')} />;
+  else if (esAgricultor && activeTab === 'Pedidos') pantalla = <OrdersScreen mode={ordersMode} userId={user?.id} onBack={() => setActiveTab('Mi negocio')} />;
+  else if (esAgricultor && activeTab === 'Editar negocio') pantalla = <ProfileScreen onBack={() => setActiveTab('Mi negocio')} />;
   else if (activeTab === 'Guardados') pantalla = <GuardadosScreen onProductPress={abrirProducto} />;
   else if (activeTab === 'Mi negocio' && user) pantalla = <OrdersScreen mode={'customer'} userId={user.id} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (activeTab === 'Mi negocio' || activeTab === 'Publicar') pantalla = <AuthScreen onContinueGuest={continueAsGuest} />;
-  else pantalla = <HomeScreen key={municipioComprador + tipoChat} municipioInicial={municipioComprador} seccionInicial={tipoChat === 'agricultor' ? 'insumos' : 'cosechas'} mostrarInvitacion={!esAgricultor} onProductPress={abrirProducto} onVender={startMerchantFlow} />;
+  else pantalla = <HomeScreen key={municipioComprador + tipoChat} municipioInicial={municipioComprador} seccionInicial={tipoChat === 'agricultor' ? 'insumos' : 'cosechas'} mostrarInvitacion={!esAgricultor} onProductPress={abrirProducto} onVender={startMerchantFlow} onOpenMaria={openChat} onOpenVideos={() => navigate('Videos')} />;
+
+  // el boton de maria se ve en las pantallas principales y en el detalle de un producto
+  const conBarra = !isTransient && !selectedBusiness && !selectedProduct;
+  const verMaria = !isChat && (conBarra || !!selectedProduct || !!selectedBusiness);
+  let alturaMaria = 24;
+  if (conBarra) alturaMaria = 92;
 
   return <SafeAreaView style={styles.safe}>
     <StatusBar barStyle={isChat ? 'light-content' : 'dark-content'} />
     {pantalla}
+    {verMaria && <MariaFlotante abajo={alturaMaria} onPress={openChat} />}
     {!isTransient && !selectedBusiness && !selectedProduct && <TabBar active={activeTab} onChange={(tab) => {
       if (!esAgricultor && tab === 'Publicar') { startMerchantFlow(); return; }
       if (!esAgricultor && tab === 'Mi negocio' && !user) { setMerchantIntent(false); setStage('signedOut'); return; }

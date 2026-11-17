@@ -8,18 +8,19 @@ import { createLocalId, getActiveBusinessId } from '../../infrastructure/databas
 import { colors } from '../../shared/theme';
 
 type PublicVideo = { id: string; business_id: string; title: string; category: string; video_path: string; created_at: string; business: { name: string; municipality: string } | null };
-const categories = ['Todos', 'Comida', 'Agro', 'Tecnología', 'Servicios', 'Otros'];
+// videos del campo: cosechas, insumos, consejos y recetas
+const categories = ['Todos', 'Cosechas', 'Insumos', 'Consejos del campo', 'Recetas', 'Otros'];
 const videoCategories = categories.slice(1);
 const moneylessDate = (value: string) => new Date(value).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
 
-export default function VideosScreen({ canPublish = false }: { canPublish?: boolean }) {
+export default function VideosScreen({ canPublish = false, onVender }: { canPublish?: boolean; onVender?: () => void }) {
   const [category, setCategory] = useState('Todos');
   const [videos, setVideos] = useState<PublicVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showComposer, setShowComposer] = useState(false);
   const [draftUri, setDraftUri] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
-  const [draftCategory, setDraftCategory] = useState('Comida');
+  const [draftCategory, setDraftCategory] = useState('Cosechas');
   const [saving, setSaving] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -91,9 +92,10 @@ export default function VideosScreen({ canPublish = false }: { canPublish?: bool
 
   const visibleVideos = videos.filter((video) => category === 'Todos' || video.category === category);
   return <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { setLoading(true); void refresh(); }} tintColor={colors.brown} />}>
-    <Text style={styles.eyebrow}>DESCUBRE LO QUE SE HACE CERCA</Text>
-    <Text style={styles.title}>Videos locales</Text>
-    <Text style={styles.subtitle}>Conoce productos, recetas y emprendimientos de Casanare.</Text>
+    <Text style={styles.eyebrow}>MIRA CÓMO SE TRABAJA EN CASANARE</Text>
+    <Text style={styles.title}>Videos del campo</Text>
+    <Text style={styles.subtitle}>Cosechas, insumos, consejos y recetas de la región.</Text>
+    {!canPublish && !!onVender && <Pressable accessibilityRole="button" onPress={onVender} style={styles.invitar}><Upload size={18} color={colors.verde} /><Text style={styles.invitarTexto}>¿Vendes en el campo? Regístrate y sube tus videos</Text></Pressable>}
     {canPublish && !showComposer && <Pressable accessibilityRole="button" onPress={() => void chooseVideo()} style={styles.publishButton}><Upload size={17} color="#fff" /><Text style={styles.publishButtonText}>Publicar un video</Text></Pressable>}
     {showComposer && <View style={styles.composer}>
       <View style={styles.composerHeader}><Text style={styles.composerTitle}>Prepara tu video</Text><Pressable accessibilityRole="button" onPress={() => { setShowComposer(false); setDraftUri(null); }}><X size={19} color={colors.muted} /></Pressable></View>
@@ -116,9 +118,11 @@ function VideoPreview({ uri }: { uri: string }) {
 
 function PublishedVideo({ video }: { video: PublicVideo }) {
   const supabase = getSupabaseClient();
-  const uri = supabase?.storage.from('sava-media').getPublicUrl(video.video_path).data.publicUrl;
-  if (!uri) return null;
-  const player = useVideoPlayer(uri, (instance) => { instance.loop = false; });
+  let uri = '';
+  if (supabase) uri = supabase.storage.from('sava-media').getPublicUrl(video.video_path).data.publicUrl;
+  // el hook va antes de cualquier return (reglas de react)
+  const player = useVideoPlayer(uri === '' ? null : uri, (instance) => { instance.loop = false; });
+  if (uri === '') return null;
   return <View style={styles.videoCard}>
     <View style={styles.videoFrame}><VideoView player={player} style={styles.player} nativeControls fullscreenOptions={{ enable: true }} contentFit="cover" /></View>
     <View style={styles.videoInfo}><View style={styles.videoTag}><Text style={styles.videoTagText}>{video.category.toUpperCase()}</Text></View><Text style={styles.videoTitle}>{video.title}</Text><Text style={styles.seller}>{video.business?.name ?? 'Negocio local'} · {video.business?.municipality ?? 'Casanare'} · {moneylessDate(video.created_at)}</Text></View>
@@ -126,5 +130,5 @@ function PublishedVideo({ video }: { video: PublicVideo }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 20, paddingTop: 38, paddingBottom: 36 }, eyebrow: { color: '#636A64', fontSize: 9, fontWeight: '800', letterSpacing: 1 }, title: { color: colors.ink, fontSize: 27, fontWeight: '900', marginTop: 5 }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 4 }, publishButton: { minHeight: 44, paddingHorizontal: 16, borderRadius: 23, backgroundColor: colors.brown, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 15 }, publishButtonText: { color: '#fff', fontWeight: '800', fontSize: 12 }, disabled: { opacity: 0.55 }, composer: { backgroundColor: '#fff', borderRadius: 17, borderWidth: 1, borderColor: colors.line, padding: 13, marginTop: 14 }, composerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }, composerTitle: { color: colors.ink, fontWeight: '800', fontSize: 14 }, chooseVideo: { height: 150, borderRadius: 13, backgroundColor: '#E8F2EE', alignItems: 'center', justifyContent: 'center', gap: 7 }, chooseVideoText: { color: colors.brown, fontSize: 11, fontWeight: '700' }, preview: { height: 180, borderRadius: 12, backgroundColor: '#26332F' }, label: { color: colors.ink, fontWeight: '800', fontSize: 11, marginTop: 12, marginBottom: 5 }, input: { minHeight: 42, borderWidth: 1, borderColor: colors.line, borderRadius: 11, paddingHorizontal: 11, color: colors.ink, fontSize: 12 }, draftCategories: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, categories: { gap: 8, paddingVertical: 16 }, chip: { borderRadius: 18, paddingHorizontal: 13, paddingVertical: 8, backgroundColor: '#F0E9DF' }, selectedChip: { backgroundColor: colors.brown }, chipText: { color: colors.ink, fontSize: 11, fontWeight: '600' }, selectedChipText: { color: '#fff' }, limit: { color: colors.muted, fontSize: 9, textAlign: 'center', marginTop: 8 }, videoCard: { overflow: 'hidden', backgroundColor: '#fff', borderColor: colors.line, borderWidth: 1, borderRadius: 19, marginBottom: 13 }, videoFrame: { height: 260, backgroundColor: '#26332F' }, player: { width: '100%', height: '100%' }, videoInfo: { padding: 12 }, videoTag: { alignSelf: 'flex-start', backgroundColor: '#E8F2EE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 11 }, videoTagText: { color: colors.brown, fontWeight: '800', fontSize: 8, letterSpacing: 0.5 }, videoTitle: { color: colors.ink, fontWeight: '800', fontSize: 13, marginTop: 8 }, seller: { color: colors.muted, fontSize: 10, marginTop: 4 }, empty: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 18, padding: 22, alignItems: 'center' }, emptyTitle: { color: colors.ink, fontWeight: '800', fontSize: 14, marginTop: 9 }, emptyText: { color: colors.muted, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 5 },
+  flex: { flex: 1 }, content: { padding: 20, paddingTop: 38, paddingBottom: 96 }, eyebrow: { color: '#636A64', fontSize: 11, fontWeight: '800', letterSpacing: 1 }, invitar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.verdeClaro, borderRadius: 14, padding: 13, marginTop: 14 }, invitarTexto: { color: colors.verde, fontSize: 14, fontWeight: '800', flex: 1 }, title: { color: colors.ink, fontSize: 27, fontWeight: '900', marginTop: 5 }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 4 }, publishButton: { minHeight: 44, paddingHorizontal: 16, borderRadius: 23, backgroundColor: colors.brown, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 15 }, publishButtonText: { color: '#fff', fontWeight: '800', fontSize: 12 }, disabled: { opacity: 0.55 }, composer: { backgroundColor: '#fff', borderRadius: 17, borderWidth: 1, borderColor: colors.line, padding: 13, marginTop: 14 }, composerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }, composerTitle: { color: colors.ink, fontWeight: '800', fontSize: 14 }, chooseVideo: { height: 150, borderRadius: 13, backgroundColor: '#E8F2EE', alignItems: 'center', justifyContent: 'center', gap: 7 }, chooseVideoText: { color: colors.brown, fontSize: 11, fontWeight: '700' }, preview: { height: 180, borderRadius: 12, backgroundColor: '#26332F' }, label: { color: colors.ink, fontWeight: '800', fontSize: 11, marginTop: 12, marginBottom: 5 }, input: { minHeight: 42, borderWidth: 1, borderColor: colors.line, borderRadius: 11, paddingHorizontal: 11, color: colors.ink, fontSize: 12 }, draftCategories: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, categories: { gap: 8, paddingVertical: 16 }, chip: { borderRadius: 18, paddingHorizontal: 13, paddingVertical: 8, backgroundColor: '#F0E9DF' }, selectedChip: { backgroundColor: colors.brown }, chipText: { color: colors.ink, fontSize: 11, fontWeight: '600' }, selectedChipText: { color: '#fff' }, limit: { color: colors.muted, fontSize: 9, textAlign: 'center', marginTop: 8 }, videoCard: { overflow: 'hidden', backgroundColor: '#fff', borderColor: colors.line, borderWidth: 1, borderRadius: 19, marginBottom: 13 }, videoFrame: { height: 260, backgroundColor: '#26332F' }, player: { width: '100%', height: '100%' }, videoInfo: { padding: 12 }, videoTag: { alignSelf: 'flex-start', backgroundColor: '#E8F2EE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 11 }, videoTagText: { color: colors.brown, fontWeight: '800', fontSize: 8, letterSpacing: 0.5 }, videoTitle: { color: colors.ink, fontWeight: '800', fontSize: 13, marginTop: 8 }, seller: { color: colors.muted, fontSize: 10, marginTop: 4 }, empty: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 18, padding: 22, alignItems: 'center' }, emptyTitle: { color: colors.ink, fontWeight: '800', fontSize: 14, marginTop: 9 }, emptyText: { color: colors.muted, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 5 },
 });

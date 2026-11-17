@@ -122,7 +122,7 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, tip
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 20, paddingTop: 37, paddingBottom: 36 },
+  flex: { flex: 1 }, content: { padding: 20, paddingTop: 37, paddingBottom: 96 },
   eyebrow: { color: colors.muted, letterSpacing: 1.1, fontSize: 11, fontWeight: '800' }, title: { color: colors.ink, fontSize: 27, fontWeight: '900', marginTop: 4 },
   stats: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 18, marginBottom: 22 },
   stat: { flex: 1, backgroundColor: colors.verdeClaro, borderRadius: 15, padding: 13 }, statNumber: { color: colors.brown, fontSize: 23, fontWeight: '900' }, statLabel: { color: colors.muted, fontSize: 12, marginTop: 2 },

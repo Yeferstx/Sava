@@ -7,7 +7,8 @@ import { recordSale, ventasDesde } from '../../sales/data/salesRepository';
 import { cargarMercado, municipioDe, negocioDe } from '../../marketplace/data/mercadoRepository';
 import { dinero } from '../../../shared/contacto';
 import { mostrarCantidad, textoUnidad } from '../../../shared/validaciones';
-import { hablar } from '../../../shared/voz';
+import { callar, hablar } from '../../../shared/voz';
+import { getDatabase } from '../../../infrastructure/database/database';
 
 // tipoVendedor: 'agricultor' o 'tienda' si la persona vende, '' si solo compra
 type TipoVendedor = 'agricultor' | 'tienda' | '';
@@ -43,13 +44,20 @@ export function useAssistantChat(tipo: TipoVendedor) {
   const [draft, setDraft] = useState<ProductDraft | null>(null);
   const [venta, setVenta] = useState<VentaPropuesta | null>(null);
   const [pensando, setPensando] = useState(false);
-  const [leerEnVoz, setLeerEnVoz] = useState(false);
+  // maria habla por defecto; si la persona la silencia se recuerda en el celular
+  const [leerEnVoz, setLeerEnVoz] = useState(true);
   // borrador al que le falta la cantidad o el precio
   const pendiente = useRef<{ draft: ProductDraft; falta: 'cantidad' | 'precio' } | null>(null);
   const contador = useRef(0);
 
   // si cambia la cuenta (entra o sale) maria vuelve a saludar
   useEffect(() => { resetChat(); }, [tipo]);
+
+  useEffect(() => {
+    void getDatabase().then((db) => db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', 'maria_voz')).then((fila) => {
+      if (fila && fila.value === 'no') setLeerEnVoz(false);
+    }).catch(() => undefined);
+  }, []);
 
   function nuevoId() {
     contador.current = contador.current + 1;
@@ -58,7 +66,7 @@ export function useAssistantChat(tipo: TipoVendedor) {
 
   function responder(texto: string, recomendaciones?: Recomendacion[]) {
     setMessages((actual) => [...actual, { id: nuevoId(), author: 'assistant', text: texto, recomendaciones }]);
-    if (leerEnVoz) hablar(texto);
+    if (leerEnVoz) void hablar(texto);
   }
 
   async function sendMessage(text: string) {
@@ -267,8 +275,17 @@ export function useAssistantChat(tipo: TipoVendedor) {
   function cambiarVoz() {
     const nuevo = !leerEnVoz;
     setLeerEnVoz(nuevo);
-    if (nuevo) hablar('Listo, voy a leer mis respuestas en voz alta.');
+    if (nuevo) void hablar('Listo, te voy a hablar en voz alta.');
+    else callar();
+    let valor = 'no';
+    if (nuevo) valor = 'si';
+    void getDatabase().then((db) => db.runAsync('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', 'maria_voz', valor)).catch(() => undefined);
   }
 
-  return { messages, draft, venta, pensando, leerEnVoz, sendMessage, confirmDraft, confirmarVenta, cancelarVenta, resetChat, cambiarVoz };
+  // al abrir el chat maria saluda en voz alta si la conversacion esta empezando
+  function alAbrir() {
+    if (leerEnVoz && messages.length === 1) void hablar(messages[0].text);
+  }
+
+  return { messages, draft, venta, pensando, leerEnVoz, sendMessage, confirmDraft, confirmarVenta, cancelarVenta, resetChat, cambiarVoz, alAbrir };
 }

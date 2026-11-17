@@ -31,7 +31,7 @@ export default function BusinessDetailScreen({ business, onBack }: { business: B
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 }, content: { padding: 22, paddingTop: 36, paddingBottom: 32 }, back: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 16 }, backText: { color: colors.brown, fontSize: 15, fontWeight: '700' },
+  flex: { flex: 1 }, content: { padding: 22, paddingTop: 36, paddingBottom: 100 }, back: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 16 }, backText: { color: colors.brown, fontSize: 15, fontWeight: '700' },
   hero: { height: 170, borderRadius: 25, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.verdeClaro }, name: { color: colors.ink, fontSize: 25, fontWeight: '900', marginTop: 20 }, category: { color: colors.muted, fontSize: 14, marginTop: 4 },
   section: { color: colors.ink, fontSize: 18, fontWeight: '800', marginTop: 25, marginBottom: 7 }, description: { color: colors.muted, fontSize: 14, lineHeight: 21 },
   info: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, marginTop: 12 }, infoTitle: { color: colors.ink, fontSize: 13, fontWeight: '800' }, infoText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
