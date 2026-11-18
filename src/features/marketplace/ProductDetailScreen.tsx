@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, Animated, FlatList, Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, FlatList, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image } from 'expo-image';
 import { ArrowLeft, Bookmark, CalendarDays, ChevronRight, ClipboardList, MapPin, MessageCircle, Package, Share2, Sprout, Truck, UserRound } from 'lucide-react-native';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
 import type { Business } from '../business/types';
@@ -78,7 +79,7 @@ export default function ProductDetailScreen({ product, business, onBack, onOpenB
         <View style={[styles.hero, { width: ancho }]}>
           {fotos.length > 0 ? <FlatList data={fotos} horizontal pagingEnabled showsHorizontalScrollIndicator={false} keyExtractor={(uri, i) => uri + i}
             onMomentumScrollEnd={(e) => setFoto(Math.round(e.nativeEvent.contentOffset.x / ancho))}
-            renderItem={({ item }) => <Image source={{ uri: item }} style={{ width: ancho, height: 300 }} resizeMode="cover" accessibilityLabel={'Foto de ' + product.name} />} />
+            renderItem={({ item }) => <Image source={{ uri: item }} style={{ width: ancho, height: 300 }} contentFit="cover" transition={200} cachePolicy="memory-disk" accessibilityLabel={'Foto de ' + product.name} />} />
             : <View style={styles.placeholder}><Sprout size={70} color={colors.verde} strokeWidth={1.4} /><Text style={styles.placeholderText}>El productor aún no subió fotos</Text></View>}
           {fotos.length > 1 && <View style={styles.puntos}>{fotos.map((_, i) => <View key={i} style={[styles.punto, i === foto && styles.puntoActivo]} />)}</View>}
           <View style={styles.top}>
@@ -122,7 +123,7 @@ export default function ProductDetailScreen({ product, business, onBack, onOpenB
             <Text style={styles.section}>Más de {business ? business.name : 'este productor'}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.otras}>
               {otras.map((otra) => { const f = fotosDe(otra)[0]; return <Pressable key={otra.id} accessibilityRole="button" onPress={() => onOpenProduct(otra, business)} style={styles.otra}>
-                <View style={styles.otraFoto}>{f ? <Image source={{ uri: f }} style={styles.otraImagen} /> : <Sprout size={26} color={colors.verde} />}</View>
+                <View style={styles.otraFoto}>{f ? <Image source={{ uri: f }} style={styles.otraImagen} contentFit="cover" transition={150} cachePolicy="memory-disk" /> : <Sprout size={26} color={colors.verde} />}</View>
                 <Text style={styles.otraNombre} numberOfLines={1}>{otra.name}</Text>
                 <Text style={styles.otraCantidad} numberOfLines={1}>{mostrarCantidad(otra.stock)} {textoUnidad(otra.stock, otra.unit)}</Text>
               </Pressable>; })}

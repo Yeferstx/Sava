@@ -1,20 +1,23 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View, type DimensionValue } from 'react-native';
 import { colors } from '../theme';
+import { pedirReducirMovimiento } from '../movimiento';
 
 // bloque gris que late suave mientras cargan los datos (carga tipo esqueleto)
 export function Esqueleto({ ancho = '100%', alto = 14, radio = 8, oscuro = false }: { ancho?: DimensionValue; alto?: number; radio?: number; oscuro?: boolean }) {
   const pulso = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    let activo = true;
     const animacion = Animated.loop(Animated.sequence([
       Animated.timing(pulso, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
       Animated.timing(pulso, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
     ]));
-    animacion.start();
-    return () => animacion.stop();
+    // con «reducir movimiento» queda quieto
+    void pedirReducirMovimiento().then((reducir) => { if (activo && !reducir) animacion.start(); else pulso.setValue(0.6); }).catch(() => animacion.start());
+    return () => { activo = false; animacion.stop(); };
   }, []);
-  const opacidad = pulso.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
-  let color: string = colors.line;
+  const opacidad = pulso.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
+  let color: string = colors.verdeClaro;
   if (oscuro) color = 'rgba(255,255,255,0.14)';
   return <Animated.View style={{ width: ancho, height: alto, borderRadius: radio, backgroundColor: color, opacity: opacidad }} />;
 }

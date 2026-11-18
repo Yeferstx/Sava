@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DATABASE_NAME = 'sava.db';
-const DEMO_BUSINESS_ID = 'casanare-demo-business';
+export const DEMO_BUSINESS_ID = 'casanare-demo-business';
 let databasePromise: Promise<SQLite.SQLiteDatabase> | undefined;
 
 export async function getDatabase() {

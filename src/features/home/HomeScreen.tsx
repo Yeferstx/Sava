@@ -4,7 +4,7 @@ import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, GraduationCap, LocateF
 import { ordenInicio, registrarInteres, type Interes } from '../../shared/intereses';
 import { ChipCategoria } from './components/CategoriaIcono';
 import AsistenteOrbe from '../chat/components/AsistenteOrbe';
-import { TarjetaEsqueleto } from '../../shared/components/Esqueleto';
+import { Esqueleto, TarjetaEsqueleto } from '../../shared/components/Esqueleto';
 import { detectarMunicipio, guardarMunicipio, leerMunicipioGuardado, municipioEsManual, permisoUbicacionDado } from '../../shared/ubicacion';
 import { pedirReducirMovimiento } from '../../shared/movimiento';
 import { useAlVolver } from '../../shared/useAlVolver';
@@ -105,6 +105,12 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
       return;
     }
     setError('');
+    // lo ultimo que se vio aparece al instante mientras llega lo nuevo (no se espera a internet)
+    const primera = await leerCopia().catch(() => null);
+    if (primera) {
+      setMercado((antes) => (antes === vacio ? primera : antes));
+      setCargando(false);
+    }
     try {
       setMercado(await cargarMercado());
       setCopiaDe('');
@@ -286,7 +292,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
         </View>
         {lista.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel={'Ver todas las ' + n.palabra} hitSlop={8} onPress={() => abrirVista(seccion)} style={styles.verTodas}><Text style={styles.verTodasTexto}>Ver todas</Text><ChevronRight size={16} color={colors.verde} /></Pressable>}
       </View>
-      {lista.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carrusel} contentContainerStyle={styles.carruselContenido}>
+      {lista.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} decelerationRate="fast" snapToInterval={174} snapToAlignment="start" style={styles.carrusel} contentContainerStyle={styles.carruselContenido}>
         {lista.slice(0, 10).map((p) => tarjeta(p, false))}
       </ScrollView> : sinResultados('Todavía no hay ' + n.palabra + ' ' + n.publicadas + (municipio !== '' ? ' en ' + municipio : ' en Casanare') + '. Cuando alguien publique, aparecerá aquí.', false)}
     </View>;
@@ -301,7 +307,11 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
 
   // contenido segun lo que se esta viendo: busqueda, «ver todas» o las dos secciones
   let contenido: React.ReactNode = null;
-  if (cargando) contenido = <View style={styles.fila}><View style={styles.filaTitulo}><Text style={styles.sectionTitle}>Cargando publicaciones…</Text></View><ScrollView horizontal scrollEnabled={false} contentContainerStyle={styles.carruselContenido}>{[1, 2, 3].map((n) => <View key={n} style={styles.esqueleto}><TarjetaEsqueleto /></View>)}</ScrollView></View>;
+  // mientras carga: las dos filas con la forma de las tarjetas (sin rueda girando)
+  if (cargando) contenido = <View accessibilityLabel="Cargando publicaciones">{[0, 1].map((fila) => <View key={fila} style={styles.fila}>
+    <View style={styles.filaTitulo}><Esqueleto ancho={fila === 0 ? 190 : 160} alto={18} /></View>
+    <ScrollView horizontal scrollEnabled={false} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carruselContenido}>{[1, 2, 3].map((n) => <View key={n} style={styles.esqueleto}><TarjetaEsqueleto /></View>)}</ScrollView>
+  </View>)}</View>;
   else if (error !== '') contenido = <View style={styles.errorBox}>
     <WifiOff size={22} color={colors.verde} /><Text style={styles.errorText}>{error}</Text>
     {getSupabaseClient() !== null && <Pressable onPress={() => { setCargando(true); void refreshFeed(); }} style={styles.retry}><Text style={styles.retryText}>Intentar de nuevo</Text></Pressable>}

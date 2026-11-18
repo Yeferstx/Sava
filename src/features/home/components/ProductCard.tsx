@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { MapPin, Sprout, UserRound } from 'lucide-react-native';
 import type { Product } from '../../inventory/types';
 import { colors } from '../../../shared/theme';
@@ -28,7 +29,7 @@ export default function ProductCard({ product, municipio, vendedor = '', enGrill
     <Animated.View style={[enGrilla ? styles.grilla : styles.fila, { opacity: aparecer, transform: [{ translateY: subir }] }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={'Conocer ' + product.name} onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.presionada]}>
         <View style={styles.image}>
-          {imageUri ? <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" /> : <Sprout size={36} color={colors.verde} strokeWidth={1.5} />}
+          {imageUri ? <Image source={{ uri: imageUri }} style={styles.photo} contentFit="cover" transition={200} cachePolicy="memory-disk" recyclingKey={product.id} /> : <Sprout size={36} color={colors.verde} strokeWidth={1.5} />}
           {/* tus propias publicaciones se marcan para que no se confundan con las de otros */}
           {propia ? <View style={styles.tuya}><Text style={styles.tuyaTexto}>Tuya</Text></View> : esNuevo && <View style={styles.nuevo}><Text style={styles.nuevoTexto}>Nuevo</Text></View>}
           {product.price_cop > 0 && <View style={styles.precio}><Text style={styles.precioTexto} numberOfLines={1}>{dinero(product.price_cop)}/{product.unit}</Text></View>}

@@ -17,7 +17,7 @@ import { cacheRemoteBusiness } from '../features/business/data/businessRepositor
 import { cacheRemoteProducts, createProduct } from '../features/inventory/data/inventoryRepository';
 import InventoryScreen from '../features/inventory/InventoryScreen';
 import PublishScreen from '../features/inventory/PublishScreen';
-import { getActiveBusinessId, getDatabase, setActiveBusinessId } from '../infrastructure/database/database';
+import { DEMO_BUSINESS_ID, getActiveBusinessId, getDatabase, setActiveBusinessId } from '../infrastructure/database/database';
 import { getSupabaseClient } from '../infrastructure/supabase/client';
 import { estadoSincronizacion, syncPendingChanges } from '../infrastructure/sync/syncService';
 import { borrarDatosPrivados } from '../infrastructure/database/database';
@@ -196,13 +196,19 @@ export default function AppNavigator() {
         await cacheRemoteBusiness(business);
         phase = 'sincronizar los cambios pendientes';
         await syncPendingChanges();
-        phase = 'cargar los productos del negocio';
-        // select * para que no falle si la migracion de cosechas aun no esta aplicada
-        const { data: products, error: productError } = await supabase.from('products').select('*').eq('business_id', business.id).order('created_at', { ascending: false });
+        phase = 'cargar los datos del negocio';
+        // productos, ventas y cuaderno se piden al mismo tiempo para entrar mas rapido.
+        // select * en productos para que no falle si la migracion de cosechas aun no esta aplicada
+        const [respProductos, respVentas, respCuaderno] = await Promise.all([
+          supabase.from('products').select('*').eq('business_id', business.id).order('created_at', { ascending: false }),
+          supabase.from('sales').select('id,business_id,total_cop,sold_at').eq('business_id', business.id).order('sold_at', { ascending: false }).limit(100),
+          supabase.from('movimientos').select('*').eq('business_id', business.id).order('fecha', { ascending: false }).limit(500),
+        ]);
+        const { data: products, error: productError } = respProductos;
         if (productError) throw productError;
         await cacheRemoteProducts(products ?? []);
         phase = 'cargar las ventas del negocio';
-        const { data: sales, error: salesError } = await supabase.from('sales').select('id,business_id,total_cop,sold_at').eq('business_id', business.id).order('sold_at', { ascending: false }).limit(100);
+        const { data: sales, error: salesError } = respVentas;
         if (salesError) throw salesError;
         const saleIds = (sales ?? []).map((sale) => sale.id);
         phase = 'cargar los productos de las ventas';
@@ -213,16 +219,29 @@ export default function AppNavigator() {
         phase = 'cargar el cuaderno del negocio';
         // el cuaderno guardado en el servidor (si la tabla aun no existe, se sigue sin el)
         try {
-          const { data: movs } = await supabase.from('movimientos').select('*').eq('business_id', business.id).order('fecha', { ascending: false }).limit(500);
-          if (movs && movs.length > 0) {
-            await cacheRemoteMovimientos(movs);
-          }
+          const movs = respCuaderno.data;
+          if (movs && movs.length > 0) await cacheRemoteMovimientos(movs);
         } catch { /* el cuaderno local sigue funcionando */ }
         if (active) setStage('signedIn');
       } catch (error) {
-        if (active) { setStartupError(`Falló al ${phase}: ${describeError(error)}`); setStage('error'); }
+        if (!active) return;
+        if (await entrarConLoGuardado()) return;
+        setStartupError(`Falló al ${phase}: ${describeError(error)}`); setStage('error');
       }
     })();
+    // sin senal se usa el negocio que ya estaba en el celular; todo se sincroniza cuando vuelva internet
+    async function entrarConLoGuardado() {
+      try {
+        const db = await getDatabase();
+        const id = await getActiveBusinessId();
+        const local = await db.getFirstAsync<{ id: string; name: string; category: string }>('SELECT id, name, category FROM businesses WHERE id = ?', id);
+        if (!local || local.id === DEMO_BUSINESS_ID || !active) return false;
+        setTipoNegocio(local.category === CATEGORIA_TIENDA ? 'tienda' : 'agricultor');
+        setNegocios((antes) => (antes.length > 0 ? antes : [{ id: local.id, name: local.name, category: local.category }]));
+        setStage('signedIn');
+        return true;
+      } catch { return false; }
+    }
     return () => { active = false; };
   }, [stage, user, supabase, merchantIntent]);
 
