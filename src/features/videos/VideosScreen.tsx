@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import * as VideoThumbnails from 'expo-video-thumbnails';
+import { optimizarFoto } from '../../shared/fotos';
+import type { Business } from '../business/types';
 import { useEvent } from 'expo';
 import { Esqueleto } from '../../shared/components/Esqueleto';
 import { useAlVolver } from '../../shared/useAlVolver';
@@ -11,17 +14,20 @@ import { createLocalId, getActiveBusinessId } from '../../infrastructure/databas
 import { colors } from '../../shared/theme';
 import { limpiarTelefono } from '../../shared/validaciones';
 
-type PublicVideo = { id: string; business_id: string; title: string; category: string; video_path: string; created_at: string; business: { name: string; municipality: string; phone: string } | null };
+type PublicVideo = { id: string; business_id: string; title: string; category: string; video_path: string; created_at: string; thumb_path?: string | null; business: { name: string; municipality: string; phone: string } | null };
 // videos del campo: cosechas, insumos, consejos y recetas
 const categories = ['Todos', 'Cosechas', 'Insumos', 'Consejos del campo', 'Recetas', 'Otros'];
 const videoCategories = categories.slice(1);
 const fechaCorta = (value: string) => new Date(value).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
 
-type Props = { canPublish?: boolean; onVender?: () => void; onOpenMaria?: () => void };
+type Props = { canPublish?: boolean; onVender?: () => void; onOpenMaria?: () => void; onOpenProductor?: (business: Business) => void };
+
+// videos por tanda: se cargan de a pocos, no todos a la vez
+const TANDA = 8;
 
 // videos a pantalla completa, uno debajo del otro, como tiktok.
 // se desliza hacia arriba para ver el siguiente y se toca para pausar
-export default function VideosScreen({ canPublish = false, onVender, onOpenMaria }: Props) {
+export default function VideosScreen({ canPublish = false, onVender, onOpenMaria, onOpenProductor }: Props) {
   const [category, setCategory] = useState('Todos');
   const [videos, setVideos] = useState<PublicVideo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,21 +40,42 @@ export default function VideosScreen({ canPublish = false, onVender, onOpenMaria
   const [draftCategory, setDraftCategory] = useState('Cosechas');
   const [saving, setSaving] = useState(false);
   const [errorCarga, setErrorCarga] = useState(false);
+  const [hayMas, setHayMas] = useState(true);
+  const cargandoMas = useRef(false);
+  // al volver la senal, los videos que fallaron se intentan de nuevo solos
+  const [reintento, setReintento] = useState(0);
 
   const refresh = useCallback(async () => {
     const supabase = getSupabaseClient();
     if (!supabase) { setVideos([]); setLoading(false); return; }
     try {
-      const { data, error } = await supabase.from('videos').select('id,business_id,title,category,video_path,created_at,business:businesses(name,municipality,phone)').eq('is_published', true).order('created_at', { ascending: false }).limit(40);
+      // select * para que no falle si la migracion de portadas aun no esta aplicada
+      const { data, error } = await supabase.from('videos').select('*, business:businesses(name,municipality,phone)').eq('is_published', true).order('created_at', { ascending: false }).range(0, TANDA - 1);
       if (error) throw error;
       setVideos((data ?? []) as unknown as PublicVideo[]);
+      setHayMas((data ?? []).length === TANDA);
       setErrorCarga(false);
     } catch {
       setErrorCarga(true);
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
-  useAlVolver(() => { void refresh(); });
+  useAlVolver(() => { setReintento((n) => n + 1); if (videos.length === 0) void refresh(); });
+
+  // la siguiente tanda se pide cuando faltan pocos videos por ver
+  async function cargarMas() {
+    const supabase = getSupabaseClient();
+    if (!supabase || !hayMas || cargandoMas.current || videos.length === 0) return;
+    cargandoMas.current = true;
+    try {
+      const { data, error } = await supabase.from('videos').select('*, business:businesses(name,municipality,phone)').eq('is_published', true).order('created_at', { ascending: false }).range(videos.length, videos.length + TANDA - 1);
+      if (error) throw error;
+      const nuevos = (data ?? []) as unknown as PublicVideo[];
+      setVideos((actuales) => actuales.concat(nuevos.filter((n) => !actuales.some((a) => a.id === n.id))));
+      setHayMas(nuevos.length === TANDA);
+    } catch { /* se intenta de nuevo al seguir bajando */ }
+    finally { cargandoMas.current = false; }
+  }
 
   // cual video se ve en pantalla: ese es el que suena
   const alCambiarVisible = useRef(({ viewableItems }: { viewableItems: Array<{ index?: number | null }> }) => {
@@ -105,7 +132,19 @@ export default function VideosScreen({ canPublish = false, onVender, onOpenMaria
       const videoPath = user.id + '/' + businessId + '/videos/' + videoId + '.' + extension;
       const { error: uploadError } = await supabase.storage.from('sava-media').upload(videoPath, bytes, { contentType, upsert: false });
       if (uploadError) throw uploadError;
-      const { error: insertError } = await supabase.from('videos').insert({ id: videoId, business_id: businessId, title: draftTitle.trim(), category: draftCategory, video_path: videoPath, is_published: true });
+      // portada: una imagen del segundo 1, pequena, para mostrar mientras carga el video
+      let thumbPath: string | null = null;
+      try {
+        const miniatura = await VideoThumbnails.getThumbnailAsync(draftUri, { time: 1000, quality: 0.7 });
+        const portada = await optimizarFoto(miniatura.uri, 720);
+        const bytesPortada = await (await fetch(portada)).arrayBuffer();
+        const rutaPortada = user.id + '/' + businessId + '/videos/' + videoId + '.jpg';
+        const subida = await supabase.storage.from('sava-media').upload(rutaPortada, bytesPortada, { contentType: 'image/jpeg', upsert: true });
+        if (!subida.error) thumbPath = subida.data.path;
+      } catch { /* sin portada el video igual se publica */ }
+      let { error: insertError } = await supabase.from('videos').insert({ id: videoId, business_id: businessId, title: draftTitle.trim(), category: draftCategory, video_path: videoPath, is_published: true, thumb_path: thumbPath });
+      // si falta la columna de portada (migracion sin aplicar) se publica sin ella
+      if (insertError && insertError.code === 'PGRST204') insertError = (await supabase.from('videos').insert({ id: videoId, business_id: businessId, title: draftTitle.trim(), category: draftCategory, video_path: videoPath, is_published: true })).error;
       if (insertError) {
         await supabase.storage.from('sava-media').remove([videoPath]);
         throw insertError;
@@ -147,7 +186,9 @@ export default function VideosScreen({ canPublish = false, onVender, onOpenMaria
       removeClippedSubviews
       onRefresh={() => { setLoading(true); void refresh(); }}
       refreshing={false}
-      renderItem={({ item, index }) => <VideoCompleto video={item} alto={alto} activo={index === actual} silencio={silencio} onSilencio={() => setSilencio(!silencio)} onOpenMaria={onOpenMaria} />}
+      renderItem={({ item, index }) => <VideoCompleto video={item} alto={alto} activo={index === actual} silencio={silencio} onSilencio={() => setSilencio(!silencio)} onOpenMaria={onOpenMaria} onOpenProductor={onOpenProductor} reintento={reintento} />}
+      onEndReached={() => void cargarMas()}
+      onEndReachedThreshold={2}
     />}
 
     {!loading && errorCarga && videos.length === 0 && <View style={styles.vacio}>
@@ -195,11 +236,11 @@ function VideoPreview({ uri }: { uri: string }) {
   return <VideoView player={player} style={styles.preview} nativeControls contentFit="contain" />;
 }
 
-type ItemProps = { video: PublicVideo; alto: number; activo: boolean; silencio: boolean; onSilencio: () => void; onOpenMaria?: () => void };
+type ItemProps = { video: PublicVideo; alto: number; activo: boolean; silencio: boolean; onSilencio: () => void; onOpenMaria?: () => void; onOpenProductor?: (business: Business) => void; reintento: number };
 
 // un video a pantalla completa. la lista solo deja montados los videos cercanos,
 // asi no se descargan todos a la vez
-function VideoCompleto({ video, alto, activo, silencio, onSilencio, onOpenMaria }: ItemProps) {
+function VideoCompleto({ video, alto, activo, silencio, onSilencio, onOpenMaria, onOpenProductor, reintento }: ItemProps) {
   const [pausado, setPausado] = useState(false);
   const [intento, setIntento] = useState(0);
   const supabase = getSupabaseClient();
@@ -233,6 +274,9 @@ function VideoCompleto({ video, alto, activo, silencio, onSilencio, onOpenMaria 
 
   // al pasar a otro video se quita la pausa
   useEffect(() => { if (!activo) setPausado(false); }, [activo]);
+  // volvio la senal: si este video habia fallado, se intenta otra vez
+  useEffect(() => { if (reintento > 0 && status === 'error') setIntento((n) => n + 1); }, [reintento]);
+  const portada = video.thumb_path && supabase ? supabase.storage.from('sava-media').getPublicUrl(video.thumb_path).data.publicUrl : null;
 
   let vendedor = 'Vendedor de Casanare';
   let municipio = 'Casanare';
@@ -254,16 +298,22 @@ function VideoCompleto({ video, alto, activo, silencio, onSilencio, onOpenMaria 
   return <View style={[styles.item, { height: alto }]}>
     {/* contain: se ve el video completo, sin cortarlo */}
     {fuente !== null && <VideoView player={player} style={styles.video} nativeControls={false} contentFit="contain" />}
+    {/* portada mientras carga: nunca queda la pantalla vacia */}
+    {!!portada && status !== 'readyToPlay' && <Image source={{ uri: portada }} style={styles.video} resizeMode="contain" accessibilityElementsHidden />}
     <Pressable accessibilityRole="button" accessibilityLabel={pausado ? 'Reproducir video' : 'Pausar video'} onPress={() => setPausado(!pausado)} style={styles.toque}>
       {status === 'loading' && activo && <View style={styles.cargandoVideo}><ActivityIndicator size="large" color={colors.white} /><Text style={styles.cargandoTexto}>Cargando video…</Text></View>}
       {status === 'error' && <View style={styles.cargandoVideo}><Text style={styles.cargandoTexto}>No se pudo cargar este video.</Text><Pressable accessibilityRole="button" onPress={() => setIntento(intento + 1)} style={styles.reintentar}><Text style={styles.reintentarTexto}>Intentar de nuevo</Text></Pressable></View>}
       {pausado && status === 'readyToPlay' && <View style={styles.pausa}><Play size={40} color={colors.white} fill={colors.white} /></View>}
     </Pressable>
 
-    <View pointerEvents="none" style={styles.info}>
+    <View pointerEvents="box-none" style={styles.info}>
       <Text style={styles.etiquetaTexto}>{video.category}</Text>
       <Text style={styles.videoTitulo} numberOfLines={2}>{video.title}</Text>
-      <Text style={styles.vendedor} numberOfLines={1}>{vendedor} · {municipio} · {fechaCorta(video.created_at)}</Text>
+      {/* quien lo publico: abre su perfil */}
+      <Pressable accessibilityRole="button" accessibilityLabel={'Ver perfil de ' + vendedor} disabled={!onOpenProductor || !video.business} onPress={() => { if (onOpenProductor && video.business) onOpenProductor({ id: video.business_id, name: video.business.name, category: '', description: '', municipality: video.business.municipality, phone: video.business.phone }); }} style={styles.productor}>
+        <Text style={styles.vendedor} numberOfLines={1}>{vendedor} · {municipio} · {fechaCorta(video.created_at)}</Text>
+        {!!onOpenProductor && !!video.business && <Text style={styles.verPerfil}>Ver perfil ›</Text>}
+      </Pressable>
     </View>
 
     <View style={styles.acciones}>
@@ -294,6 +344,8 @@ const styles = StyleSheet.create({
   reintentarTexto: { color: colors.grafito, fontSize: 14, fontWeight: '900' },
   item: { width: '100%', backgroundColor: colors.grafito },
   video: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  productor: { alignSelf: 'flex-start', marginTop: 2 },
+  verPerfil: { color: colors.arcilla, fontSize: 13, fontWeight: '900', marginTop: 2 },
   toque: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   pausa: { width: 84, height: 84, borderRadius: 42, backgroundColor: 'rgba(38,51,47,0.55)', alignItems: 'center', justifyContent: 'center', paddingLeft: 6 },
   info: { position: 'absolute', left: 14, right: 84, bottom: 16, padding: 10, borderRadius: 14, backgroundColor: 'rgba(38,51,47,0.55)' },
