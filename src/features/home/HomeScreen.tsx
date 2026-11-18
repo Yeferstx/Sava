@@ -211,9 +211,11 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   function separar(seccion: Seccion | null, conCategoria: boolean) {
     const cerca: Product[] = [];
     const otros: Product[] = [];
+    // publicaciones propias que se ocultan (el inicio es para ver lo de otros)
+    let propias = 0;
     for (const product of mercado.products) {
       if (product.stock <= 0) continue;
-      if (propio !== '' && product.business_id === propio) continue;
+      if (propio !== '' && product.business_id === propio) { propias += 1; continue; }
       const insumo = esInsumo(product.category);
       if (seccion === 'insumos' && !insumo) continue;
       if (seccion === 'cosechas' && insumo) continue;
@@ -226,7 +228,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
       if (municipio === '' || municipioDe(mercado, product) === municipio) cerca.push(product);
       else otros.push(product);
     }
-    return { cerca, otros };
+    return { cerca, otros, propias };
   }
 
   // la busqueda tambien cuenta como interes, segun lo que encontro
@@ -266,7 +268,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   // una seccion del inicio: lo cercano en una fila; si no hay, lo de otros municipios
   function fila(seccion: Seccion) {
     const n = nombres[seccion];
-    const { cerca, otros } = separar(seccion, false);
+    const { cerca, otros, propias } = separar(seccion, false);
     const hayCerca = cerca.length > 0;
     const lista = hayCerca ? cerca : otros;
     let titulo = n.titulo + ' cerca de ti';
@@ -283,7 +285,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
       </View>
       {lista.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carrusel} contentContainerStyle={styles.carruselContenido}>
         {lista.slice(0, 10).map((p) => tarjeta(p, false))}
-      </ScrollView> : sinResultados('Todavía no hay ' + n.palabra + ' ' + n.publicadas + (municipio !== '' ? ' en ' + municipio : ' en Casanare') + '. Cuando alguien publique, aparecerá aquí.', false)}
+      </ScrollView> : (propias > 0 ? sinResultados(seccion === 'cosechas' ? 'Por ahora las únicas cosechas publicadas son las tuyas. Las ves en «Mi negocio».' : 'Por ahora los únicos insumos publicados son los tuyos. Los ves en «Mi negocio».', false) : sinResultados('Todavía no hay ' + n.palabra + ' ' + n.publicadas + (municipio !== '' ? ' en ' + municipio : ' en Casanare') + '. Cuando alguien publique, aparecerá aquí.', false))}
     </View>;
   }
 
