@@ -2,6 +2,7 @@
 // solo funciona en la app instalada (development build o apk). en expo go el modulo
 // nativo no existe: aqui se detecta y la app usa el dictado del teclado en su lugar
 import { File, Paths } from 'expo-file-system';
+import { requireOptionalNativeModule } from 'expo';
 
 type EventoResultado = { isFinal: boolean; results: Array<{ transcript: string }> };
 type EventoError = { error: string; message: string };
@@ -25,6 +26,8 @@ let modulo: ModuloEscucha | null | undefined;
 function cargar() {
   if (modulo !== undefined) return modulo;
   try {
+    // en expo go el modulo nativo no existe: se revisa primero, sin forzarlo, para no mostrar un error
+    if (!requireOptionalNativeModule('ExpoSpeechRecognition')) { modulo = null; return modulo; }
     // se carga aqui (no arriba) para que expo go no se cierre si falta el modulo nativo
     modulo = require('expo-speech-recognition').ExpoSpeechRecognitionModule as ModuloEscucha;
   } catch {

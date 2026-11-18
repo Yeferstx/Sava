@@ -72,7 +72,7 @@ export function useAssistantChat(tipo: TipoVendedor) {
 
   // al abrir la app y cada vez que vuelve la senal se responden los mensajes guardados
   useEffect(() => {
-    void hayInternet().then((conSenal) => { setSinSenal(!conSenal); if (conSenal) { void revisarCola.current(); void prepararSinInternet(); } });
+    void hayInternet().then((conSenal) => { setSinSenal(!conSenal); if (conSenal) { void revisarCola.current(); setTimeout(() => void prepararSinInternet(), 8000); } });
     void listarPendientes().then((lista) => setEnEspera(lista.length)).catch(() => undefined);
     return escucharSenal((conSenal) => {
       setSinSenal(!conSenal);
