@@ -1,5 +1,6 @@
 import { createLocalId, enqueueSync, getActiveBusinessId, getDatabase } from '../../../infrastructure/database/database';
 import { syncPendingChanges } from '../../../infrastructure/sync/syncService';
+import { getSupabaseClient } from '../../../infrastructure/supabase/client';
 import type { Product } from '../types';
 import { CANTIDAD_MAXIMA, PRECIO_MAXIMO, errorCantidad, municipios, redondear } from '../../../shared/validaciones';
 import { fechaDesdeHoy } from '../../../shared/agro';
@@ -178,7 +179,6 @@ export async function contarPendientes() {
 export type Interes = Record<string, { consultas: number; contactos: number }>;
 
 export async function interesPorProducto(): Promise<Interes | null> {
-  const { getSupabaseClient } = await import('../../../infrastructure/supabase/client');
   const supabase = getSupabaseClient();
   if (!supabase) return null;
   const businessId = await getActiveBusinessId();

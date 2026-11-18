@@ -14,7 +14,7 @@ import ProfileScreen from '../features/account/ProfileScreen';
 import AuthScreen from '../features/auth/AuthScreen';
 import BusinessSetupScreen, { type RemoteBusiness } from '../features/auth/BusinessSetupScreen';
 import { cacheRemoteBusiness } from '../features/business/data/businessRepository';
-import { cacheRemoteProducts } from '../features/inventory/data/inventoryRepository';
+import { cacheRemoteProducts, createProduct } from '../features/inventory/data/inventoryRepository';
 import InventoryScreen from '../features/inventory/InventoryScreen';
 import PublishScreen from '../features/inventory/PublishScreen';
 import { getActiveBusinessId, getDatabase, setActiveBusinessId } from '../infrastructure/database/database';
@@ -22,6 +22,8 @@ import { getSupabaseClient } from '../infrastructure/supabase/client';
 import { estadoSincronizacion, syncPendingChanges } from '../infrastructure/sync/syncService';
 import { borrarDatosPrivados } from '../infrastructure/database/database';
 import CuadernoScreen from '../features/cuaderno/CuadernoScreen';
+import { cacheRemoteMovimientos } from '../features/cuaderno/cuadernoRepository';
+import { revisarRecordatoriosDeCobro } from '../features/cuaderno/recordatorios';
 import PedirCuenta from '../shared/components/PedirCuenta';
 import AvisoConexion from '../shared/components/AvisoConexion';
 import FotoPerfil from '../shared/components/FotoPerfil';
@@ -148,7 +150,7 @@ export default function AppNavigator() {
         // una persona puede tener finca y tienda: se abre la que eligio la ultima vez
         const { data: lista, error } = await supabase.from('businesses').select('id,owner_id,name,category,description,phone,municipality,is_published').eq('owner_id', user.id).order('created_at', { ascending: true }).limit(5);
         if (error) throw error;
-        const db = await (await import('../infrastructure/database/database')).getDatabase();
+        const db = await getDatabase();
         const preferido = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', 'negocio_preferido');
         const todos = (lista ?? []) as RemoteBusiness[];
         setNegocios(todos.map((n) => ({ id: n.id, name: n.name, category: n.category })));
@@ -190,7 +192,6 @@ export default function AppNavigator() {
         try {
           const { data: movs } = await supabase.from('movimientos').select('*').eq('business_id', business.id).order('fecha', { ascending: false }).limit(500);
           if (movs && movs.length > 0) {
-            const { cacheRemoteMovimientos } = await import('../features/cuaderno/cuadernoRepository');
             await cacheRemoteMovimientos(movs);
           }
         } catch { /* el cuaderno local sigue funcionando */ }
@@ -361,13 +362,13 @@ export default function AppNavigator() {
   }
   async function confirmProductDraft() {
     if (!chat.draft) return;
-    try { const { createProduct } = await import('../features/inventory/data/inventoryRepository'); await createProduct(chat.draft); chat.confirmDraft(); }
+    try { await createProduct(chat.draft); chat.confirmDraft(); }
     // si falla, el borrador sigue en pantalla
     catch (error) { Alert.alert('No se pudo guardar', error instanceof Error ? error.message + ' Toca Editar para corregir el borrador.' : 'El borrador sigue aquí. Intenta de nuevo.'); }
   }
   function editProductDraft() { if (chat.draft) { setDraftForPublish(chat.draft); setActiveTab('Publicar'); } }
   async function guardarPreferido(id: string) {
-    const db = await (await import('../infrastructure/database/database')).getDatabase();
+    const db = await getDatabase();
     await db.runAsync('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', 'negocio_preferido', id);
   }
   // cambiar entre la finca y la tienda: se cargan los datos de esa (cada una tiene sus cuentas)
@@ -418,7 +419,7 @@ export default function AppNavigator() {
 
   // novedades reales del servidor: al abrir, al volver a la app o la senal, y cada minuto mientras esta abierta
   function contarNotificaciones() {
-    if (stage === 'signedIn') void import('../features/cuaderno/recordatorios').then((m) => m.revisarRecordatoriosDeCobro());
+    if (stage === 'signedIn') void revisarRecordatoriosDeCobro().catch(() => undefined);
     void contarSinLeer().then(setSinLeer).catch(() => undefined);
     void contarSinLeerDe('consulta').then(setConsultasNuevas).catch(() => undefined);
   }
