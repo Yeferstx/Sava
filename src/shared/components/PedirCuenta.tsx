@@ -13,7 +13,7 @@ export default function PedirCuenta({ motivo, onCrear, onEntrar, onAhoraNo }: { 
         <Text style={styles.texto}>{motivo}</Text>
         <Pressable accessibilityRole="button" onPress={onCrear} style={({ pressed }) => [styles.boton, pressed && styles.presionado]}><Text style={styles.botonTexto}>Crear cuenta gratis</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={onEntrar} style={({ pressed }) => [styles.botonSuave, pressed && styles.presionado]}><Text style={styles.botonSuaveTexto}>Ya tengo cuenta</Text></Pressable>
-        <Text style={styles.nota}>Sin cuenta puedes seguir viendo cosechas, videos y hablar con tu asistente.</Text>
+        <Text style={styles.nota}>Sin cuenta puedes seguir viendo cosechas, videos y hablar con Aru.</Text>
       </View>
     </View>
   );

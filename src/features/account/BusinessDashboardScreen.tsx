@@ -67,7 +67,7 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
   ];
   const atajos: Array<{ tab: AppTab; titulo: string; texto: string; Icon: typeof Sprout }> = [
     { tab: 'Ventas', titulo: 'Ventas registradas', texto: 'Lo que has vendido', Icon: CircleDollarSign },
-    { tab: 'María', titulo: 'Hablar con tu asistente', texto: 'Publica, anota ventas y gastos, pregunta tus cuentas', Icon: Sparkles },
+    { tab: 'María', titulo: 'Hablar con Aru', texto: 'Publica, anota ventas y gastos, pregunta tus cuentas', Icon: Sparkles },
     { tab: 'Aprende', titulo: 'Aprende con Sava', texto: 'Fotos, descripciones, costos y cuentas', Icon: GraduationCap },
     { tab: 'Explorar', titulo: esTienda ? 'Ver el mercado' : 'Comprar insumos', texto: esTienda ? 'Mira lo que se vende en Casanare' : 'Semillas, abonos y herramientas', Icon: Store },
   ];
@@ -85,11 +85,11 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
     <Text style={styles.title}>{finca !== '' ? finca : 'Mi negocio'}</Text>
     {municipio !== '' && <Text style={styles.place}>{municipio}, Casanare</Text>}
     <Text style={styles.motto}>{esTienda ? 'Lleva tus productos a los campesinos de Casanare.' : 'Tu cosecha merece encontrar compradores.'}</Text>
-    <View style={styles.escuchar}><BotonEscuchar texto={'Aquí ves lo que tienes publicado y tus ventas. Toca un botón grande para publicar, ver tus productos, anotar una venta o hablar con María.'} /></View>
+    <View style={styles.escuchar}><BotonEscuchar texto={'Aquí ves lo que tienes publicado y tus ventas. Toca un botón grande para publicar, ver tus productos, anotar una venta o hablar con Aru.'} /></View>
 
     {porConfirmar > 0 && !!onConfirmarVentas && <Pressable accessibilityRole="button" onPress={onConfirmarVentas} style={styles.confirmar}>
       <View style={styles.confirmarNumero}><Text style={styles.confirmarNumeroTexto}>{porConfirmar}</Text></View>
-      <View style={styles.flex}><Text style={styles.confirmarTitulo}>{porConfirmar === 1 ? 'Una venta por confirmar' : porConfirmar + ' ventas por confirmar'}</Text><Text style={styles.confirmarTexto}>Cuéntale a María qué pasó con las personas que te escribieron.</Text></View>
+      <View style={styles.flex}><Text style={styles.confirmarTitulo}>{porConfirmar === 1 ? 'Una venta por confirmar' : porConfirmar + ' ventas por confirmar'}</Text><Text style={styles.confirmarTexto}>Cuéntale a Aru qué pasó con las personas que te escribieron.</Text></View>
       <ArrowRight size={20} color={colors.grafito} />
     </Pressable>}
     <View style={styles.metrics}>

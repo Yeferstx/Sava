@@ -323,8 +323,8 @@ function VideoCompleto({ video, alto, activo, silencio, onSilencio, onOpenMaria,
       <Pressable accessibilityRole="button" accessibilityLabel="Compartir video" onPress={() => void compartir()} style={styles.accion}>
         <View style={styles.accionCirculo}><Share2 size={20} color={colors.white} /></View><Text style={styles.accionTexto}>Compartir</Text>
       </Pressable>
-      {!!onOpenMaria && <Pressable accessibilityRole="button" accessibilityLabel="Preguntarle a María" onPress={onOpenMaria} style={styles.accion}>
-        <View style={[styles.accionCirculo, styles.accionArcilla]}><Sparkles size={20} color={colors.grafito} /></View><Text style={styles.accionTexto}>María</Text>
+      {!!onOpenMaria && <Pressable accessibilityRole="button" accessibilityLabel="Preguntarle a Aru" onPress={onOpenMaria} style={styles.accion}>
+        <View style={[styles.accionCirculo, styles.accionArcilla]}><Sparkles size={20} color={colors.grafito} /></View><Text style={styles.accionTexto}>Aru</Text>
       </Pressable>}
       <Pressable accessibilityRole="button" accessibilityLabel={silencio ? 'Activar sonido' : 'Quitar sonido'} onPress={onSilencio} style={styles.accion}>
         <View style={styles.accionCirculo}>{silencio ? <VolumeX size={20} color={colors.white} /> : <Volume2 size={20} color={colors.white} />}</View><Text style={styles.accionTexto}>{silencio ? 'Mudo' : 'Sonido'}</Text>

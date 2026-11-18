@@ -20,6 +20,8 @@ export type Intencion =
   | { tipo: 'precio'; precio: number }
   | { tipo: 'ayuda' }
   | { tipo: 'publicarGuiado' }
+  | { tipo: 'queEsSava' }
+  | { tipo: 'crearCuenta' }
   | { tipo: 'compradores' }
   | { tipo: 'pedirVenta' }
   | { tipo: 'saludo' }
@@ -152,6 +154,9 @@ export function entender(mensaje: string): Intencion {
   if (t === '') return { tipo: 'saludo' };
 
   if (/^(gracias|muchas gracias|listo gracias|ok gracias|dios le pague)/.test(t)) return { tipo: 'gracias' };
+  // visitantes: que es sava y como crear la cuenta
+  if (/\b(que es sava|para que sirve (sava|esto|la app)|como funciona sava|que hace sava|que es esto|que es esta app|quien eres|que eres|como te llamas)\b/.test(t)) return { tipo: 'queEsSava' };
+  if (/\b(crear (mi |una )?cuenta|registrarme|me registro|como me registro|abrir (una )?cuenta|iniciar sesion)\b/.test(t)) return { tipo: 'crearCuenta' };
   // "ayudame a publicar una cosecha": empieza la publicacion guiada (va antes que la ayuda general)
   if (!/\d/.test(t) && (/\b(publicar|publica|publiquemos|subir|mostrar|montar)\b.*\b(cosecha|cosechas|producto|productos|algo|publicacion)\b/.test(t) || /^(quiero |ayudame a |vamos a )?publicar$/.test(t))) return { tipo: 'publicarGuiado' };
   // "ayudame a promocionar…" o "ayudame con mis cuentas" no son la ayuda general

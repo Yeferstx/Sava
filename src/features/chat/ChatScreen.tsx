@@ -242,8 +242,8 @@ export default function ChatScreen(props: Props) {
         <View style={styles.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Volver" hitSlop={10} onPress={() => { detenerTodo(); props.onBack(); }} style={styles.headerBoton}><ArrowLeft size={22} color={colors.verde} /></Pressable>
           <View style={styles.headerCentro}>
-            <Text style={styles.name}>Tu asistente</Text>
-            <Text style={styles.subtitle}>{props.conIA ? 'Con inteligencia artificial' : 'Asistente de Sava'}</Text>
+            <Text style={styles.name}>Aru</Text>
+            <Text style={styles.subtitle}>{props.conIA ? 'Con inteligencia artificial' : 'Tu asistente de Sava'}</Text>
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel={leerEnVoz ? 'Dejar de hablar en voz alta' : 'Hablar en voz alta'} hitSlop={10} onPress={props.onCambiarVoz} style={[styles.headerBoton, leerEnVoz && styles.vozActiva]}>
             {leerEnVoz ? <Volume2 size={21} color={colors.verde} /> : <VolumeX size={21} color={colors.verde} />}

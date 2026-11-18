@@ -20,9 +20,9 @@ export default function MariaFlotante({ onPress, abajo }: { onPress: () => void;
   if (teclado) return null;
   return (
     <View pointerEvents="box-none" style={[styles.contenedor, { bottom: abajo }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Hablar con tu asistente" accessibilityHint="Abre el chat con el asistente de Sava" onPress={onPress} style={({ pressed }) => [styles.boton, pressed && styles.presionado]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Hablar con Aru" accessibilityHint="Abre el chat con Aru, el asistente de Sava" onPress={onPress} style={({ pressed }) => [styles.boton, pressed && styles.presionado]}>
         <View style={styles.orbe}><AsistenteOrbe estado={hablando ? 'hablando' : 'reposo'} tamano={40} /></View>
-        <Text style={styles.texto}>Asistente</Text>
+        <Text style={styles.texto}>Aru</Text>
       </Pressable>
     </View>
   );

@@ -29,10 +29,10 @@ export default function LegalScreen({ onBack }: { onBack: () => void }) {
     <Text style={styles.body}>No está permitido publicar productos falsos, engañosos o ilegales. Las publicaciones que incumplan estas reglas pueden ser retiradas.</Text>
     <Text style={styles.body}>Las tiendas del campo solo pueden publicar agroquímicos con registro ICA vigente y etiqueta original.</Text>
 
-    <Text style={styles.section}>María</Text>
+    <Text style={styles.section}>Aru</Text>
     <Text style={styles.body}>Sava puede usar Claude (Anthropic) o Gemini (Google). Con Gemini en su plan gratis solo se envía tu pregunta y unos pocos mensajes del chat, nunca tu inventario, tus ventas ni tus cuentas, porque Google puede usar ese contenido para mejorar sus productos. No escribas datos personales o de dinero en preguntas generales.</Text>
-    <Text style={styles.body}>Cuando hay internet y tienes cuenta, María usa inteligencia artificial (Claude, de la empresa Anthropic) para entender lo que escribes o dictas. Para responderte se envía tu mensaje y un resumen de tus productos y ventas; no se envían tu correo ni tu teléfono. Sin internet, María funciona con reglas dentro del celular.</Text>
-    <Text style={styles.body}>María nunca guarda una publicación ni una venta sin que tú la confirmes, y puede equivocarse: revisa siempre los datos antes de confirmar.</Text>
+    <Text style={styles.body}>Cuando hay internet y tienes cuenta, Aru usa inteligencia artificial (Claude, de la empresa Anthropic) para entender lo que escribes o dictas. Para responderte se envía tu mensaje y un resumen de tus productos y ventas; no se envían tu correo ni tu teléfono. Sin internet, Aru funciona con reglas dentro del celular.</Text>
+    <Text style={styles.body}>Aru nunca guarda una publicación ni una venta sin que tú la confirmes, y puede equivocarse: revisa siempre los datos antes de confirmar.</Text>
 
     <View style={styles.apoyo}><ApoyoGobernacion conMapa /></View>
   </ScrollView>;

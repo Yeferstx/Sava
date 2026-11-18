@@ -114,7 +114,7 @@ export default function PromocionarScreen({ product, business, tipo, onBack }: P
       </View>
       <Pressable accessibilityRole="button" disabled={pensando} onPress={() => void pedirOtro()} style={styles.ia}>
         {pensando ? <ActivityIndicator color={colors.verde} /> : <Sparkles size={18} color={colors.verde} />}
-        <Text style={styles.iaTexto}>{pensando ? 'Tu asistente está escribiendo…' : 'Pedir otro texto a tu asistente'}</Text>
+        <Text style={styles.iaTexto}>{pensando ? 'Aru está escribiendo…' : 'Pedir otro texto a Aru'}</Text>
       </Pressable>
       <Text style={styles.nota}>Los textos usan solo los datos de tu publicación. Revísalos antes de compartir.</Text>
     </ScrollView>

@@ -25,7 +25,7 @@ type TipoVendedor = 'agricultor' | 'tienda' | '';
 
 // saludo corto. el nombre del asistente todavia no esta definido
 function bienvenida(): ChatMessage {
-  return { id: 'bienvenida', author: 'assistant', text: '¡Hola! Soy tu asistente de Sava. ¿En qué te ayudo hoy?' };
+  return { id: 'bienvenida', author: 'assistant', text: '¡Hola! Soy Aru, tu asistente de Sava. ¿En qué te ayudo hoy?' };
 }
 
 // ejemplos de lo que entiende, segun quien usa la app
@@ -272,10 +272,19 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
     }
     if (intencion.tipo === 'pedirVenta') {
       if (vende) responder('Claro. Dime qué vendiste y cuánto, por ejemplo: «vendí 10 kilos de yuca a 2.000».');
-      else responder('Eso es para quien vende en Sava. Si tienes cosecha o una tienda del campo, toca «Vender» abajo para registrarte.');
+      else responder('Para eso necesitas una cuenta de vendedor, que es gratis. Si tienes cosecha o una tienda del campo, toca «Vender» abajo y te ayudo a crearla.');
       return;
     }
 
+    if (intencion.tipo === 'queEsSava') {
+      responder('Soy Aru, el asistente de Sava. Sava conecta a campesinos y tiendas del campo de Casanare con compradores: puedes ver cosechas, contactar al productor por WhatsApp y, si vendes, publicar lo tuyo y llevar tus cuentas aunque no tengas señal. Para comprar no necesitas cuenta.', undefined, ['Buscar productos', '¿Cómo vendo en Sava?', 'Crear mi cuenta']);
+      return;
+    }
+    if (intencion.tipo === 'crearCuenta') {
+      if (vende) { responder('Ya tienes tu cuenta de vendedor. En «Mi negocio» ves tus cosechas, consultas y cuentas.'); return; }
+      responder('Crear tu cuenta es gratis. Toca «Cuenta» abajo y luego «Crear cuenta». Con ella puedes publicar tus cosechas, recibir consultas y llevar tus cuentas. Para ver cosechas y hablar conmigo no la necesitas.');
+      return;
+    }
     // aprender: guias cortas (sin internet)
     if (intencion.tipo === 'aprender') {
       const guia = guiaPara(valor);
@@ -286,7 +295,7 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
 
     // lo del cuaderno es para quien vende
     if ((intencion.tipo === 'gasto' || intencion.tipo === 'perdida' || intencion.tipo === 'cuentas' || intencion.tipo === 'promocionar') && !vende) {
-      responder('Eso es para quien vende en Sava. Si tienes cosecha o una tienda del campo, toca «Vender» abajo para registrarte.');
+      responder('Para eso necesitas una cuenta de vendedor, que es gratis. Si tienes cosecha o una tienda del campo, toca «Vender» abajo y te ayudo a crearla.');
       return;
     }
     if (intencion.tipo === 'gasto') {
@@ -339,7 +348,7 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
 
     // lo que sigue es para quien vende
     if (intencion.tipo === 'publicar' || intencion.tipo === 'venta' || intencion.tipo === 'inventario' || intencion.tipo === 'resumen') {
-      if (!vende) { responder('Eso es para quien vende en Sava. Si tienes cosecha o una tienda del campo, toca «Vender» abajo para registrarte.'); return; }
+      if (!vende) { responder('Para eso necesitas una cuenta de vendedor, que es gratis. Si tienes cosecha o una tienda del campo, toca «Vender» abajo y te ayudo a crearla.'); return; }
     }
 
     // "tengo 500 kilos de pina": se empieza la guia con lo que ya dijo.
@@ -397,7 +406,7 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
       await buscar(accion.datos.producto, accion.datos.municipio, accion.datos.cantidad);
       return;
     }
-    if (!vende) { responder('Eso es para quien vende en Sava. Si tienes cosecha o una tienda del campo, toca «Vender» abajo para registrarte.'); return; }
+    if (!vende) { responder('Para eso necesitas una cuenta de vendedor, que es gratis. Si tienes cosecha o una tienda del campo, toca «Vender» abajo y te ayudo a crearla.'); return; }
     if (accion.tipo === 'registrar_venta') {
       await prepararVenta(accion.datos.producto, accion.datos.cantidad, accion.datos.precio_unitario_cop, 0);
       return;

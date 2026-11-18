@@ -1,17 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
-import { CircleCheck, LockKeyhole, Mail, UserRound } from 'lucide-react-native';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { ActivityIndicator, Animated, Easing, Image, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { ArrowRight, CircleCheck, LockKeyhole, Mail, UserRound } from 'lucide-react-native';
+import AsistenteOrbe from '../chat/components/AsistenteOrbe';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
 import { colors } from '../../shared/theme';
 import SavaLogo from '../../shared/components/SavaLogo';
 import { correoValido } from '../../shared/validaciones';
 import Campo from './components/Campo';
 import { pedirReducirMovimiento } from '../../shared/movimiento';
-import PaisajeLlanero from './components/PaisajeLlanero';
 import LegalScreen from '../legal/LegalScreen';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
-import ApoyoGobernacion from '../../shared/components/ApoyoGobernacion';
 import { useEspacioTeclado } from '../../shared/useEspacioTeclado';
 import { roles, type Rol } from '../../shared/roles';
 
@@ -37,7 +37,7 @@ function BotonPrincipal({ texto, cargando, listo, onPress }: { texto: string; ca
   function presionar(valor: number) {
     Animated.timing(escala, { toValue: valor, duration: 90, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
   }
-  let contenido = <Text style={styles.botonTexto}>{texto}</Text>;
+  let contenido = <View style={styles.botonFila}><Text style={styles.botonTexto}>{texto}</Text><ArrowRight size={21} color={colors.white} /></View>;
   if (cargando) contenido = <ActivityIndicator color={colors.white} />;
   if (listo) contenido = <CircleCheck size={24} color={colors.white} />;
   return (
@@ -47,7 +47,11 @@ function BotonPrincipal({ texto, cargando, listo, onPress }: { texto: string; ca
   );
 }
 
-export default function AuthScreen({ onContinueGuest, purpose = 'general', modoInicial = 'signIn' }: { onContinueGuest?: () => void; purpose?: AuthPurpose; modoInicial?: Modo }) {
+// paisaje original de los llanos (guardado en la app, se ve sin internet)
+const paisaje = require('../../../assets/marca/llanos-acceso.jpg');
+const PROPORCION_PAISAJE = 1400 / 788;
+
+export default function AuthScreen({ onContinueGuest, purpose = 'general', modoInicial = 'signIn', onAru }: { onContinueGuest?: () => void; purpose?: AuthPurpose; modoInicial?: Modo; onAru?: () => void }) {
   const [mode, setMode] = useState<Modo>(modoInicial);
   const [nombre, setNombre] = useState('');
   const [rol, setRol] = useState<Rol | null>(null);
@@ -170,90 +174,114 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
   }
 
   const teclaEspacio = useEspacioTeclado();
+  const bordes = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  // celulares bajitos: logo y paisaje un poco mas pequenos para que el formulario quepa
+  const compacto = height < 720;
+  const altoPaisaje = Math.round(Math.min(width / PROPORCION_PAISAJE, height * (compacto ? 0.26 : 0.3)));
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const posiciones = useRef<Record<string, number>>({});
+  // posicion real de la tarjeta y del formulario dentro de la pantalla (se mide al dibujar)
+  const tarjetaY = useRef(0);
+  const [altoArriba, setAltoArriba] = useState(0);
+  const formularioY = useRef(0);
+  // el campo que se toca queda visible encima del teclado
+  function mostrarCampo(campo: string) {
+    setTimeout(() => {
+      const y = posiciones.current[campo];
+      if (y === undefined || !scroll.current) return;
+      scroll.current.scrollTo({ y: Math.max(0, tarjetaY.current + formularioY.current + y - 90), animated: true });
+    }, 280);
+  }
 
   if (verLegal) return <LegalScreen onBack={() => setVerLegal(false)} />;
 
   let titulo = '¡Qué bueno verte!';
-  let subtitulo = 'Entra y conecta con lo nuestro.';
-  if (purpose === 'seller') subtitulo = 'Entra para publicar tus cosechas y llevar tus ventas.';
+  let subtitulo = 'Tu campo, más conectado.';
+  if (purpose === 'seller') subtitulo = 'Entra para publicar tus cosechas.';
   if (purpose === 'buyer') subtitulo = 'Entra para enviar tu consulta al productor.';
-  if (mode === 'signUp') { titulo = 'Empieza con Sava'; subtitulo = 'Tu cosecha o tus compras, en un solo lugar.'; }
+  if (mode === 'signUp') titulo = 'Únete a Sava';
 
-  // selector tipo pastilla (igual al de cosechas e insumos del inicio)
   const anchoPastilla = Math.max(0, (anchoTabs - 8) / 2);
   const moverIndicador = pestana.interpolate({ inputRange: [0, 1], outputRange: [0, anchoPastilla] });
   const moverFormulario = formulario.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
-  const logoEscala = entrada[0].interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] });
+  const subirTarjeta = entrada[2].interpolate({ inputRange: [0, 1], outputRange: [40, 0] });
 
   return (
-    <View style={styles.screen}>
-      <PaisajeLlanero posicion="arriba" moverse={movimiento} />
-      <PaisajeLlanero posicion="abajo" moverse={movimiento} />
-      <View ref={teclaEspacio.ref} onLayout={teclaEspacio.medir} style={[styles.flex, { paddingBottom: teclaEspacio.espacio }]}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} automaticallyAdjustKeyboardInsets={false}>
-          <View style={styles.columna}>
-            <Animated.View style={[styles.logo, { opacity: entrada[0], transform: [{ scale: logoEscala }] }]}><SavaLogo size="medio" centrado /></Animated.View>
-
-            <Animated.View style={aparecer(1)}>
-              <View accessibilityRole="tablist" style={styles.tabs} onLayout={(e) => setAnchoTabs(e.nativeEvent.layout.width)}>
-                {anchoTabs > 0 && <Animated.View style={[styles.indicador, { width: anchoPastilla, transform: [{ translateX: moverIndicador }] }]} />}
-                <Pressable accessibilityRole="tab" accessibilityState={{ selected: mode === 'signIn' }} onPress={() => cambiarModo('signIn')} style={styles.tab}><Text style={[styles.tabTexto, mode === 'signIn' && styles.tabActiva]}>Iniciar sesión</Text></Pressable>
-                <Pressable accessibilityRole="tab" accessibilityState={{ selected: mode === 'signUp' }} onPress={() => cambiarModo('signUp')} style={styles.tab}><Text style={[styles.tabTexto, mode === 'signUp' && styles.tabActiva]}>Crear cuenta</Text></Pressable>
-              </View>
-            </Animated.View>
-
-            <Animated.View style={{ opacity: formulario, transform: [{ translateY: moverFormulario }] }}>
-              <Animated.View style={[styles.encabezado, aparecer(2)]}>
-                <Text style={styles.titulo}>{titulo}</Text>
-                <Svg width={92} height={10} viewBox="0 0 92 10"><Path d="M3 7 C 30 1, 62 1, 89 6" stroke={colors.arcilla} strokeWidth={3} strokeLinecap="round" fill="none" /></Svg>
-                <Text style={styles.subtitulo}>{subtitulo}</Text>
-              </Animated.View>
-
-              <Animated.View style={[styles.campos, aparecer(3)]}>
-                {mode === 'signUp' && <View style={styles.rolBloque}>
-                  <View style={styles.rolTitulo}><Text style={styles.rolPregunta}>¿Qué eres?</Text><BotonEscuchar etiqueta="" texto="¿Qué eres? Toca campesino si vendes tu cosecha, tienda si vendes cosas para el campo, o comprador si quieres comprar." /></View>
-                  <View accessibilityRole="radiogroup" style={styles.roles}>
-                    {roles.map((item) => {
-                      const elegido = rol === item.rol;
-                      return <Pressable key={item.rol} accessibilityRole="radio" accessibilityState={{ checked: elegido }} accessibilityLabel={item.titulo + '. ' + item.texto} onPress={() => { setRol(item.rol); if (errores.rol !== '') setErrores({ ...errores, rol: '' }); }} style={[styles.rolTarjeta, elegido && styles.rolElegido, errores.rol !== '' && styles.rolError]}>
-                        <item.Icon size={26} color={elegido ? colors.white : colors.verde} strokeWidth={1.8} />
-                        <Text style={[styles.rolTexto, elegido && styles.rolTextoElegido]}>{item.corto}</Text>
-                      </Pressable>;
-                    })}
-                  </View>
-                  {errores.rol !== '' && <Text accessibilityRole="alert" style={styles.rolMensaje}>{errores.rol}</Text>}
-                </View>}
-                {mode === 'signUp' && <Campo etiqueta="Nombre completo" icono={<UserRound size={20} color={colors.grafito} />} value={nombre} onChangeText={(v) => escribir('nombre', v)} placeholder="Escribe tu nombre completo" autoComplete="name" autoCapitalize="words" maxLength={80} error={errores.nombre} />}
-                <Campo etiqueta="Correo electrónico" icono={<Mail size={20} color={colors.grafito} />} value={email} onChangeText={(v) => escribir('correo', v)} placeholder="Ingresa tu correo electrónico" autoCapitalize="none" autoComplete="email" keyboardType="email-address" maxLength={100} error={errores.correo} />
-                <Campo etiqueta="Contraseña" esClave icono={<LockKeyhole size={20} color={colors.grafito} />} value={password} onChangeText={(v) => escribir('clave', v)} placeholder={mode === 'signUp' ? 'Crea una contraseña' : 'Ingresa tu contraseña'} autoCapitalize="none" autoComplete={mode === 'signUp' ? 'new-password' : 'password'} maxLength={72} error={errores.clave} ayuda={mode === 'signUp' ? 'Usa al menos 8 caracteres' : ''} onSubmitEditing={() => void submit()} />
-                {mode === 'signIn' && <Pressable accessibilityRole="button" hitSlop={8} disabled={working} onPress={() => void olvideClave()} style={styles.olvide}><Text style={styles.enlace}>¿Olvidaste tu contraseña?</Text></Pressable>}
-              </Animated.View>
-
-              {errores.general !== '' && <Text accessibilityRole="alert" style={styles.errorGeneral}>{errores.general}</Text>}
-              {aviso !== '' && <View accessibilityRole="alert" style={styles.aviso}>
-                <Animated.View style={{ transform: [{ scale: check }] }}><CircleCheck size={22} color={colors.verde} /></Animated.View>
-                <Text style={styles.avisoTexto}>{aviso}</Text>
-              </View>}
-
-              <Animated.View style={aparecer(4)}>
-                <BotonPrincipal texto={mode === 'signUp' ? 'Crear cuenta' : 'Entrar'} cargando={working} listo={listo} onPress={() => void submit()} />
-              </Animated.View>
-            </Animated.View>
-
-            <Animated.View style={[styles.pie, aparecer(5)]}>
-              {mode === 'signUp' && <Text style={styles.terminos}>Al continuar, aceptas los <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>términos</Text> y la <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>política de privacidad</Text>.</Text>}
-              {mode === 'signIn' && <Pressable hitSlop={6} onPress={() => setVerLegal(true)}><Text style={styles.terminos}>Privacidad y términos de uso</Text></Pressable>}
-              {!!onContinueGuest && <Pressable accessibilityRole="button" onPress={onContinueGuest} style={({ pressed }) => [styles.explorar, pressed && styles.presionado]}><Text style={styles.explorarTexto}>Explorar sin cuenta</Text></Pressable>}
-              <ApoyoGobernacion />
-            </Animated.View>
+    <View ref={teclaEspacio.ref} onLayout={teclaEspacio.medir} style={[styles.screen, { paddingBottom: teclaEspacio.espacio }]}>
+      <ScrollView ref={scroll} style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} bounces={false}>
+        {/* parte de arriba: crema con el logo y la bienvenida, y el paisaje original abajo */}
+        <View onLayout={(e) => setAltoArriba(e.nativeEvent.layout.height)} style={{ paddingTop: bordes.top + (compacto ? 6 : 16) }}>
+          <Animated.View style={[styles.encabezado, aparecer(0)]}>
+            <SavaLogo size={compacto ? 'regular' : 'medio'} centrado />
+            <Text style={[styles.titulo, compacto && styles.tituloCompacto]}>{titulo}</Text>
+            <Text style={styles.subtitulo}>{subtitulo}</Text>
+          </Animated.View>
+          <View style={{ width, height: altoPaisaje, marginTop: compacto ? -6 : -14 }}>
+            {/* la foto completa a lo ancho: no se recorta a los campesinos ni a las vacas */}
+            <Image source={paisaje} style={{ width, height: altoPaisaje }} resizeMode="cover" accessibilityLabel="Atardecer en los llanos con palmas, campesinos y ganado" />
+            {/* el crema se funde con el cielo, sin corte */}
+            <Svg pointerEvents="none" width={width} height={altoPaisaje * 0.42} style={styles.fundido}>
+              <Defs><LinearGradient id="cielo" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={colors.crema} stopOpacity={1} /><Stop offset="1" stopColor={colors.crema} stopOpacity={0} /></LinearGradient></Defs>
+              <Rect x={0} y={0} width={width} height={altoPaisaje * 0.42} fill="url(#cielo)" />
+            </Svg>
           </View>
-        </ScrollView>
-        {/* al subir, el contenido se desvanece arriba en vez de verse cortado */}
-        <Svg pointerEvents="none" width="100%" height={26} style={styles.fundidoArriba}>
-          <Defs><LinearGradient id="arriba" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={colors.crema} stopOpacity={1} /><Stop offset="1" stopColor={colors.crema} stopOpacity={0} /></LinearGradient></Defs>
-          <Rect x={0} y={0} width="100%" height={26} fill="url(#arriba)" />
-        </Svg>
-      </View>
+        </View>
+
+        {/* tarjeta blanca con el formulario: sube desde abajo */}
+        <Animated.View onLayout={(e) => { tarjetaY.current = e.nativeEvent.layout.y; }} style={[styles.tarjeta, { opacity: entrada[2], transform: [{ translateY: subirTarjeta }] }]}>
+          <View accessibilityRole="tablist" style={styles.tabs} onLayout={(e) => setAnchoTabs(e.nativeEvent.layout.width)}>
+            {anchoTabs > 0 && <Animated.View style={[styles.indicador, { width: anchoPastilla, transform: [{ translateX: moverIndicador }] }]} />}
+            <Pressable accessibilityRole="tab" accessibilityState={{ selected: mode === 'signIn' }} onPress={() => cambiarModo('signIn')} style={styles.tab}><Text style={[styles.tabTexto, mode === 'signIn' && styles.tabActiva]}>Iniciar sesión</Text></Pressable>
+            <Pressable accessibilityRole="tab" accessibilityState={{ selected: mode === 'signUp' }} onPress={() => cambiarModo('signUp')} style={styles.tab}><Text style={[styles.tabTexto, mode === 'signUp' && styles.tabActiva]}>Crear cuenta</Text></Pressable>
+          </View>
+
+          <Animated.View onLayout={(e) => { formularioY.current = e.nativeEvent.layout.y; }} style={{ opacity: formulario, transform: [{ translateY: moverFormulario }] }}>
+            {mode === 'signUp' && <View style={styles.rolBloque}>
+              <View style={styles.rolTitulo}><Text style={styles.rolPregunta}>¿Qué eres?</Text><BotonEscuchar etiqueta="" texto="¿Qué eres? Toca campesino si vendes tu cosecha, tienda si vendes cosas para el campo, o comprador si quieres comprar." /></View>
+              <View accessibilityRole="radiogroup" style={styles.roles}>
+                {roles.map((item) => {
+                  const elegido = rol === item.rol;
+                  return <Pressable key={item.rol} accessibilityRole="radio" accessibilityState={{ checked: elegido }} accessibilityLabel={item.titulo + '. ' + item.texto} onPress={() => { setRol(item.rol); if (errores.rol !== '') setErrores({ ...errores, rol: '' }); }} style={[styles.rolTarjeta, elegido && styles.rolElegido, errores.rol !== '' && styles.rolError]}>
+                    <item.Icon size={24} color={elegido ? colors.white : colors.verde} strokeWidth={1.8} />
+                    <Text style={[styles.rolTexto, elegido && styles.rolTextoElegido]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{item.corto}</Text>
+                  </Pressable>;
+                })}
+              </View>
+              {errores.rol !== '' && <Text accessibilityRole="alert" style={styles.rolMensaje}>{errores.rol}</Text>}
+            </View>}
+            {mode === 'signUp' && <View onLayout={(e) => { posiciones.current.nombre = e.nativeEvent.layout.y; }}><Campo etiqueta="Nombre completo" icono={<UserRound size={20} color={colors.verde} />} value={nombre} onChangeText={(v) => escribir('nombre', v)} placeholder="Escribe tu nombre completo" autoComplete="name" autoCapitalize="words" maxLength={80} error={errores.nombre} onFocus={() => mostrarCampo('nombre')} /></View>}
+            <View onLayout={(e) => { posiciones.current.correo = e.nativeEvent.layout.y; }}><Campo etiqueta="Correo electrónico" icono={<Mail size={20} color={colors.verde} />} value={email} onChangeText={(v) => escribir('correo', v)} placeholder="tucorreo@ejemplo.com" autoCapitalize="none" autoComplete="email" keyboardType="email-address" maxLength={100} error={errores.correo} onFocus={() => mostrarCampo('correo')} /></View>
+            <View onLayout={(e) => { posiciones.current.clave = e.nativeEvent.layout.y; }}><Campo etiqueta="Contraseña" esClave icono={<LockKeyhole size={20} color={colors.verde} />} value={password} onChangeText={(v) => escribir('clave', v)} placeholder={mode === 'signUp' ? 'Crea una contraseña' : 'Tu contraseña'} autoCapitalize="none" autoComplete={mode === 'signUp' ? 'new-password' : 'password'} maxLength={72} error={errores.clave} ayuda={mode === 'signUp' ? 'Usa al menos 8 caracteres' : ''} onSubmitEditing={() => void submit()} onFocus={() => mostrarCampo('clave')} /></View>
+            {mode === 'signIn' && <Pressable accessibilityRole="button" hitSlop={8} disabled={working} onPress={() => void olvideClave()} style={styles.olvide}><Text style={styles.enlace}>¿Olvidaste tu contraseña?</Text></Pressable>}
+
+            {errores.general !== '' && <Text accessibilityRole="alert" style={styles.errorGeneral}>{errores.general}</Text>}
+            {aviso !== '' && <View accessibilityRole="alert" style={styles.aviso}>
+              <Animated.View style={{ transform: [{ scale: check }] }}><CircleCheck size={22} color={colors.verde} /></Animated.View>
+              <Text style={styles.avisoTexto}>{aviso}</Text>
+            </View>}
+
+            <BotonPrincipal texto={mode === 'signUp' ? 'Crear cuenta' : 'Iniciar sesión'} cargando={working} listo={listo} onPress={() => { Keyboard.dismiss(); void submit(); }} />
+          </Animated.View>
+
+          {!!onContinueGuest && <Pressable accessibilityRole="button" onPress={onContinueGuest} style={({ pressed }) => [styles.explorar, pressed && styles.presionado]}><Text style={styles.explorarTexto}>Explorar sin cuenta</Text></Pressable>}
+          {mode === 'signUp' ? <Text style={styles.terminos}>Al continuar, aceptas los <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>términos</Text> y la <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>política de privacidad</Text>.</Text>
+            : <Pressable hitSlop={6} onPress={() => setVerLegal(true)}><Text style={styles.terminos}>Privacidad y términos de uso</Text></Pressable>}
+          <Text style={styles.pieTexto}>Hecho para el campo de Casanare</Text>
+          <View style={{ height: bordes.bottom }} />
+        </Animated.View>
+        {/* aru va encima de todo, en el borde entre el paisaje y el formulario */}
+        {!!onAru && <Animated.View style={[styles.aruCaja, { top: altoArriba - 46 }, aparecer(1)]}>
+              <Pressable accessibilityRole="button" accessibilityLabel="¿Necesitas ayuda? Habla con Aru, el asistente de Sava" onPress={onAru} style={({ pressed }) => [styles.aru, pressed && styles.presionado]}>
+                <View style={styles.aruOrbe}><AsistenteOrbe estado="reposo" tamano={compacto ? 46 : 54} quieto /></View>
+                <View style={styles.flex}>
+                  <Text style={styles.aruPregunta}>¿Necesitas ayuda?</Text>
+                  <Text style={styles.aruTitulo}>Habla con Aru</Text>
+                </View>
+                <ArrowRight size={22} color={colors.verde} />
+              </Pressable>
+            </Animated.View>}
+      </ScrollView>
     </View>
   );
 }
@@ -261,34 +289,39 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.crema },
   flex: { flex: 1 },
-  // arriba fijo: al cambiar de pestana el logo y las pestanas no se mueven
-  content: { flexGrow: 1, paddingHorizontal: 22, paddingTop: 28, paddingBottom: 80 },
-  fundidoArriba: { position: 'absolute', top: 0, left: 0, right: 0 },
-  columna: { width: '100%', maxWidth: 420, alignSelf: 'center' },
-  logo: { marginBottom: 6 },
-  tabs: { flexDirection: 'row', backgroundColor: colors.salvia, borderRadius: 26, padding: 4, marginTop: 6, marginBottom: 18 },
+  content: { flexGrow: 1 },
+  encabezado: { alignItems: 'center', paddingHorizontal: 24, zIndex: 2 },
+  titulo: { color: colors.verde, fontSize: 28, fontWeight: '900', textAlign: 'center', marginTop: 6 },
+  tituloCompacto: { fontSize: 24, marginTop: 2 },
+  subtitulo: { color: colors.grafito, fontSize: 16, textAlign: 'center', marginTop: 2 },
+  fundido: { position: 'absolute', top: 0, left: 0 },
+  // el boton queda en el borde entre el paisaje y el formulario: no tapa a los campesinos ni al ganado
+  aruCaja: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  aru: { flexDirection: 'row', alignItems: 'center', gap: 10, width: '82%', maxWidth: 360, paddingVertical: 6, paddingLeft: 6, paddingRight: 18, borderRadius: 40, backgroundColor: 'rgba(250,246,239,0.94)', shadowColor: colors.grafito, shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
+  aruOrbe: { width: 60, height: 60, alignItems: 'center', justifyContent: 'center' },
+  aruPregunta: { color: colors.grafito, fontSize: 13 },
+  aruTitulo: { color: colors.verde, fontSize: 18, fontWeight: '900' },
+  presionado: { transform: [{ scale: 0.97 }] },
+  tarjeta: { flexGrow: 1, marginTop: -24, backgroundColor: '#FAF7F2', borderTopLeftRadius: 34, borderTopRightRadius: 34, paddingHorizontal: 22, paddingTop: 58, paddingBottom: 18 },
+  tabs: { flexDirection: 'row', backgroundColor: colors.salvia, borderRadius: 26, padding: 4, marginBottom: 18 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 11 },
-  tabTexto: { color: colors.verde, fontSize: 15, fontWeight: '700' },
+  tabTexto: { color: colors.verde, fontSize: 15, fontWeight: '800' },
   tabActiva: { color: colors.white, fontWeight: '900' },
   indicador: { position: 'absolute', left: 4, top: 4, bottom: 4, borderRadius: 22, backgroundColor: colors.verde },
-  presionado: { transform: [{ scale: 0.97 }] },
-  explorarTexto: { color: colors.verde, fontSize: 15, fontWeight: '800' },
-  encabezado: { alignItems: 'center', marginBottom: 12 },
-  titulo: { color: colors.verde, fontSize: 25, fontWeight: '900', textAlign: 'center' },
-  subtitulo: { color: colors.muted, fontSize: 15, lineHeight: 21, textAlign: 'center', marginTop: 6 },
-  campos: {},
-  olvide: { alignSelf: 'flex-end', marginTop: -4, marginBottom: 6, paddingVertical: 4 },
+  olvide: { alignSelf: 'flex-end', marginTop: -2, marginBottom: 10, paddingVertical: 4 },
   enlace: { color: colors.verde, fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
   enlaceChico: { color: colors.verde, fontWeight: '700', textDecorationLine: 'underline' },
   errorGeneral: { color: '#775D50', fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 12 },
   aviso: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.verdeClaro, borderRadius: 14, padding: 12, marginBottom: 14 },
   avisoTexto: { flex: 1, color: colors.verde, fontSize: 13, lineHeight: 19, fontWeight: '600' },
-  boton: { height: 54, borderRadius: 27, backgroundColor: colors.verde, alignItems: 'center', justifyContent: 'center', marginTop: 8, shadowColor: colors.grafito, shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-  botonTexto: { color: colors.white, fontSize: 17, fontWeight: '800' },
-  pie: { alignItems: 'center', marginTop: 14, gap: 8 },
-  terminos: { color: colors.grafito, fontSize: 12, lineHeight: 18, textAlign: 'center' },
-  explorar: { alignSelf: 'stretch', alignItems: 'center', paddingVertical: 13, borderRadius: 26, borderWidth: 1.5, borderColor: colors.verde, backgroundColor: 'rgba(255,255,255,0.6)', marginTop: 6 },
-  rolBloque: { marginBottom: 14 },
+  boton: { height: 54, borderRadius: 27, backgroundColor: colors.verde, alignItems: 'center', justifyContent: 'center', marginTop: 6, shadowColor: colors.grafito, shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  botonFila: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  botonTexto: { color: colors.white, fontSize: 18, fontWeight: '800' },
+  explorar: { alignSelf: 'center', width: '82%', alignItems: 'center', paddingVertical: 13, borderRadius: 26, backgroundColor: colors.salvia, marginTop: 12 },
+  explorarTexto: { color: colors.verde, fontSize: 16, fontWeight: '800' },
+  terminos: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 12 },
+  pieTexto: { color: colors.muted, fontSize: 13, textAlign: 'center', marginTop: 8 },
+  rolBloque: { marginBottom: 12 },
   rolTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   rolPregunta: { color: colors.grafito, fontSize: 14, fontWeight: '700' },
   roles: { flexDirection: 'row', gap: 8 },

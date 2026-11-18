@@ -336,7 +336,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
         <View style={styles.asistenteOrbe}><AsistenteOrbe estado="reposo" tamano={60} /></View>
         <View style={styles.flex}>
           <Text style={styles.asistenteTitulo}>¿No lo encuentras?</Text>
-          <Text style={styles.asistenteTexto}>Tu asistente te ayuda a buscar o a publicar.</Text>
+          <Text style={styles.asistenteTexto}>Aru te ayuda a buscar o a publicar.</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Hablar con tu asistente" onPress={onHablar} style={({ pressed }) => [styles.asistenteBoton, pressed && styles.presionado]}><Mic size={19} color={colors.white} /></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Escribirle a tu asistente" onPress={onEscribir} style={({ pressed }) => [styles.asistenteBoton, styles.asistenteBotonSuave, pressed && styles.presionado]}><MessageCircle size={19} color={colors.verde} /></Pressable>

@@ -74,7 +74,7 @@ export default function SeguimientoModal({ visible, pendientes, leerEnVoz, onLis
   return <Modal visible={visible} transparent animationType="slide" onRequestClose={onCerrar}>
     <View style={styles.fondo}>
       <ScrollView style={styles.hoja} contentContainerStyle={styles.contenido} keyboardShouldPersistTaps="handled">
-        <View style={styles.maria}><View style={styles.mariaIcono}><Sparkles size={22} color={colors.grafito} /></View><Text style={styles.mariaTexto}>María pregunta</Text></View>
+        <View style={styles.maria}><View style={styles.mariaIcono}><Sparkles size={22} color={colors.grafito} /></View><Text style={styles.mariaTexto}>Aru pregunta</Text></View>
         <Text style={styles.titulo}>¿Qué pasó con esta venta?</Text>
         <Text style={styles.pregunta}>{pregunta(actual)}</Text>
         <BotonEscuchar texto={'¿Qué pasó con esta venta? ' + pregunta(actual)} />
