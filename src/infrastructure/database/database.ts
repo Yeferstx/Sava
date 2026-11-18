@@ -112,6 +112,8 @@ async function agregarColumnasCosecha(db: SQLite.SQLiteDatabase) {
   if (!nombres.includes('created_at')) await db.execAsync('ALTER TABLE products ADD COLUMN created_at TEXT');
   if (!nombres.includes('min_order')) await db.execAsync('ALTER TABLE products ADD COLUMN min_order REAL NOT NULL DEFAULT 0');
   // version del servidor sobre la que se hizo el cambio (para detectar cambios desde otro celular)
+  // fotos adicionales de la publicacion (lista en json)
+  if (!nombres.includes('extra_photos')) await db.execAsync("ALTER TABLE products ADD COLUMN extra_photos TEXT NOT NULL DEFAULT '[]'");
   if (!nombres.includes('server_updated_at')) await db.execAsync('ALTER TABLE products ADD COLUMN server_updated_at TEXT');
   const cola = await db.getAllAsync<{ name: string }>('PRAGMA table_info(sync_queue)');
   const columnasCola: string[] = [];
@@ -156,7 +158,7 @@ export async function borrarDatosPrivados() {
     await t.runAsync('DELETE FROM sync_queue');
     await t.runAsync('DELETE FROM products');
     await t.runAsync('DELETE FROM businesses WHERE id <> ?', DEMO_BUSINESS_ID);
-    await t.runAsync("DELETE FROM app_settings WHERE key IN ('active_business_id', 'ultima_sincronizacion')");
+    await t.runAsync("DELETE FROM app_settings WHERE key IN ('active_business_id', 'ultima_sincronizacion', 'foto_perfil_pendiente')");
   });
   try { await db.runAsync('DELETE FROM maria_pendientes'); } catch { /* la tabla aun no existe */ }
 }

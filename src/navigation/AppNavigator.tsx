@@ -24,6 +24,7 @@ import { borrarDatosPrivados } from '../infrastructure/database/database';
 import CuadernoScreen from '../features/cuaderno/CuadernoScreen';
 import PedirCuenta from '../shared/components/PedirCuenta';
 import AvisoConexion from '../shared/components/AvisoConexion';
+import FotoPerfil from '../shared/components/FotoPerfil';
 import AprendeScreen from '../features/aprende/AprendeScreen';
 import PromocionarScreen from '../features/promocion/PromocionarScreen';
 import { escucharSenal } from '../features/chat/pendientes';
@@ -378,7 +379,7 @@ export default function AppNavigator() {
   // cada pestana muestra una pantalla distinta segun el rol
   let pantalla;
   if (isChat) pantalla = <ChatScreen key={'chat-' + modoChat} modoInicial={modoChat} messages={chat.messages} draft={chat.draft} venta={chat.venta} pensando={chat.pensando} leerEnVoz={chat.leerEnVoz} conIA={chat.conIA} sinSenal={chat.sinSenal} enEspera={chat.enEspera} tipo={tipoChat} onSend={(texto, audio) => void chat.sendMessage(texto, audio)} onReset={chat.resetChat} onBack={() => setActiveTab(volverDeMaria)} onCambiarVoz={chat.cambiarVoz} onConfirmDraft={() => void confirmProductDraft()} onEditDraft={editProductDraft} onConfirmarVenta={() => void chat.confirmarVenta()} onCancelarVenta={chat.cancelarVenta} onOpenProduct={(product, business) => { setActiveTab(volverDeMaria); abrirProducto(product, business); }} />;
-  else if (selectedProduct) pantalla = <ProductDetailScreen product={selectedProduct.product} business={selectedProduct.business} onBack={() => setSelectedProduct(null)} onOpenBusiness={(business) => { setSelectedProduct(null); setSelectedBusiness(business); }} onConsultar={startOrder} />;
+  else if (selectedProduct) pantalla = <ProductDetailScreen product={selectedProduct.product} business={selectedProduct.business} onBack={() => setSelectedProduct(null)} onOpenBusiness={(business) => { setSelectedProduct(null); setSelectedBusiness(business); }} onConsultar={startOrder} onOpenProduct={abrirProducto} />;
   else if (selectedBusiness) pantalla = <BusinessDetailScreen business={selectedBusiness} onBack={() => setSelectedBusiness(null)} />;
   else if (activeTab === 'Legal') pantalla = <LegalScreen onBack={() => setActiveTab(volverLegal)} />;
   else if (activeTab === 'Videos') pantalla = <VideosScreen canPublish={esAgricultor} onVender={startMerchantFlow} onOpenMaria={openChat} />;
@@ -392,7 +393,7 @@ export default function AppNavigator() {
   else if (esAgricultor && activeTab === 'Pedidos') pantalla = <OrdersScreen mode={ordersMode} userId={user?.id} onBack={() => setActiveTab('Mi negocio')} />;
   else if (esAgricultor && activeTab === 'Editar negocio') pantalla = <ProfileScreen onBack={() => setActiveTab('Mi negocio')} />;
   else if (activeTab === 'Guardados') pantalla = <GuardadosScreen onProductPress={abrirProducto} />;
-  else if (activeTab === 'Mi negocio' && user) pantalla = <OrdersScreen mode={'customer'} userId={user.id} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
+  else if (activeTab === 'Mi negocio' && user) pantalla = <OrdersScreen mode={'customer'} userId={user.id} encabezado={<FotoPerfil subtitulo="Comprador en Sava" />} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (activeTab === 'Mi negocio' || activeTab === 'Publicar') pantalla = <AuthScreen onContinueGuest={continueAsGuest} />;
   if (pedirCuenta) pantalla = <PedirCuenta motivo={pedirCuenta.motivo} onCrear={() => irACuenta('signUp')} onEntrar={() => irACuenta('signIn')} onAhoraNo={() => setPedirCuenta(null)} />;
   else if (!pantalla) pantalla = <HomeScreen key={municipioComprador + tipoChat} municipioInicial={municipioComprador} seccionInicial={tipoChat === 'agricultor' ? 'insumos' : 'cosechas'} onProductPress={abrirProducto} onVender={() => { if (esAgricultor) navigate('Publicar'); else startMerchantFlow(); }} onHablar={() => openChat('voz')} onEscribir={() => openChat('texto')} onAprender={() => abrirAprende('Inicio')} />;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ArrowRight, CircleDollarSign, ClipboardList, GraduationCap, NotebookPen, PackagePlus, Sparkles, Sprout, Store } from 'lucide-react-native';
 import EstadoSincronizacion from '../../shared/components/EstadoSincronizacion';
+import FotoPerfil from '../../shared/components/FotoPerfil';
 import { contarPendientes, listProducts } from '../inventory/data/inventoryRepository';
 import { listSales } from '../sales/data/salesRepository';
 import { getBusinessProfile } from '../business/data/businessRepository';
@@ -71,6 +72,7 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
 
 
   return <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refresh()} tintColor={colors.brown} />}>
+    <FotoPerfil subtitulo={finca !== '' ? finca + (municipio !== '' ? ' · ' + municipio : '') : ''} />
     <Text style={styles.eyebrow}>MI NEGOCIO</Text>
     <Text style={styles.title}>{finca !== '' ? finca : 'Mi negocio'}</Text>
     {municipio !== '' && <Text style={styles.place}>{municipio}, Casanare</Text>}

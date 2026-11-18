@@ -20,5 +20,7 @@ export type Product = {
   min_order?: number;
   // version del servidor que conoce este celular (vacio = nunca se ha subido)
   server_updated_at?: string | null;
+  // fotos adicionales en json: ["ruta1", "ruta2"]
+  extra_photos?: string;
   created_at?: string;
 };

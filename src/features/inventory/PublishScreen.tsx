@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { preguntarOrigen, tomarOElegirFoto } from '../../shared/fotos';
 import { ImagePlus, X } from 'lucide-react-native';
 import { createProduct, updateProduct } from './data/inventoryRepository';
 import { getBusinessProfile } from '../business/data/businessRepository';
@@ -51,6 +51,8 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
   const [aConvenir, setAConvenir] = useState((!!producto && producto.price_cop === 0) || (!!initialDraft && initialDraft.price_cop === 0));
   const [minimo, setMinimo] = useState(producto && producto.min_order ? String(producto.min_order) : initialDraft && initialDraft.min_order ? String(initialDraft.min_order) : '');
   const [photoUri, setPhotoUri] = useState<string | null>(producto ? producto.photo_uri : null);
+  // hasta 3 fotos mas para la galeria
+  const [extras, setExtras] = useState<string[]>(() => { try { return producto && producto.extra_photos ? JSON.parse(producto.extra_photos) as string[] : []; } catch { return []; } });
   const [saving, setSaving] = useState(false);
   const teclaEspacio = useEspacioTeclado();
 
@@ -63,14 +65,12 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
     }).catch(() => setMunicipio('Yopal'));
   }, []);
 
-  async function choosePhoto() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permiso para tus fotos', 'Permite el acceso a tus fotos para elegir una imagen.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.8, preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible });
-    if (!result.canceled && result.assets.length > 0) setPhotoUri(result.assets[0].uri);
+  // la foto se toma o se elige y se achica antes de guardarla (sube mas rapido)
+  function choosePhoto() {
+    preguntarOrigen('Foto principal', (origen) => { void tomarOElegirFoto(origen).then((uri) => { if (uri) setPhotoUri(uri); }); });
+  }
+  function agregarExtra() {
+    preguntarOrigen('Otra foto', (origen) => { void tomarOElegirFoto(origen).then((uri) => { if (uri) setExtras((lista) => lista.concat(uri).slice(0, 3)); }); });
   }
 
   async function submit(borrador = false) {
@@ -107,7 +107,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
     }
     let textoEntrega = entrega;
     if (detalleEntrega.trim() !== '') textoEntrega = entrega + ' · ' + detalleEntrega.trim();
-    const datos = { name: name.trim(), category, description: description.trim(), price_cop: aConvenir ? 0 : parsedPrice, stock: parsedStock, min_order: pedidoMinimo, is_published: borrador ? 0 : 1, unit, photo_uri: photoUri, municipality: municipio, available_from: disponible, delivery: textoEntrega };
+    const datos = { name: name.trim(), category, description: description.trim(), price_cop: aConvenir ? 0 : parsedPrice, stock: parsedStock, min_order: pedidoMinimo, is_published: borrador ? 0 : 1, unit, photo_uri: photoUri, extra_photos: extras, municipality: municipio, available_from: disponible, delivery: textoEntrega };
     try {
       setSaving(true);
       if (producto) {
@@ -142,6 +142,13 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
         {fotoVisible ? <Image source={{ uri: fotoVisible }} style={styles.photoPreview} resizeMode="cover" /> : <View style={styles.photoEmpty}><ImagePlus size={27} color={colors.brown} /><Text style={styles.photoHint}>Añade una foto real</Text><Text style={styles.photoSubhint}>Una buena foto ayuda a vender</Text></View>}
       </Pressable>
       {!!fotoVisible && <Pressable accessibilityRole="button" onPress={() => setPhotoUri(null)} style={styles.removePhoto}><X size={14} color={colors.brown} /><Text style={styles.removePhotoText}>Quitar foto</Text></Pressable>}
+      {!!fotoVisible && <View style={styles.extras}>
+        {extras.map((uri, i) => { const ver = getProductImageUri(uri); return <View key={uri + i} style={styles.extra}>
+          {ver ? <Image source={{ uri: ver }} style={styles.extraImagen} /> : null}
+          <Pressable accessibilityRole="button" accessibilityLabel="Quitar esta foto" hitSlop={8} onPress={() => setExtras(extras.filter((_, j) => j !== i))} style={styles.extraQuitar}><X size={13} color={colors.white} /></Pressable>
+        </View>; })}
+        {extras.length < 3 && <Pressable accessibilityRole="button" accessibilityLabel="Agregar otra foto" onPress={agregarExtra} style={[styles.extra, styles.extraAgregar]}><ImagePlus size={20} color={colors.verde} /><Text style={styles.extraTexto}>Otra foto</Text></Pressable>}
+      </View>}
 
       <Text style={styles.label}>{esTienda ? '¿Qué vendes? *' : '¿Qué cosechaste? *'}</Text>
       <TextInput value={name} onChangeText={setName} placeholder={esTienda ? 'Ej. Abono triple 15 x 50 kg' : 'Ej. Piña oro miel'} placeholderTextColor={colors.muted} style={styles.input} maxLength={80} />
@@ -194,6 +201,12 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
 }
 
 const styles = StyleSheet.create({
+  extras: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  extra: { width: 74, height: 74, borderRadius: 14, overflow: 'hidden', backgroundColor: colors.salvia },
+  extraImagen: { width: '100%', height: '100%' },
+  extraQuitar: { position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(38,51,47,0.75)', alignItems: 'center', justifyContent: 'center' },
+  extraAgregar: { alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.verde, borderStyle: 'dashed', backgroundColor: colors.white },
+  extraTexto: { color: colors.verde, fontSize: 11, fontWeight: '800', marginTop: 2 },
   borrador: { alignItems: 'center', paddingVertical: 13, marginTop: 8, borderRadius: 24, borderWidth: 1.5, borderColor: colors.verde },
   borradorTexto: { color: colors.verde, fontSize: 15, fontWeight: '800' },
   ayuda: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 6 },

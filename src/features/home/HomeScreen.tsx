@@ -7,6 +7,7 @@ import { TarjetaEsqueleto } from '../../shared/components/Esqueleto';
 import { detectarMunicipio, guardarMunicipio, leerMunicipioGuardado, municipioEsManual, permisoUbicacionDado } from '../../shared/ubicacion';
 import { pedirReducirMovimiento } from '../../shared/movimiento';
 import { useAlVolver } from '../../shared/useAlVolver';
+import { getActiveBusinessId } from '../../infrastructure/database/database';
 import type { Business } from '../business/types';
 import type { Product } from '../inventory/types';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
@@ -66,6 +67,9 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   // la ubicacion detectada no coincide con la elegida a mano: se pregunta, no se cambia sola
   const [sugerido, setSugerido] = useState('');
   const [avisoUbicacion, setAvisoUbicacion] = useState('');
+  // el inicio es para descubrir lo de otros: tus publicaciones estan en «Mis cosechas»
+  const [propio, setPropio] = useState('');
+  useEffect(() => { void getActiveBusinessId().then(setPropio).catch(() => undefined); }, []);
   const [mercado, setMercado] = useState<Mercado>(vacio);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -203,6 +207,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   const otros: Product[] = [];
   for (const product of mercado.products) {
     if (product.stock <= 0) continue;
+    if (propio !== '' && product.business_id === propio) continue;
     const insumo = esInsumo(product.category);
     if (seccion === 'insumos' && !insumo) continue;
     if (seccion === 'cosechas' && insumo) continue;
@@ -221,8 +226,8 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   const palabra = seccion === 'insumos' ? 'insumos' : 'cosechas';
   let tituloCerca = seccion === 'insumos' ? 'Insumos disponibles' : 'Cosechas disponibles';
   if (municipio !== '') tituloCerca = (seccion === 'insumos' ? 'Insumos en ' : 'Cosechas en ') + municipio;
-  let mensajeVacio = 'Todavía no hay ' + palabra + ' publicadas' + (seccion === 'insumos' ? '' : '') + '.';
-  if (seccion === 'insumos') mensajeVacio = 'Todavía no hay insumos publicados.';
+  let mensajeVacio = 'Todavía no hay cosechas de otros productores. Cuando alguien publique, aparecerá aquí.';
+  if (seccion === 'insumos') mensajeVacio = 'Todavía no hay insumos de otras tiendas. Cuando alguien publique, aparecerá aquí.';
   if (municipio !== '') mensajeVacio = mensajeVacio.replace('.', ' en ' + municipio + '.') + (otros.length > 0 ? ' Mira más abajo lo de otros municipios.' : '');
   if (texto !== '' || categoria !== '') mensajeVacio = 'No encontramos nada con esa búsqueda' + (municipio !== '' ? ' en ' + municipio : '') + '.';
 

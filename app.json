@@ -33,7 +33,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Sava necesita acceder a tus fotos para agregar imágenes a tus productos."
+          "photosPermission": "Sava necesita acceder a tus fotos para agregar imágenes a tus cosechas y a tu perfil.",
+          "cameraPermission": "Sava usa la cámara para tomar fotos de tus cosechas y tu foto de perfil."
         }
       ],
       "expo-video",

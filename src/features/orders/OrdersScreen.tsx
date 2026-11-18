@@ -14,7 +14,7 @@ import { colors } from '../../shared/theme';
 import { dinero } from '../../shared/contacto';
 import { limpiarTelefono, mostrarCantidad, textoUnidad } from '../../shared/validaciones';
 
-type Props = { mode: 'customer' | 'business'; userId?: string; onBack?: () => void; onSignOut?: () => void; onLegal?: () => void };
+type Props = { mode: 'customer' | 'business'; userId?: string; onBack?: () => void; onSignOut?: () => void; onLegal?: () => void; encabezado?: React.ReactNode };
 
 // nombres sencillos para cada estado de la consulta
 function textoEstado(status: OrderStatus, mode: Props['mode']) {
@@ -31,7 +31,7 @@ async function abrirWhatsApp(telefono: string, mensaje: string) {
 }
 
 // consultas que los compradores envian a los vendedores
-export default function OrdersScreen({ mode, userId, onBack, onSignOut, onLegal }: Props) {
+export default function OrdersScreen({ mode, userId, onBack, onSignOut, onLegal, encabezado }: Props) {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
@@ -122,6 +122,7 @@ export default function OrdersScreen({ mode, userId, onBack, onSignOut, onLegal 
 
   const esVendedor = mode === 'business';
   return <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { setLoading(true); void refresh(); }} tintColor={colors.brown} />}>
+    {encabezado}
     {!!onBack && <Pressable onPress={onBack} style={styles.back}><ArrowLeft size={18} color={colors.brown} /><Text style={styles.backText}>Volver</Text></Pressable>}
     <Text style={styles.title}>{esVendedor ? 'Consultas de compradores' : 'Mis consultas'}</Text>
     <Text style={styles.subtitle}>{esVendedor ? 'Personas interesadas en lo que publicaste. Escríbeles y, si les vendes, toca «Ya le vendí».' : 'Lo que le preguntaste a los vendedores. Ellos te contactan para acordar.'}</Text>

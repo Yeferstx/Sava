@@ -3,7 +3,7 @@ import { getActiveBusinessId, getDatabase } from '../database/database';
 
 type QueueItem = { id: string; entity: string; operation: string; payload: string; status: string };
 type BusinessPayload = { id: string; name: string; category: string; description: string; phone: string; city: string; updated_at: string };
-type ProductPayload = { id: string; business_id: string; name: string; category: string; description: string; price_cop: number; stock: number; unit: string; photo_uri?: string | null; is_published?: number | boolean; updated_at: string; municipality?: string; available_from?: string | null; delivery?: string; retired?: number | boolean; min_order?: number };
+type ProductPayload = { id: string; business_id: string; name: string; category: string; description: string; price_cop: number; stock: number; unit: string; photo_uri?: string | null; is_published?: number | boolean; updated_at: string; municipality?: string; available_from?: string | null; delivery?: string; retired?: number | boolean; min_order?: number; extra_photos?: string };
 type SalePayload = { id: string; item_id: string; business_id: string; product_id: string; quantity: number; unit_price_cop: number; total_cop: number; sold_at: string };
 type MovimientoPayload = { id: string; business_id: string; tipo: string; product_id: string | null; producto: string; cantidad: number; unidad: string; monto: number; pagado: number; ref_id: string | null; persona: string; nota: string; fecha: string };
 
@@ -60,29 +60,45 @@ async function sincronizar() {
             continue;
           }
         }
-        if (product.photo_uri?.startsWith('file://') || product.photo_uri?.startsWith('content://')) {
-          const response = await fetch(product.photo_uri);
+        // sube una foto del celular y devuelve su ruta en el servidor
+        async function subirFoto(uri: string, nombre: string) {
+          const response = await fetch(uri);
           if (!response.ok) throw new Error('No pudimos leer la foto guardada en este dispositivo.');
           const image = await response.arrayBuffer();
-          const sourceExtension = product.photo_uri.split('?')[0]?.split('.').pop()?.toLowerCase() ?? '';
+          const sourceExtension = uri.split('?')[0]?.split('.').pop()?.toLowerCase() ?? '';
           // Fetching a local iOS image can produce a Blob with type text/plain. Upload bytes
           // directly so Supabase uses this explicit MIME type instead of the Blob's type.
           const extension = sourceExtension === 'png' ? 'png' : sourceExtension === 'webp' ? 'webp' : 'jpg';
           const contentType = extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : 'image/jpeg';
-          const storagePath = `${session.user.id}/${product.business_id}/${product.id}.${extension}`;
-          const { data: uploaded, error: uploadError } = await supabase.storage.from('sava-media').upload(storagePath, image, { contentType, upsert: true });
+          const storagePath = `${session!.user.id}/${product.business_id}/${nombre}.${extension}`;
+          const { data: uploaded, error: uploadError } = await supabase!.storage.from('sava-media').upload(storagePath, image, { contentType, upsert: true });
           if (uploadError) throw uploadError;
-          product = { ...product, photo_uri: uploaded.path };
-          await db.runAsync('UPDATE products SET photo_uri = ? WHERE id = ?', uploaded.path, product.id);
+          return uploaded.path;
+        }
+        const esLocal = (uri: string | null | undefined) => !!uri && (uri.startsWith('file://') || uri.startsWith('content://'));
+        if (esLocal(product.photo_uri)) {
+          const ruta = await subirFoto(product.photo_uri as string, product.id);
+          product = { ...product, photo_uri: ruta };
+          await db.runAsync('UPDATE products SET photo_uri = ? WHERE id = ?', ruta, product.id);
+          await db.runAsync('UPDATE sync_queue SET payload = ? WHERE id = ?', JSON.stringify(product), item.id);
+        }
+        let extras: string[] = [];
+        try { extras = JSON.parse(product.extra_photos ?? '[]') as string[]; } catch { extras = []; }
+        if (extras.some(esLocal)) {
+          const subidas: string[] = [];
+          for (let i = 0; i < extras.length; i++) subidas.push(esLocal(extras[i]) ? await subirFoto(extras[i], product.id + '-' + (i + 1) + '-' + Date.now()) : extras[i]);
+          extras = subidas;
+          product = { ...product, extra_photos: JSON.stringify(extras) };
+          await db.runAsync('UPDATE products SET extra_photos = ? WHERE id = ?', JSON.stringify(extras), product.id);
           await db.runAsync('UPDATE sync_queue SET payload = ? WHERE id = ?', JSON.stringify(product), item.id);
         }
         const fila = { id: product.id, business_id: product.business_id, name: product.name, category: product.category, description: product.description, price_cop: product.price_cop, stock: product.stock, unit: product.unit, photo_path: product.photo_uri ?? null, is_published: Boolean(product.is_published ?? true), updated_at: product.updated_at };
-        const cosecha = { municipality: product.municipality ?? 'Yopal', available_from: product.available_from ?? undefined, delivery: product.delivery ?? 'A convenir', retired: Boolean(product.retired ?? false), min_order: Number(product.min_order ?? 0) };
+        const cosecha = { municipality: product.municipality ?? 'Yopal', available_from: product.available_from ?? undefined, delivery: product.delivery ?? 'A convenir', retired: Boolean(product.retired ?? false), min_order: Number(product.min_order ?? 0), photo_paths: extras };
         let { error } = await supabase.from('products').upsert({ ...fila, ...cosecha });
         // PGRST204 = falta una columna: alguna migracion aun no esta aplicada en supabase.
         // primero sin el pedido minimo, luego sin ningun dato de cosecha
         if (error && error.code === 'PGRST204') {
-          const { min_order: _sinMinimo, ...sinMinimo } = cosecha;
+          const { min_order: _sinMinimo, photo_paths: _sinFotos, ...sinMinimo } = cosecha;
           const intento = await supabase.from('products').upsert({ ...fila, ...sinMinimo });
           error = intento.error;
         }

@@ -11,6 +11,8 @@ import { colors } from '../../shared/theme';
 import { mostrarCantidad, textoUnidad } from '../../shared/validaciones';
 import { compartirCosecha, dinero, textoPrecio } from '../../shared/contacto';
 import { vendidoPorProducto, type VendidoPorProducto } from '../sales/data/salesRepository';
+import { interesPorProducto, type Interes } from './data/inventoryRepository';
+import { useAlVolver } from '../../shared/useAlVolver';
 
 type Props = { onAddProduct: () => void; onEdit: (product: Product) => void; onOpenSales: () => void; onPromocionar?: (product: Product) => void; tipo?: 'agricultor' | 'tienda' };
 
@@ -33,6 +35,10 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, onP
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+  // consultas y contactos de cada publicacion (con internet)
+  const [interes, setInteres] = useState<Interes | null>(null);
+  useEffect(() => { void interesPorProducto().then(setInteres); }, []);
+  useAlVolver(() => { void refresh(); void interesPorProducto().then(setInteres); });
 
   async function changeStock(product: Product, delta: number) {
     // si queda menos de 1 (ej. 0,5 kg) se resta lo que queda
@@ -152,6 +158,7 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, onP
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel={'Sumar 1 a ' + product.name} onPress={() => void changeStock(product, 1)} style={styles.paso}><Plus size={24} color={colors.verde} strokeWidth={2.8} /></Pressable>
           </View>
+          {!!interes && <Text style={styles.interes}>{(interes[product.id]?.consultas ?? 0) === 1 ? '1 consulta' : (interes[product.id]?.consultas ?? 0) + ' consultas'} · {(interes[product.id]?.contactos ?? 0) === 1 ? '1 contacto por WhatsApp' : (interes[product.id]?.contactos ?? 0) + ' contactos por WhatsApp'}</Text>}
           {vendido > 0 && <Text style={styles.vendido}>Vendiste {mostrarCantidad(vendido)} de {mostrarCantidad(product.stock + vendido)} · {dinero(totalVendido)}</Text>}
 
           <View style={styles.actions}>
@@ -170,6 +177,7 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, onP
 }
 
 const styles = StyleSheet.create({
+  interes: { color: colors.verde, fontSize: 13, fontWeight: '800', marginTop: 8 },
   flex: { flex: 1 }, content: { padding: 18, paddingTop: 14, paddingBottom: 96 },
   eyebrow: { color: colors.muted, letterSpacing: 1.1, fontSize: 11, fontWeight: '800' },
   tituloFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
