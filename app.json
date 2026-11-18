@@ -6,13 +6,28 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "co.sava.casanare",
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Sava convierte tu voz en texto para que tu asistente entienda lo que dices.",
+        "NSMicrophoneUsageDescription": "Sava usa el micrófono para que puedas hablarle a tu asistente."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#F0E9DF",
         "foregroundImage": "./assets/adaptive-icon.png"
-      }
+      },
+      "package": "co.sava.casanare",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "plugins": [
       "expo-sqlite",
@@ -59,6 +74,12 @@
     "icon": "./assets/icon.png",
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7fc699a6-0935-4877-b1c1-993d839249fa"
+      }
+    },
+    "owner": "yeferstck"
   }
 }
