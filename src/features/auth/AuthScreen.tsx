@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { CircleCheck, LockKeyhole, Mail, UserRound } from 'lucide-react-native';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
 import { colors } from '../../shared/theme';
@@ -12,6 +12,7 @@ import PaisajeLlanero from './components/PaisajeLlanero';
 import LegalScreen from '../legal/LegalScreen';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
 import ApoyoGobernacion from '../../shared/components/ApoyoGobernacion';
+import { useEspacioTeclado } from '../../shared/useEspacioTeclado';
 import { roles, type Rol } from '../../shared/roles';
 
 // supabase responde en ingles, se pasan a espanol los errores mas comunes
@@ -168,6 +169,8 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
     } finally { setWorking(false); }
   }
 
+  const teclaEspacio = useEspacioTeclado();
+
   if (verLegal) return <LegalScreen onBack={() => setVerLegal(false)} />;
 
   let titulo = '¡Qué bueno verte!';
@@ -184,10 +187,10 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
     <View style={styles.screen}>
       <PaisajeLlanero posicion="arriba" moverse={movimiento} />
       <PaisajeLlanero posicion="abajo" moverse={movimiento} />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <View ref={teclaEspacio.ref} onLayout={teclaEspacio.medir} style={[styles.flex, { paddingBottom: teclaEspacio.espacio }]}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} automaticallyAdjustKeyboardInsets={false}>
           <View style={styles.columna}>
-            <Animated.View style={[styles.logo, { opacity: entrada[0], transform: [{ scale: logoEscala }] }]}><SavaLogo size="large" centrado /></Animated.View>
+            <Animated.View style={[styles.logo, { opacity: entrada[0], transform: [{ scale: logoEscala }] }]}><SavaLogo size="medio" centrado /></Animated.View>
 
             <Animated.View style={aparecer(1)}>
               <View accessibilityRole="tablist" style={styles.tabs} onLayout={(e) => setAnchoTabs(e.nativeEvent.layout.width)}>
@@ -211,7 +214,7 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
                     {roles.map((item) => {
                       const elegido = rol === item.rol;
                       return <Pressable key={item.rol} accessibilityRole="radio" accessibilityState={{ checked: elegido }} accessibilityLabel={item.titulo + '. ' + item.texto} onPress={() => { setRol(item.rol); if (errores.rol !== '') setErrores({ ...errores, rol: '' }); }} style={[styles.rolTarjeta, elegido && styles.rolElegido, errores.rol !== '' && styles.rolError]}>
-                        <item.Icon size={30} color={elegido ? colors.white : colors.verde} strokeWidth={1.8} />
+                        <item.Icon size={26} color={elegido ? colors.white : colors.verde} strokeWidth={1.8} />
                         <Text style={[styles.rolTexto, elegido && styles.rolTextoElegido]}>{item.corto}</Text>
                       </Pressable>;
                     })}
@@ -243,7 +246,12 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
             </Animated.View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+        {/* al subir, el contenido se desvanece arriba en vez de verse cortado */}
+        <Svg pointerEvents="none" width="100%" height={26} style={styles.fundidoArriba}>
+          <Defs><LinearGradient id="arriba" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={colors.crema} stopOpacity={1} /><Stop offset="1" stopColor={colors.crema} stopOpacity={0} /></LinearGradient></Defs>
+          <Rect x={0} y={0} width="100%" height={26} fill="url(#arriba)" />
+        </Svg>
+      </View>
     </View>
   );
 }
@@ -252,16 +260,17 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.crema },
   flex: { flex: 1 },
   // arriba fijo: al cambiar de pestana el logo y las pestanas no se mueven
-  content: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 92, paddingBottom: 90 },
+  content: { flexGrow: 1, paddingHorizontal: 22, paddingTop: 28, paddingBottom: 80 },
+  fundidoArriba: { position: 'absolute', top: 0, left: 0, right: 0 },
   columna: { width: '100%', maxWidth: 420, alignSelf: 'center' },
-  logo: { marginBottom: 12 },
-  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.line, marginBottom: 18 },
+  logo: { marginBottom: 6 },
+  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.line, marginBottom: 14 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 12 },
   tabTexto: { color: colors.grafito, fontSize: 16, fontWeight: '500' },
   tabActiva: { color: colors.verde, fontWeight: '800' },
   indicador: { position: 'absolute', left: 0, bottom: -1.5, height: 3, borderRadius: 2, backgroundColor: colors.verde },
-  encabezado: { alignItems: 'center', marginBottom: 16 },
-  titulo: { color: colors.verde, fontSize: 28, fontWeight: '900', textAlign: 'center' },
+  encabezado: { alignItems: 'center', marginBottom: 12 },
+  titulo: { color: colors.verde, fontSize: 26, fontWeight: '900', textAlign: 'center' },
   subtitulo: { color: colors.grafito, fontSize: 15, textAlign: 'center', marginTop: 8 },
   campos: {},
   olvide: { alignSelf: 'flex-end', marginTop: -4, marginBottom: 6, paddingVertical: 4 },
@@ -279,10 +288,10 @@ const styles = StyleSheet.create({
   rolTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   rolPregunta: { color: colors.grafito, fontSize: 14, fontWeight: '700' },
   roles: { flexDirection: 'row', gap: 8 },
-  rolTarjeta: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.white },
+  rolTarjeta: { flex: 1, minWidth: 0, alignItems: 'center', gap: 4, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.white },
   rolElegido: { backgroundColor: colors.verde, borderColor: colors.verde },
   rolError: { borderColor: '#775D50' },
-  rolTexto: { color: colors.grafito, fontSize: 13, fontWeight: '800' },
+  rolTexto: { color: colors.grafito, fontSize: 13, fontWeight: '800', textAlign: 'center' },
   rolTextoElegido: { color: colors.white },
   rolMensaje: { color: '#775D50', fontSize: 12, fontWeight: '600', marginTop: 6 },
 });

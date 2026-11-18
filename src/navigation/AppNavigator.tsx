@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, AppState, Easing, Pressable, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, AppState, BackHandler, Easing, PanResponder, Platform, Pressable, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { User } from '@supabase/supabase-js';
 import ChatScreen from '../features/chat/ChatScreen';
@@ -212,6 +212,47 @@ export default function AppNavigator() {
     setProductoEditar(null);
     setActiveTab(volver);
   }
+  // volver a la pantalla anterior (boton atras de android y gesto de deslizar en iphone).
+  // devuelve false si ya no hay a donde volver
+  function volverAtras() {
+    if (orderIntent) { setOrderIntent(null); return true; }
+    if (selectedProduct) { setSelectedProduct(null); return true; }
+    if (selectedBusiness) { setSelectedBusiness(null); return true; }
+    if (activeTab === 'María') { setActiveTab(volverDeMaria); return true; }
+    if (activeTab === 'Legal') { setActiveTab(volverLegal); return true; }
+    // en el formulario se pregunta antes de salir para no perder lo escrito
+    if (activeTab === 'Publicar') {
+      Alert.alert('¿Salir sin publicar?', 'Lo que escribiste en el formulario se pierde.', [{ text: 'Seguir aquí', style: 'cancel' }, { text: 'Salir', style: 'destructive', onPress: volverDePublicar }]);
+      return true;
+    }
+    if (activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio') { setActiveTab('Mi negocio'); return true; }
+    return false;
+  }
+  const volverRef = useRef(volverAtras);
+  volverRef.current = volverAtras;
+
+  // android: el boton o gesto atras del sistema. en el inicio deja salir de la app como siempre
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (volverRef.current()) return true;
+      return false;
+    });
+    return () => sub.remove();
+  }, []);
+
+  // iphone: deslizar desde el borde izquierdo hacia la derecha. la pantalla sigue el dedo
+  const arrastre = useRef(new Animated.Value(0)).current;
+  const gestoVolver = useRef(PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_e, g) => g.x0 < 24 && g.dx > 12 && Math.abs(g.dy) < g.dx * 0.6,
+    onPanResponderMove: (_e, g) => { arrastre.setValue(Math.max(0, g.dx)); },
+    onPanResponderRelease: (_e, g) => {
+      if (g.dx > 90 || g.vx > 0.6) {
+        Animated.timing(arrastre, { toValue: 420, duration: 160, useNativeDriver: true }).start(() => { volverRef.current(); arrastre.setValue(0); });
+      } else Animated.spring(arrastre, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+    },
+    onPanResponderTerminate: () => { Animated.spring(arrastre, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start(); },
+  })).current;
+
   function startOrder(product: Product, business: Business) {
     setMerchantIntent(false);
     setOrderIntent({ product, business, quantity: 1 });
@@ -261,7 +302,7 @@ export default function AppNavigator() {
   if (stage === 'setupBusiness' && user) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><BusinessSetupScreen user={user} tipo={tipoNegocio} onCreated={(business) => { void onBusinessCreated(business).catch((error) => { setStartupError(error instanceof Error ? error.message : 'No se pudo preparar el negocio.'); setStage('error'); }); }} /></SafeAreaView>;
   if (stage === 'error') return <SafeAreaView style={styles.safe}><View style={styles.errorScreen}><SavaLogo size="large" centrado /><Text style={styles.errorTitle}>No pudimos conectar</Text><Text style={styles.loadingText}>{startupError}</Text><Pressable onPress={() => setStage(user ? 'checkingBusiness' : 'signedOut')} style={styles.retry}><Text style={styles.retryText}>Intentar de nuevo</Text></Pressable>{!!user && <Pressable onPress={() => void signOut()} style={styles.signOut}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}</View></SafeAreaView>;
 
-  if (orderIntent && user && (stage === 'guest' || stage === 'signedIn')) return <SafeAreaView style={styles.safe}><OrderCheckoutScreen product={orderIntent.product} business={orderIntent.business} quantity={orderIntent.quantity} user={user} onBack={() => setOrderIntent(null)} onCreated={orderCreated} /></SafeAreaView>;
+  if (orderIntent && user && (stage === 'guest' || stage === 'signedIn')) return <SafeAreaView style={styles.safe} {...(Platform.OS === 'ios' ? gestoVolver.panHandlers : {})}><OrderCheckoutScreen product={orderIntent.product} business={orderIntent.business} quantity={orderIntent.quantity} user={user} onBack={() => setOrderIntent(null)} onCreated={orderCreated} /></SafeAreaView>;
   const isChat = activeTab === 'María';
   const isTransient = activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio' || activeTab === 'Legal' || productoEditar !== null;
   const esAgricultor = stage === 'signedIn';
@@ -297,10 +338,14 @@ export default function AppNavigator() {
   let alturaMaria = 20 + bordes.bottom;
   if (conBarra) alturaMaria = alturaBarra(pantallaAncho, bordes.bottom) + 12;
 
+  const hayAtras = !!selectedProduct || !!selectedBusiness || ['María', 'Legal', 'Publicar', 'Ventas', 'Pedidos', 'Editar negocio'].includes(activeTab);
   // solo se respeta el borde de arriba: abajo la barra de pestanas pinta hasta el final
   return <SafeAreaView edges={conBarra ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']} style={[styles.safe, enVideos && styles.oscuro]}>
     <StatusBar barStyle={enVideos ? 'light-content' : 'dark-content'} />
-    <PantallaAnimada key={activeTab + (selectedProduct ? '-p' + selectedProduct.product.id : '') + (selectedBusiness ? '-n' + selectedBusiness.id : '')}>{pantalla}</PantallaAnimada>
+    {/* en iphone se puede volver deslizando desde el borde izquierdo (solo si hay a donde volver) */}
+    <Animated.View style={[styles.flex, { transform: [{ translateX: arrastre }] }]} {...(Platform.OS === 'ios' && hayAtras ? gestoVolver.panHandlers : {})}>
+      <PantallaAnimada key={activeTab + (selectedProduct ? '-p' + selectedProduct.product.id : '') + (selectedBusiness ? '-n' + selectedBusiness.id : '')}>{pantalla}</PantallaAnimada>
+    </Animated.View>
     {verMaria && <MariaFlotante abajo={alturaMaria} onPress={openChat} />}
     {esAgricultor && <SeguimientoModal visible={verSeguimiento} pendientes={seguimientos} leerEnVoz={chat.leerEnVoz} onListo={seguimientoListo} onCerrar={() => setVerSeguimiento(false)} />}
     {!isTransient && !selectedBusiness && !selectedProduct && <TabBar active={activeTab} onChange={(tab) => {
@@ -311,4 +356,4 @@ export default function AppNavigator() {
   </SafeAreaView>;
 }
 
-const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.paper }, oscuro: { backgroundColor: colors.grafito }, loading: { flex: 1, alignItems: 'center', justifyContent: 'center' }, brand: { color: colors.brown, fontSize: 35, fontWeight: '900' }, spinner: { marginTop: 22 }, loadingText: { color: colors.muted, fontSize: 12, marginTop: 12, textAlign: 'center' }, errorScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 25 }, errorTitle: { color: colors.ink, fontWeight: '900', fontSize: 21, marginTop: 26 }, retry: { backgroundColor: colors.brown, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 23, marginTop: 20 }, retryText: { color: '#fff', fontWeight: '800', fontSize: 12 }, signOut: { padding: 12, marginTop: 7 }, signOutText: { color: colors.brown, fontWeight: '700', fontSize: 11 } });
+const styles = StyleSheet.create({ flex: { flex: 1 }, safe: { flex: 1, backgroundColor: colors.paper }, oscuro: { backgroundColor: colors.grafito }, loading: { flex: 1, alignItems: 'center', justifyContent: 'center' }, brand: { color: colors.brown, fontSize: 35, fontWeight: '900' }, spinner: { marginTop: 22 }, loadingText: { color: colors.muted, fontSize: 12, marginTop: 12, textAlign: 'center' }, errorScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 25 }, errorTitle: { color: colors.ink, fontWeight: '900', fontSize: 21, marginTop: 26 }, retry: { backgroundColor: colors.brown, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 23, marginTop: 20 }, retryText: { color: '#fff', fontWeight: '800', fontSize: 12 }, signOut: { padding: 12, marginTop: 7 }, signOutText: { color: colors.brown, fontWeight: '700', fontSize: 11 } });

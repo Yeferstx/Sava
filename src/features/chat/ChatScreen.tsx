@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Animated, Easing, Image, Keyboard, KeyboardAvoidingView, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
+import { Animated, Easing, Image, Keyboard, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
 import { ArrowLeft, Clock, Keyboard as IconoTeclado, MessageCircle, Mic, RotateCcw, Send, Sprout, Square, Volume2, VolumeX, WifiOff } from 'lucide-react-native';
 import NotaVoz from '../../shared/components/NotaVoz';
 import type { ChatMessage, ProductDraft, Recomendacion, VentaPropuesta } from './types';
@@ -12,6 +12,7 @@ import { getProductImageUri } from '../marketplace/getProductImageUri';
 import { callar, escucharVoz, hablar } from '../../shared/voz';
 import { empezarEscucha, entiendeSinInternet, escuchaDisponible } from '../../shared/escucha';
 import { pedirReducirMovimiento } from '../../shared/movimiento';
+import { useEspacioTeclado } from '../../shared/useEspacioTeclado';
 import AsistenteOrbe, { textoEstado, type EstadoAsistente } from './components/AsistenteOrbe';
 
 // en android viejo las transiciones de tamano necesitan esto
@@ -88,6 +89,8 @@ export default function ChatScreen(props: Props) {
   const entrada = useRef<ComponentRef<typeof TextInput>>(null);
   const detener = useRef<() => void>(() => undefined);
   const reducir = useRef(false);
+  // el campo de escribir siempre queda encima del teclado
+  const teclaEspacio = useEspacioTeclado();
   // charla: en modo voz, despues de que el asistente responde vuelve a escuchar solo
   const esperaTurno = useRef(false);
   const yaHablo = useRef(false);
@@ -225,7 +228,7 @@ export default function ChatScreen(props: Props) {
   if (teclado) tamanoHero = 64;
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior="padding">
+    <View ref={teclaEspacio.ref} onLayout={teclaEspacio.medir} style={[styles.flex, { paddingBottom: teclaEspacio.espacio }]}>
       <View style={styles.fondo}>
         <View style={styles.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Volver" hitSlop={10} onPress={() => { detenerTodo(); props.onBack(); }} style={styles.headerBoton}><ArrowLeft size={22} color={colors.verde} /></Pressable>
@@ -328,7 +331,7 @@ export default function ChatScreen(props: Props) {
           <Pressable accessibilityRole="button" accessibilityLabel="Enviar mensaje" disabled={pensando || texto.trim() === ''} onPress={() => enviar()} style={({ pressed }) => [styles.send, (pensando || texto.trim() === '') && styles.apagado, pressed && styles.presionado]}><Send size={20} color={colors.white} /></Pressable>
         </View>}
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
