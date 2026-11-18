@@ -72,7 +72,20 @@ export async function leerMunicipioGuardado() {
   return fila.value;
 }
 
-export async function guardarMunicipio(municipio: string) {
+// manual: la persona lo eligio de la lista (no se cambia solo al abrir la app)
+export async function guardarMunicipio(municipio: string, manual = false) {
   const db = await getDatabase();
   await db.runAsync('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', 'municipio_busqueda', municipio);
+  await db.runAsync('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', 'municipio_manual', manual ? 'si' : 'no');
+}
+
+export async function municipioEsManual() {
+  const db = await getDatabase();
+  const fila = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', 'municipio_manual');
+  return !!fila && fila.value === 'si';
+}
+
+// ya dio permiso de ubicacion (sin volver a preguntarle)
+export async function permisoUbicacionDado() {
+  try { const permiso = await Location.getForegroundPermissionsAsync(); return permiso.granted; } catch { return false; }
 }

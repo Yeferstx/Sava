@@ -179,7 +179,9 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
   if (purpose === 'buyer') subtitulo = 'Entra para enviar tu consulta al productor.';
   if (mode === 'signUp') { titulo = 'Empieza con Sava'; subtitulo = 'Tu cosecha o tus compras, en un solo lugar.'; }
 
-  const moverIndicador = pestana.interpolate({ inputRange: [0, 1], outputRange: [0, anchoTabs / 2] });
+  // selector tipo pastilla (igual al de cosechas e insumos del inicio)
+  const anchoPastilla = Math.max(0, (anchoTabs - 8) / 2);
+  const moverIndicador = pestana.interpolate({ inputRange: [0, 1], outputRange: [0, anchoPastilla] });
   const moverFormulario = formulario.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
   const logoEscala = entrada[0].interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] });
 
@@ -194,9 +196,9 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
 
             <Animated.View style={aparecer(1)}>
               <View accessibilityRole="tablist" style={styles.tabs} onLayout={(e) => setAnchoTabs(e.nativeEvent.layout.width)}>
+                {anchoTabs > 0 && <Animated.View style={[styles.indicador, { width: anchoPastilla, transform: [{ translateX: moverIndicador }] }]} />}
                 <Pressable accessibilityRole="tab" accessibilityState={{ selected: mode === 'signIn' }} onPress={() => cambiarModo('signIn')} style={styles.tab}><Text style={[styles.tabTexto, mode === 'signIn' && styles.tabActiva]}>Iniciar sesión</Text></Pressable>
                 <Pressable accessibilityRole="tab" accessibilityState={{ selected: mode === 'signUp' }} onPress={() => cambiarModo('signUp')} style={styles.tab}><Text style={[styles.tabTexto, mode === 'signUp' && styles.tabActiva]}>Crear cuenta</Text></Pressable>
-                {anchoTabs > 0 && <Animated.View style={[styles.indicador, { width: anchoTabs / 2, transform: [{ translateX: moverIndicador }] }]} />}
               </View>
             </Animated.View>
 
@@ -241,7 +243,7 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
             <Animated.View style={[styles.pie, aparecer(5)]}>
               {mode === 'signUp' && <Text style={styles.terminos}>Al continuar, aceptas los <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>términos</Text> y la <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>política de privacidad</Text>.</Text>}
               {mode === 'signIn' && <Pressable hitSlop={6} onPress={() => setVerLegal(true)}><Text style={styles.terminos}>Privacidad y términos de uso</Text></Pressable>}
-              {!!onContinueGuest && <Pressable accessibilityRole="button" hitSlop={10} onPress={onContinueGuest} style={styles.explorar}><Text style={styles.enlace}>Explorar sin cuenta</Text></Pressable>}
+              {!!onContinueGuest && <Pressable accessibilityRole="button" onPress={onContinueGuest} style={({ pressed }) => [styles.explorar, pressed && styles.presionado]}><Text style={styles.explorarTexto}>Explorar sin cuenta</Text></Pressable>}
               <ApoyoGobernacion />
             </Animated.View>
           </View>
@@ -264,14 +266,16 @@ const styles = StyleSheet.create({
   fundidoArriba: { position: 'absolute', top: 0, left: 0, right: 0 },
   columna: { width: '100%', maxWidth: 420, alignSelf: 'center' },
   logo: { marginBottom: 6 },
-  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.line, marginBottom: 14 },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 12 },
-  tabTexto: { color: colors.grafito, fontSize: 16, fontWeight: '500' },
-  tabActiva: { color: colors.verde, fontWeight: '800' },
-  indicador: { position: 'absolute', left: 0, bottom: -1.5, height: 3, borderRadius: 2, backgroundColor: colors.verde },
+  tabs: { flexDirection: 'row', backgroundColor: colors.salvia, borderRadius: 26, padding: 4, marginTop: 6, marginBottom: 18 },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 11 },
+  tabTexto: { color: colors.verde, fontSize: 15, fontWeight: '700' },
+  tabActiva: { color: colors.white, fontWeight: '900' },
+  indicador: { position: 'absolute', left: 4, top: 4, bottom: 4, borderRadius: 22, backgroundColor: colors.verde },
+  presionado: { transform: [{ scale: 0.97 }] },
+  explorarTexto: { color: colors.verde, fontSize: 15, fontWeight: '800' },
   encabezado: { alignItems: 'center', marginBottom: 12 },
-  titulo: { color: colors.verde, fontSize: 26, fontWeight: '900', textAlign: 'center' },
-  subtitulo: { color: colors.grafito, fontSize: 15, textAlign: 'center', marginTop: 8 },
+  titulo: { color: colors.verde, fontSize: 25, fontWeight: '900', textAlign: 'center' },
+  subtitulo: { color: colors.muted, fontSize: 15, lineHeight: 21, textAlign: 'center', marginTop: 6 },
   campos: {},
   olvide: { alignSelf: 'flex-end', marginTop: -4, marginBottom: 6, paddingVertical: 4 },
   enlace: { color: colors.verde, fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
@@ -281,9 +285,9 @@ const styles = StyleSheet.create({
   avisoTexto: { flex: 1, color: colors.verde, fontSize: 13, lineHeight: 19, fontWeight: '600' },
   boton: { height: 54, borderRadius: 27, backgroundColor: colors.verde, alignItems: 'center', justifyContent: 'center', marginTop: 8, shadowColor: colors.grafito, shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   botonTexto: { color: colors.white, fontSize: 17, fontWeight: '800' },
-  pie: { alignItems: 'center', marginTop: 16, gap: 6 },
+  pie: { alignItems: 'center', marginTop: 14, gap: 8 },
   terminos: { color: colors.grafito, fontSize: 12, lineHeight: 18, textAlign: 'center' },
-  explorar: { paddingVertical: 10 },
+  explorar: { alignSelf: 'stretch', alignItems: 'center', paddingVertical: 13, borderRadius: 26, borderWidth: 1.5, borderColor: colors.verde, backgroundColor: 'rgba(255,255,255,0.6)', marginTop: 6 },
   rolBloque: { marginBottom: 14 },
   rolTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   rolPregunta: { color: colors.grafito, fontSize: 14, fontWeight: '700' },

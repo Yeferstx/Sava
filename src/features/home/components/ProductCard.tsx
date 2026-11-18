@@ -6,68 +6,63 @@ import { colors } from '../../../shared/theme';
 import { getProductImageUri } from '../../marketplace/getProductImageUri';
 import { dinero, textoMinimo } from '../../../shared/contacto';
 import { mostrarCantidad, textoUnidad } from '../../../shared/validaciones';
+import { esInsumo } from '../../../shared/agro';
 
 type Props = { product: Product; municipio?: string; vendedor?: string; conCategoria?: boolean; enGrilla?: boolean; onPress: () => void };
 
-// nombre corto de la categoria para la etiqueta sobre la foto
-function categoriaCorta(categoria: string) {
-  const partes = categoria.split(' y ');
-  return partes[0];
-}
-
-// tarjeta de una publicacion: foto real, nombre, precio, cantidad, municipio y vendedor
-export default function ProductCard({ product, municipio, vendedor = '', conCategoria = false, enGrilla = false, onPress }: Props) {
-  // entrada suave al aparecer
+// tarjeta de una cosecha: la foto manda; luego que es, donde, quien y cuanto hay.
+// el precio va pequeno y solo si el productor quiso mostrarlo
+export default function ProductCard({ product, municipio, vendedor = '', enGrilla = false, onPress }: Props) {
   const aparecer = useRef(new Animated.Value(0)).current;
   useEffect(() => { Animated.timing(aparecer, { toValue: 1, duration: 280, easing: Easing.out(Easing.quad), useNativeDriver: true }).start(); }, []);
   const subir = aparecer.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
   const imageUri = getProductImageUri(product.photo_uri);
   let lugar = product.municipality;
   if (!lugar) lugar = municipio;
-  // nuevo: publicado hace menos de 3 dias
   let fecha = product.created_at;
   if (!fecha) fecha = product.updated_at;
   const esNuevo = Date.now() - new Date(fecha).getTime() < 3 * 24 * 60 * 60 * 1000;
-  let cantidad = 'Agotado';
-  if (product.stock > 0) cantidad = mostrarCantidad(product.stock) + ' ' + textoUnidad(product.stock, product.unit) + ' disponibles';
+  const minimo = textoMinimo(product.min_order, product.unit);
+  const insumo = esInsumo(product.category);
   return (
     <Animated.View style={[enGrilla ? styles.grilla : styles.fila, { opacity: aparecer, transform: [{ translateY: subir }] }]}>
-    <Pressable accessibilityRole="button" accessibilityLabel={'Ver ' + product.name} onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.presionada]}>
-      <View style={styles.image}>
-        {imageUri ? <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" /> : <Sprout size={36} color={colors.brown} strokeWidth={1.5} />}
-        <View style={styles.etiquetas}>
-          {conCategoria && <View style={styles.categoria}><Text style={styles.categoriaTexto} numberOfLines={1}>{categoriaCorta(product.category)}</Text></View>}
+      <Pressable accessibilityRole="button" accessibilityLabel={'Conocer ' + product.name} onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.presionada]}>
+        <View style={styles.image}>
+          {imageUri ? <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" /> : <Sprout size={36} color={colors.verde} strokeWidth={1.5} />}
           {esNuevo && <View style={styles.nuevo}><Text style={styles.nuevoTexto}>Nuevo</Text></View>}
+          {product.price_cop > 0 && <View style={styles.precio}><Text style={styles.precioTexto} numberOfLines={1}>{dinero(product.price_cop)}/{product.unit}</Text></View>}
         </View>
-      </View>
-      <Text numberOfLines={1} style={styles.name}>{product.name}</Text>
-      {product.price_cop > 0 ? <Text style={styles.price}>{dinero(product.price_cop)} <Text style={styles.unit}>/ {product.unit}</Text></Text> : <Text style={styles.price}>Precio a convenir</Text>}
-      <Text numberOfLines={1} style={styles.stock}>{cantidad}</Text>
-      {!!textoMinimo(product.min_order, product.unit) && <Text numberOfLines={1} style={styles.minimo}>{textoMinimo(product.min_order, product.unit)}</Text>}
-      {!!lugar && <View style={styles.place}><MapPin size={12} color={colors.muted} /><Text numberOfLines={1} style={styles.placeText}>{lugar}</Text></View>}
-      {vendedor !== '' && <View style={styles.place}><UserRound size={12} color={colors.muted} /><Text numberOfLines={1} style={styles.placeText}>{vendedor}</Text></View>}
-    </Pressable>
+        <View style={styles.cuerpo}>
+          <Text numberOfLines={1} style={styles.name}>{product.name}</Text>
+          {!!lugar && <View style={styles.place}><MapPin size={12} color={colors.muted} /><Text numberOfLines={1} style={styles.placeText}>{lugar}, Casanare</Text></View>}
+          {vendedor !== '' && <View style={styles.place}><UserRound size={12} color={colors.muted} /><Text numberOfLines={1} style={styles.placeText}>{vendedor}</Text></View>}
+          <Text numberOfLines={1} style={styles.cantidad}>{mostrarCantidad(product.stock)} {textoUnidad(product.stock, product.unit)} <Text style={styles.cantidadSuave}>disponibles</Text></Text>
+          {minimo !== '' && <Text numberOfLines={1} style={styles.minimo}>Pedido mínimo: {mostrarCantidad(product.min_order ?? 0)} {textoUnidad(product.min_order ?? 0, product.unit)}</Text>}
+          <View style={styles.boton}><Text style={styles.botonTexto}>{insumo ? 'Ver producto' : 'Conocer cosecha'}</Text></View>
+        </View>
+      </Pressable>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  fila: { width: 156 },
-  card: { backgroundColor: colors.white, borderRadius: 20, padding: 8, borderWidth: 1, borderColor: colors.line, shadowColor: '#26332F', shadowOpacity: 0.07, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  fila: { width: 164 },
   grilla: { width: '48.5%' },
+  card: { flex: 1, backgroundColor: colors.white, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: colors.line, shadowColor: '#26332F', shadowOpacity: 0.07, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
   presionada: { transform: [{ scale: 0.97 }] },
-  image: { height: 124, backgroundColor: colors.salvia, borderRadius: 14, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
+  image: { height: 118, backgroundColor: colors.salvia, justifyContent: 'center', alignItems: 'center' },
   photo: { width: '100%', height: '100%' },
-  etiquetas: { position: 'absolute', top: 8, left: 8, right: 8, flexDirection: 'row', justifyContent: 'space-between', gap: 4 },
-  categoria: { backgroundColor: 'rgba(240,233,223,0.95)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, flexShrink: 1 },
-  categoriaTexto: { color: colors.verde, fontSize: 12, fontWeight: '900' },
-  nuevo: { backgroundColor: colors.arcilla, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
+  nuevo: { position: 'absolute', top: 8, left: 8, backgroundColor: colors.arcilla, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
   nuevoTexto: { color: colors.grafito, fontSize: 11, fontWeight: '900' },
-  name: { color: colors.ink, fontWeight: '900', fontSize: 15, marginTop: 9 },
-  price: { color: colors.verde, fontWeight: '900', fontSize: 15, marginTop: 3 },
-  unit: { color: colors.muted, fontWeight: '500', fontSize: 12 },
-  stock: { color: colors.ink, fontSize: 12, marginTop: 3 },
-  minimo: { color: colors.verde, fontSize: 12, fontWeight: '800', marginTop: 2 },
-  place: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  precio: { position: 'absolute', bottom: 8, right: 8, maxWidth: '90%', backgroundColor: 'rgba(240,233,223,0.95)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  precioTexto: { color: colors.verde, fontSize: 11, fontWeight: '900' },
+  cuerpo: { padding: 10, paddingTop: 9, flex: 1 },
+  name: { color: colors.grafito, fontWeight: '900', fontSize: 15 },
+  place: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
   placeText: { color: colors.muted, fontSize: 12, flex: 1 },
+  cantidad: { color: colors.verde, fontSize: 14, fontWeight: '900', marginTop: 6 },
+  cantidadSuave: { color: colors.muted, fontSize: 12, fontWeight: '600' },
+  minimo: { color: colors.grafito, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  boton: { marginTop: 'auto', paddingTop: 8 },
+  botonTexto: { textAlign: 'center', color: colors.verde, fontSize: 13, fontWeight: '900', backgroundColor: colors.salvia, borderRadius: 14, paddingVertical: 7, overflow: 'hidden' },
 });

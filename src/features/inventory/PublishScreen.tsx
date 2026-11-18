@@ -146,7 +146,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
       <Text style={styles.label}>Categoría</Text>
       <View style={styles.options}>{listaCategorias.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.option, category === item && styles.optionSelected]}><Text style={[styles.optionText, category === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
 
-      {category === 'Cultivos y suelos' && <Text style={styles.aviso}>Si publicas agroquímicos (venenos, herbicidas, fungicidas), solo con registro ICA vigente y etiqueta original. Indica en la descripción el registro y las precauciones de uso.</Text>}
+      {category === 'Protección de cultivos' && <Text style={styles.aviso}>Si publicas agroquímicos (venenos, herbicidas, fungicidas), solo con registro ICA vigente y etiqueta original. Indica en la descripción el registro y las precauciones de uso.</Text>}
 
       <Text style={styles.label}>Cantidad disponible *</Text>
       <TextInput value={stock} onChangeText={setStock} placeholder="Ej. 150" placeholderTextColor={colors.muted} style={[styles.input, styles.stockInput]} keyboardType={tecladoCantidad(unit)} maxLength={10} />

@@ -1,24 +1,30 @@
 // datos del campo casanareño que usan varias pantallas
 
-export const categoriasAgricolas = [
-  'Plátano y banano', 'Yuca y tubérculos', 'Piña', 'Papaya', 'Patilla',
-  'Ahuyama', 'Maracuyá y frutas', 'Hortalizas', 'Otros',
-];
+// grupos generales de cosechas
+export const categoriasAgricolas = ['Frutas', 'Tubérculos', 'Granos', 'Hortalizas', 'Otros productos agrícolas'];
+
+// categorias de antes (productos ya publicados) y su grupo nuevo
+const cosechasViejas: Record<string, string> = {
+  'Plátano y banano': 'Frutas', 'Piña': 'Frutas', 'Papaya': 'Frutas', 'Patilla': 'Frutas', 'Maracuyá y frutas': 'Frutas',
+  'Yuca y tubérculos': 'Tubérculos', 'Ahuyama': 'Hortalizas', 'Otros': 'Otros productos agrícolas',
+};
 
 export const unidades = ['kg', 'tonelada', 'bulto', 'canastilla', 'caja', 'racimo', 'unidad', 'libra'];
 
 // lo que venden las tiendas del campo (agropecuarias)
 export const categoriasInsumos = [
-  'Semillas y plantas', 'Cultivos y suelos', 'Ganadería', 'Equipos y riego', 'Otros insumos',
+  'Semillas y plantas', 'Nutrición de cultivos', 'Protección de cultivos', 'Herramientas', 'Insumos para ganadería', 'Equipos agrícolas', 'Otros insumos',
 ];
 
 // nombres viejos de insumos (productos ya publicados) y su categoria nueva
 const insumosViejos: Record<string, string> = {
   'Semillas': 'Semillas y plantas',
-  'Abonos y fertilizantes': 'Cultivos y suelos',
-  'Agroquímicos': 'Cultivos y suelos',
-  'Herramientas': 'Equipos y riego',
-  'Alimento para animales': 'Ganadería',
+  'Abonos y fertilizantes': 'Nutrición de cultivos',
+  'Cultivos y suelos': 'Nutrición de cultivos',
+  'Agroquímicos': 'Protección de cultivos',
+  'Alimento para animales': 'Insumos para ganadería',
+  'Ganadería': 'Insumos para ganadería',
+  'Equipos y riego': 'Equipos agrícolas',
 };
 
 export const unidadesInsumo = ['unidad', 'bulto', 'kg', 'litro', 'galón', 'caja'];
@@ -65,21 +71,19 @@ export function textoFecha(fecha: string | null | undefined) {
 // adivina la categoria por el nombre, sirve para los borradores de maria
 export function categoriaDeProducto(nombre: string) {
   const texto = nombre.toLowerCase();
-  if (texto.includes('plátano') || texto.includes('platano') || texto.includes('banano') || texto.includes('topocho')) return 'Plátano y banano';
-  if (texto.includes('yuca') || (texto.includes('papa') && !texto.includes('papaya')) || texto.includes('ñame') || texto.includes('batata')) return 'Yuca y tubérculos';
-  if (texto.includes('piña')) return 'Piña';
-  if (texto.includes('papaya')) return 'Papaya';
-  if (texto.includes('patilla') || texto.includes('sandía') || texto.includes('sandia')) return 'Patilla';
-  if (texto.includes('ahuyama') || texto.includes('zapallo')) return 'Ahuyama';
-  if (texto.includes('maracuy') || texto.includes('mango') || texto.includes('guayaba') || texto.includes('limón') || texto.includes('limon') || texto.includes('naranja') || texto.includes('fruta')) return 'Maracuyá y frutas';
+  if (texto.includes('yuca') || (texto.includes('papa') && !texto.includes('papaya')) || texto.includes('ñame') || texto.includes('batata') || texto.includes('arracacha')) return 'Tubérculos';
+  if (texto.includes('arroz') || texto.includes('maíz') || texto.includes('maiz') || texto.includes('soya') || texto.includes('frijol') || texto.includes('fríjol') || texto.includes('cacao') || texto.includes('café') || texto.includes('cafe')) return 'Granos';
+  if (texto.includes('plátano') || texto.includes('platano') || texto.includes('banano') || texto.includes('topocho') || texto.includes('piña') || texto.includes('papaya') || texto.includes('patilla') || texto.includes('sandía') || texto.includes('sandia') || texto.includes('maracuy') || texto.includes('mango') || texto.includes('guayaba') || texto.includes('limón') || texto.includes('limon') || texto.includes('naranja') || texto.includes('aguacate') || texto.includes('fruta')) return 'Frutas';
+  if (texto.includes('ahuyama') || texto.includes('zapallo')) return 'Hortalizas';
   // insumos de las tiendas del campo
   if (texto.includes('semilla') || texto.includes('plantula') || texto.includes('plántula') || texto.includes('colino')) return 'Semillas y plantas';
-  if (texto.includes('abono') || texto.includes('fertiliz') || texto.includes('urea') || texto.includes('triple 15') || texto.includes('cal ')) return 'Cultivos y suelos';
-  if (texto.includes('veneno') || texto.includes('herbicida') || texto.includes('insecticida') || texto.includes('fungicida') || texto.includes('glifosato') || texto.includes('matamaleza') || texto.includes('fumig')) return 'Cultivos y suelos';
-  if (texto.includes('machete') || texto.includes('pala') || texto.includes('azad') || texto.includes('bomba') || texto.includes('guadaña') || texto.includes('alambre') || texto.includes('manguera') || texto.includes('riego') || texto.includes('aspersor')) return 'Equipos y riego';
-  if (texto.includes('concentrado') || texto.includes('purina') || texto.includes('sal mineral') || texto.includes('melaza') || texto.includes('vacuna') || texto.includes('ganado')) return 'Ganadería';
+  if (texto.includes('abono') || texto.includes('fertiliz') || texto.includes('urea') || texto.includes('triple 15') || texto.includes('cal ')) return 'Nutrición de cultivos';
+  if (texto.includes('veneno') || texto.includes('herbicida') || texto.includes('insecticida') || texto.includes('fungicida') || texto.includes('glifosato') || texto.includes('matamaleza') || texto.includes('fumig')) return 'Protección de cultivos';
+  if (texto.includes('machete') || texto.includes('pala') || texto.includes('azad') || texto.includes('guadaña') || texto.includes('alambre') || texto.includes('lima')) return 'Herramientas';
+  if (texto.includes('bomba') || texto.includes('manguera') || texto.includes('riego') || texto.includes('aspersor') || texto.includes('motor') || texto.includes('fumigadora')) return 'Equipos agrícolas';
+  if (texto.includes('concentrado') || texto.includes('purina') || texto.includes('sal mineral') || texto.includes('melaza') || texto.includes('vacuna') || texto.includes('ganado')) return 'Insumos para ganadería';
   if (texto.includes('tomate') || texto.includes('cebolla') || texto.includes('pimentón') || texto.includes('cilantro') || texto.includes('lechuga') || texto.includes('ají') || texto.includes('pepino') || texto.includes('habichuela')) return 'Hortalizas';
-  return 'Otros';
+  return 'Otros productos agrícolas';
 }
 
 // la categoria vieja de productos anteriores cae en "otros"
@@ -87,5 +91,6 @@ export function categoriaVisible(categoria: string) {
   if (categoriasAgricolas.includes(categoria)) return categoria;
   if (categoriasInsumos.includes(categoria)) return categoria;
   if (insumosViejos[categoria] !== undefined) return insumosViejos[categoria];
-  return 'Otros';
+  if (cosechasViejas[categoria] !== undefined) return cosechasViejas[categoria];
+  return 'Otros productos agrícolas';
 }

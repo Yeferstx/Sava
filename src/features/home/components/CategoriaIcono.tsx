@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
-import { Apple, Banana, Carrot, Cherry, Grape, Leaf, Package, PawPrint, Salad, Sprout, Tractor, Wheat } from 'lucide-react-native';
+import { Apple, Banana, Carrot, Cherry, Grape, Hammer, LayoutGrid, Leaf, Package, PawPrint, Salad, ShieldCheck, Sprout, Tractor, Wheat } from 'lucide-react-native';
 import { colors } from '../../../shared/theme';
 
 type Icono = (props: { size: number; color: string; strokeWidth?: number }) => React.ReactNode;
@@ -31,7 +31,22 @@ const iconos: Record<string, Icono> = {
   'Plátano y banano': Banana, 'Yuca y tubérculos': Carrot, 'Piña': Pina, 'Papaya': Papaya, 'Patilla': Cherry,
   'Ahuyama': Salad, 'Maracuyá y frutas': Grape, 'Hortalizas': Leaf, 'Otros': Sprout,
   'Semillas y plantas': Sprout, 'Cultivos y suelos': Wheat, 'Ganadería': PawPrint, 'Equipos y riego': Tractor, 'Otros insumos': Package,
+  'Frutas': Banana, 'Tubérculos': Carrot, 'Granos': Wheat, 'Otros productos agrícolas': Sprout,
+  'Nutrición de cultivos': Leaf, 'Protección de cultivos': ShieldCheck, 'Herramientas': Hammer, 'Insumos para ganadería': PawPrint, 'Equipos agrícolas': Tractor,
+  '': LayoutGrid,
 };
+
+// version compacta para la fila de categorias del inicio
+export function ChipCategoria({ nombre, etiqueta, elegida, onPress }: { nombre: string; etiqueta: string; elegida: boolean; onPress: () => void }) {
+  let Icono = iconos[nombre];
+  if (!Icono) Icono = Apple;
+  return (
+    <Pressable accessibilityRole="button" accessibilityState={{ selected: elegida }} accessibilityLabel={etiqueta} onPress={onPress} style={({ pressed }) => [styles.chip, elegida && styles.chipElegido, pressed && styles.presionado]}>
+      <Icono size={17} color={elegida ? colors.white : colors.verde} strokeWidth={2} />
+      <Text style={[styles.chipTexto, elegida && styles.chipTextoElegido]} numberOfLines={1}>{etiqueta}</Text>
+    </Pressable>
+  );
+}
 
 // fondos suaves de la paleta que se turnan
 const fondos = [colors.salvia, '#F5E7E2', colors.white, colors.salvia];
@@ -65,4 +80,8 @@ const styles = StyleSheet.create({
   nombre: { color: colors.grafito, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 6, lineHeight: 15 },
   nombreGrande: { color: colors.grafito, fontSize: 14, fontWeight: '800', textAlign: 'center', marginTop: 7, lineHeight: 18, paddingHorizontal: 2 },
   nombreElegido: { color: colors.verde, fontWeight: '900' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 38, borderRadius: 19, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },
+  chipElegido: { backgroundColor: colors.verde, borderColor: colors.verde },
+  chipTexto: { color: colors.verde, fontSize: 14, fontWeight: '800' },
+  chipTextoElegido: { color: colors.white },
 });
