@@ -198,7 +198,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
 
   // abrir una publicacion cuenta como interes (una sola vez no cambia el orden)
   function abrirProducto(product: Product) {
-    void registrarInteres(esInsumo(product.category) ? 'insumos' : 'cosechas', 1);
+    if (product.business_id !== propio) void registrarInteres(esInsumo(product.category) ? 'insumos' : 'cosechas', 1);
     onProductPress(product, negocioDe(mercado, product));
   }
 
@@ -211,11 +211,10 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   function separar(seccion: Seccion | null, conCategoria: boolean) {
     const cerca: Product[] = [];
     const otros: Product[] = [];
-    // publicaciones propias que se ocultan (el inicio es para ver lo de otros)
-    let propias = 0;
+    // las publicaciones propias van al final (el inicio es primero para ver lo de otros)
+    const propias: Product[] = [];
     for (const product of mercado.products) {
       if (product.stock <= 0) continue;
-      if (propio !== '' && product.business_id === propio) { propias += 1; continue; }
       const insumo = esInsumo(product.category);
       if (seccion === 'insumos' && !insumo) continue;
       if (seccion === 'cosechas' && insumo) continue;
@@ -225,7 +224,8 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
         const todo = (product.name + ' ' + product.category + ' ' + product.description + ' ' + (negocio ? negocio.name : '')).toLowerCase();
         if (!todo.includes(texto)) continue;
       }
-      if (municipio === '' || municipioDe(mercado, product) === municipio) cerca.push(product);
+      if (propio !== '' && product.business_id === propio) propias.push(product);
+      else if (municipio === '' || municipioDe(mercado, product) === municipio) cerca.push(product);
       else otros.push(product);
     }
     return { cerca, otros, propias };
@@ -246,7 +246,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
 
   function tarjeta(product: Product, enGrilla: boolean) {
     const negocio = negocioDe(mercado, product);
-    return <ProductCard key={product.id} enGrilla={enGrilla} product={product} municipio={municipioDe(mercado, product)} vendedor={negocio ? negocio.name : ''} onPress={() => abrirProducto(product)} />;
+    return <ProductCard key={product.id} enGrilla={enGrilla} propia={product.business_id === propio} product={product} municipio={municipioDe(mercado, product)} vendedor={negocio ? negocio.name : ''} onPress={() => abrirProducto(product)} />;
   }
 
   const nombres: Record<Seccion, { titulo: string; palabra: string; publicadas: string }> = {
@@ -270,22 +270,25 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
     const n = nombres[seccion];
     const { cerca, otros, propias } = separar(seccion, false);
     const hayCerca = cerca.length > 0;
-    const lista = hayCerca ? cerca : otros;
+    const deOtros = hayCerca ? cerca : otros;
+    const lista = deOtros.concat(propias);
     let titulo = n.titulo + ' cerca de ti';
     if (municipio === '') titulo = n.titulo + ' en Casanare';
     if (!hayCerca && otros.length > 0) titulo = n.titulo + ' en otros municipios';
+    if (deOtros.length === 0 && propias.length > 0) titulo = 'Tus ' + n.palabra;
     return <View key={seccion} style={styles.fila}>
       <View style={styles.filaTitulo}>
         <View style={styles.flex}>
           <Text style={styles.sectionTitle}>{titulo}</Text>
           {hayCerca && municipio !== '' && <Text style={styles.filaSub}>En {municipio}</Text>}
           {!hayCerca && otros.length > 0 && municipio !== '' && <Text style={styles.filaSub}>En {municipio} todavía no hay {n.palabra} {n.publicadas}.</Text>}
+          {deOtros.length === 0 && propias.length > 0 && <Text style={styles.filaSub}>Por ahora solo están las tuyas.</Text>}
         </View>
         {lista.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel={'Ver todas las ' + n.palabra} hitSlop={8} onPress={() => abrirVista(seccion)} style={styles.verTodas}><Text style={styles.verTodasTexto}>Ver todas</Text><ChevronRight size={16} color={colors.verde} /></Pressable>}
       </View>
       {lista.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carrusel} contentContainerStyle={styles.carruselContenido}>
         {lista.slice(0, 10).map((p) => tarjeta(p, false))}
-      </ScrollView> : (propias > 0 ? sinResultados(seccion === 'cosechas' ? 'Por ahora las únicas cosechas publicadas son las tuyas. Las ves en «Mi negocio».' : 'Por ahora los únicos insumos publicados son los tuyos. Los ves en «Mi negocio».', false) : sinResultados('Todavía no hay ' + n.palabra + ' ' + n.publicadas + (municipio !== '' ? ' en ' + municipio : ' en Casanare') + '. Cuando alguien publique, aparecerá aquí.', false))}
+      </ScrollView> : sinResultados('Todavía no hay ' + n.palabra + ' ' + n.publicadas + (municipio !== '' ? ' en ' + municipio : ' en Casanare') + '. Cuando alguien publique, aparecerá aquí.', false)}
     </View>;
   }
 
@@ -304,7 +307,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
     {getSupabaseClient() !== null && <Pressable onPress={() => { setCargando(true); void refreshFeed(); }} style={styles.retry}><Text style={styles.retryText}>Intentar de nuevo</Text></Pressable>}
   </View>;
   else if (texto !== '') {
-    const { cerca, otros } = separar(null, false);
+    const { cerca, otros, propias } = separar(null, false);
     contenido = <View>
       <Text style={[styles.sectionTitle, styles.resultadosTitulo]}>Resultados para «{query.trim()}»</Text>
       {cerca.length > 0 && <View style={styles.grid}>{cerca.map((p) => tarjeta(p, true))}</View>}
@@ -312,12 +315,13 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
         <Text style={[styles.filaSub, styles.otrosTitulo]}>{cerca.length === 0 && municipio !== '' ? 'En ' + municipio + ' no hay. Esto es de otros municipios:' : 'En otros municipios de Casanare:'}</Text>
         <View style={styles.grid}>{otros.map((p) => tarjeta(p, true))}</View>
       </>}
-      {cerca.length === 0 && otros.length === 0 && sinResultados('No encontramos «' + query.trim() + '» en Sava todavía. Aru te puede ayudar a buscar algo parecido.', false)}
+      {propias.length > 0 && <><Text style={[styles.filaSub, styles.otrosTitulo]}>Tus publicaciones:</Text><View style={styles.grid}>{propias.map((p) => tarjeta(p, true))}</View></>}
+      {cerca.length === 0 && otros.length === 0 && propias.length === 0 && sinResultados('No encontramos «' + query.trim() + '» en Sava todavía. Aru te puede ayudar a buscar algo parecido.', false)}
     </View>;
   } else if (vista !== 'inicio') {
     const n = nombres[vista];
     const lista = vista === 'insumos' ? categoriasInsumos : categoriasAgricolas;
-    const { cerca, otros } = separar(vista, true);
+    const { cerca, otros, propias } = separar(vista, true);
     contenido = <View>
       <Pressable accessibilityRole="button" onPress={() => abrirVista('inicio')} style={styles.volverInicio}><ArrowLeft size={18} color={colors.verde} /><Text style={styles.volverInicioTexto}>Volver al inicio</Text></Pressable>
       <Text style={styles.sectionTitle}>{n.titulo}{municipio !== '' ? ' en ' + municipio : ' en Casanare'}</Text>
@@ -330,7 +334,8 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
         <Text style={[styles.filaSub, styles.otrosTitulo]}>{cerca.length === 0 ? 'En ' + municipio + ' no hay. Esto es de otros municipios:' : 'En otros municipios de Casanare:'}</Text>
         <View style={styles.grid}>{otros.map((p) => tarjeta(p, true))}</View>
       </>}
-      {cerca.length === 0 && otros.length === 0 && sinResultados('Todavía no hay ' + n.palabra + (categoria !== '' ? ' de «' + categoria + '»' : '') + ' ' + n.publicadas + (municipio !== '' ? ' en ' + municipio : '') + '.', municipio !== '')}
+      {propias.length > 0 && <><Text style={[styles.filaSub, styles.otrosTitulo]}>Tus publicaciones:</Text><View style={styles.grid}>{propias.map((p) => tarjeta(p, true))}</View></>}
+      {cerca.length === 0 && otros.length === 0 && propias.length === 0 && sinResultados('Todavía no hay ' + n.palabra + (categoria !== '' ? ' de «' + categoria + '»' : '') + ' ' + n.publicadas + (municipio !== '' ? ' en ' + municipio : '') + '.', municipio !== '')}
     </View>;
   } else contenido = <>{orden.map((seccion) => fila(seccion))}</>;
 
