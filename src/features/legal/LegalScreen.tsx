@@ -1,12 +1,18 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ShieldCheck } from 'lucide-react-native';
 import { colors } from '../../shared/theme';
 import { AVISO_PRIVACIDAD, POLITICA_FECHA, POLITICA_VERSION, SECCIONES_POLITICA } from './politica';
+
+const logoGobernacion = require('../../../assets/marca/gobernacion-casanare.png');
 
 // politica completa. el texto va dentro de la app: se lee sin internet
 export default function LegalScreen({ onBack }: { onBack: () => void }) {
   return <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
     <Pressable accessibilityRole="button" hitSlop={8} onPress={onBack}><Text style={styles.back}>‹  Volver</Text></Pressable>
+    <View style={styles.logoCaja}>
+      <Image source={logoGobernacion} style={styles.logo} resizeMode="contain" accessibilityLabel="Gobernación de Casanare" />
+      <Text style={styles.logoTexto}>Responsable del tratamiento</Text>
+    </View>
     <View style={styles.cabeza}>
       <View style={styles.icono}><ShieldCheck size={26} color={colors.verde} /></View>
       <View style={styles.flex}>
@@ -36,6 +42,9 @@ export default function LegalScreen({ onBack }: { onBack: () => void }) {
 const styles = StyleSheet.create({
   flex: { flex: 1 }, content: { padding: 22, paddingTop: 14, paddingBottom: 48 },
   back: { color: colors.brown, fontWeight: '700', fontSize: 15, marginBottom: 18 },
+  logoCaja: { alignItems: 'center', marginBottom: 16 },
+  logo: { width: 96, height: 116 },
+  logoTexto: { color: colors.muted, fontSize: 12, fontWeight: '700', marginTop: 6 },
   cabeza: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   icono: { width: 48, height: 48, borderRadius: 16, backgroundColor: colors.verdeClaro, alignItems: 'center', justifyContent: 'center' },
   title: { color: colors.verde, fontSize: 20, fontWeight: '900', lineHeight: 25 },

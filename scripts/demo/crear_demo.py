@@ -52,7 +52,7 @@ def usuario(correo, nombre, rol):
     for u in lista.get('users', []):
         if u.get('email') == correo:
             return u['id']
-    u = pedir('POST', '/auth/v1/admin/users', {'email': correo, 'password': CLAVE_DEMO, 'email_confirm': True, 'user_metadata': {'nombre': nombre, 'rol': rol, 'autoriza_datos': True, 'politica_version': '1.0', 'autorizacion_version': 'datos-1.0', 'autoriza_ia': True}})
+    u = pedir('POST', '/auth/v1/admin/users', {'email': correo, 'password': CLAVE_DEMO, 'email_confirm': True, 'user_metadata': {'nombre': nombre, 'rol': rol, 'autoriza_datos': True, 'politica_version': '1.1', 'autorizacion_version': 'datos-1.0', 'autoriza_ia': True}})
     return u['id']
 
 

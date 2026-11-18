@@ -2,7 +2,7 @@
 // va dentro de la app: se puede leer sin internet. cada cambio sustancial sube la version
 // y obliga a pedir una nueva autorizacion (las versiones tambien estan en el servidor).
 
-export const POLITICA_VERSION = '1.0';
+export const POLITICA_VERSION = '1.1';
 export const POLITICA_FECHA = '18 de noviembre de 2026';
 
 // textos exactos que la persona autoriza (se guarda la version de cada uno como evidencia)
@@ -28,7 +28,7 @@ export const AVISO_PRIVACIDAD = 'En cumplimiento de la Ley 1581 de 2012 y el Dec
 // datos del responsable que el equipo debe definir formalmente antes de un lanzamiento.
 // mientras esten vacios, la app los muestra como "por confirmar" (no se inventan)
 export const RESPONSABLE = {
-  nombre: '',
+  nombre: 'Gobernación de Casanare',
   identificacion: '',
   direccion: '',
   correo: '',
@@ -44,7 +44,7 @@ export const SECCIONES_POLITICA: SeccionPolitica[] = [
     titulo: '1. Responsable del tratamiento',
     porConfirmar: Object.values(RESPONSABLE).some((v) => v.trim() === ''),
     parrafos: [
-      'Sava es un proyecto desarrollado por un equipo participante en CREATIC Casanare. El responsable de los datos de las personas que crean una cuenta en Sava es:',
+      'Sava es una plataforma operada por la Gobernación de Casanare y desarrollada por un equipo participante en CREATIC Casanare. La Gobernación de Casanare es la responsable del tratamiento de los datos de las personas que crean una cuenta en Sava:',
       'Nombre o razón social: ' + pendiente(RESPONSABLE.nombre) + '\nIdentificación (NIT o cédula): ' + pendiente(RESPONSABLE.identificacion) + '\nDirección: ' + pendiente(RESPONSABLE.direccion) + '\nCorreo de contacto: ' + pendiente(RESPONSABLE.correo) + '\nTeléfono: ' + pendiente(RESPONSABLE.telefono),
       'Mientras estos datos no estén definidos, puedes ejercer tus derechos desde la app, en «Tus datos y privacidad → Ejercer mis derechos».',
     ],
@@ -100,7 +100,7 @@ export const SECCIONES_POLITICA: SeccionPolitica[] = [
     titulo: '7. Datos de los clientes que registran las mipymes',
     parrafos: [
       'Cuando un negocio anota en Sava datos de sus propios clientes (por ejemplo, el nombre de quien le compró fiado), ese negocio actúa como responsable de esos datos y debe contar con la autorización de su cliente. Sava solo ofrece la herramienta y los trata por cuenta del negocio.',
-      'Las especificaciones técnicas de CREATIC Casanare indican que, respecto a esos datos, las mipymes son responsables y la Gobernación de Casanare actuaría como encargada al operar la plataforma. A la fecha esta relación no se ha formalizado: la Gobernación todavía no opera Sava. Si se formaliza, esta política se actualizará y te lo informaremos.',
+      'Respecto a esos datos, cada mipyme es la responsable y la Gobernación de Casanare actúa como encargada del tratamiento al operar la plataforma: solo los trata para prestar el servicio de Sava y según las instrucciones de la mipyme.',
       'Recomendamos anotar solo el nombre necesario y no registrar datos sensibles de los clientes.',
     ],
   },
@@ -114,7 +114,7 @@ export const SECCIONES_POLITICA: SeccionPolitica[] = [
     titulo: '9. Cómo ejercer tus derechos',
     parrafos: [
       'Desde la app: «Mi negocio» o «Cuenta» → «Tus datos y privacidad» → «Ejercer mis derechos». Ahí eliges si es una consulta, actualización, corrección, supresión o revocación, y queda registrada con fecha.',
-      'También puedes escribir al correo del responsable (por confirmar).',
+      'También puedes dirigirte a la Gobernación de Casanare por los canales de contacto indicados en el punto 1.',
       'Consultas: se responden en máximo 10 días hábiles (prorrogables 5 días hábiles más, avisándote el motivo). Reclamos (corrección, actualización, supresión o revocación): máximo 15 días hábiles (prorrogables 8 días hábiles más).',
       'Puedes corregir tus datos directamente en la app: tu nombre y foto en tu perfil, y los datos del negocio en «Editar información del negocio».',
     ],
