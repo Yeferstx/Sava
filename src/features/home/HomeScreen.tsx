@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Alert, Animated, Easing, LayoutAnimation, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ChevronDown, ChevronUp, LocateFixed, MapPin, MessageCircle, Mic, MoonStar, Search, ShoppingBasket, Sprout, Sun, Sunset, WifiOff } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, LocateFixed, MapPin, MessageCircle, Mic, MoonStar, Search, ShoppingBasket, Sprout, Sun, Sunrise, Sunset, WifiOff } from 'lucide-react-native';
 import { ChipCategoria } from './components/CategoriaIcono';
 import AsistenteOrbe from '../chat/components/AsistenteOrbe';
 import { TarjetaEsqueleto } from '../../shared/components/Esqueleto';
@@ -34,6 +34,7 @@ type Props = {
 // saludo segun la hora del dia
 function saludo() {
   const hora = new Date().getHours();
+  if (hora < 5) return '¡Buenas noches!';
   if (hora < 12) return '¡Buenos días!';
   if (hora < 19) return '¡Buenas tardes!';
   return '¡Buenas noches!';
@@ -227,8 +228,10 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   }
 
   const hora = new Date().getHours();
-  let IconoSaludo = Sun;
-  if (hora >= 17 && hora < 19) IconoSaludo = Sunset;
+  // amanecer en la manana, sol en la tarde, atardecer cerca de las 6 y luna en la noche
+  let IconoSaludo = Sunrise;
+  if (hora >= 12) IconoSaludo = Sun;
+  if (hora >= 17) IconoSaludo = Sunset;
   if (hora >= 19 || hora < 5) IconoSaludo = MoonStar;
 
   return (
