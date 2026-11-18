@@ -19,7 +19,7 @@ const cabeceras = {
 
 const categorias = [
   "Plátano y banano", "Yuca y tubérculos", "Piña", "Papaya", "Patilla", "Ahuyama", "Maracuyá y frutas", "Hortalizas", "Otros",
-  "Semillas", "Abonos y fertilizantes", "Agroquímicos", "Herramientas", "Alimento para animales", "Otros insumos",
+  "Semillas y plantas", "Cultivos y suelos", "Ganadería", "Equipos y riego", "Otros insumos",
 ];
 const unidades = ["kg", "bulto", "caja", "racimo", "unidad", "libra", "litro", "galón"];
 const municipios = [

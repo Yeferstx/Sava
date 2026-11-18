@@ -72,7 +72,11 @@ export default function ChatScreen(props: Props) {
       return () => clearTimeout(espera);
     }
   }, []);
-  useEffect(() => { setTimeout(() => { if (scroll.current) scroll.current.scrollToEnd({ animated: true }); }, 80); }, [messages.length, draft, venta, pensando]);
+  // solo baja al final cuando ya hay conversacion (al empezar se ve el personaje completo)
+  useEffect(() => {
+    if (messages.length <= 1 && !draft && !venta) return;
+    setTimeout(() => { if (scroll.current) scroll.current.scrollToEnd({ animated: true }); }, 80);
+  }, [messages.length, draft, venta, pensando]);
 
   // el estado del personaje sale de lo que esta pasando de verdad.
   // "escuchando" se usara cuando la app grabe con su propio microfono (hoy se dicta con el teclado)
@@ -115,7 +119,7 @@ export default function ChatScreen(props: Props) {
 
         <ScrollView ref={scroll} style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {empezando ? <View style={styles.hero}>
-            <AsistenteOrbe estado={estado} tamano={150} />
+            <AsistenteOrbe estado={estado} tamano={176} />
             <View style={styles.estado}><Text style={styles.estadoTexto}>{textoEstado(estado)}</Text></View>
             <Text style={styles.saludo}>{bienvenida}</Text>
             <Pressable accessibilityRole="button" onPress={() => void hablar(bienvenida)} style={styles.oirSaludo}><Volume2 size={16} color={colors.verde} /><Text style={styles.oirTexto}>Escuchar</Text></Pressable>
@@ -129,7 +133,7 @@ export default function ChatScreen(props: Props) {
           </View> : <>
             {/* con conversacion el personaje se queda arriba, pequeno pero presente */}
             <View style={styles.mini}>
-              <AsistenteOrbe estado={estado} tamano={64} />
+              <AsistenteOrbe estado={estado} tamano={72} />
               <View style={styles.estadoMini}><Text style={styles.estadoTexto}>{textoEstado(estado)}</Text></View>
             </View>
             {messages.slice(1).map((mensaje) => {

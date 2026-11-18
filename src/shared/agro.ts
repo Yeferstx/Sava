@@ -9,13 +9,22 @@ export const unidades = ['kg', 'bulto', 'caja', 'racimo', 'unidad', 'libra'];
 
 // lo que venden las tiendas del campo (agropecuarias)
 export const categoriasInsumos = [
-  'Semillas', 'Abonos y fertilizantes', 'Agroquímicos', 'Herramientas', 'Alimento para animales', 'Otros insumos',
+  'Semillas y plantas', 'Cultivos y suelos', 'Ganadería', 'Equipos y riego', 'Otros insumos',
 ];
+
+// nombres viejos de insumos (productos ya publicados) y su categoria nueva
+const insumosViejos: Record<string, string> = {
+  'Semillas': 'Semillas y plantas',
+  'Abonos y fertilizantes': 'Cultivos y suelos',
+  'Agroquímicos': 'Cultivos y suelos',
+  'Herramientas': 'Equipos y riego',
+  'Alimento para animales': 'Ganadería',
+};
 
 export const unidadesInsumo = ['unidad', 'bulto', 'kg', 'litro', 'galón', 'caja'];
 
 export function esInsumo(categoria: string) {
-  return categoriasInsumos.includes(categoria);
+  return categoriasInsumos.includes(categoria) || insumosViejos[categoria] !== undefined;
 }
 
 export const formasEntrega = ['Recogida en la finca', 'Entrega en el pueblo', 'A convenir'];
@@ -64,11 +73,11 @@ export function categoriaDeProducto(nombre: string) {
   if (texto.includes('ahuyama') || texto.includes('zapallo')) return 'Ahuyama';
   if (texto.includes('maracuy') || texto.includes('mango') || texto.includes('guayaba') || texto.includes('limón') || texto.includes('limon') || texto.includes('naranja') || texto.includes('fruta')) return 'Maracuyá y frutas';
   // insumos de las tiendas del campo
-  if (texto.includes('semilla')) return 'Semillas';
-  if (texto.includes('abono') || texto.includes('fertiliz') || texto.includes('urea') || texto.includes('triple 15') || texto.includes('cal ')) return 'Abonos y fertilizantes';
-  if (texto.includes('veneno') || texto.includes('herbicida') || texto.includes('insecticida') || texto.includes('fungicida') || texto.includes('glifosato') || texto.includes('matamaleza') || texto.includes('fumig')) return 'Agroquímicos';
-  if (texto.includes('machete') || texto.includes('pala') || texto.includes('azad') || texto.includes('bomba') || texto.includes('guadaña') || texto.includes('alambre')) return 'Herramientas';
-  if (texto.includes('concentrado') || texto.includes('purina') || texto.includes('sal mineral') || texto.includes('melaza')) return 'Alimento para animales';
+  if (texto.includes('semilla') || texto.includes('plantula') || texto.includes('plántula') || texto.includes('colino')) return 'Semillas y plantas';
+  if (texto.includes('abono') || texto.includes('fertiliz') || texto.includes('urea') || texto.includes('triple 15') || texto.includes('cal ')) return 'Cultivos y suelos';
+  if (texto.includes('veneno') || texto.includes('herbicida') || texto.includes('insecticida') || texto.includes('fungicida') || texto.includes('glifosato') || texto.includes('matamaleza') || texto.includes('fumig')) return 'Cultivos y suelos';
+  if (texto.includes('machete') || texto.includes('pala') || texto.includes('azad') || texto.includes('bomba') || texto.includes('guadaña') || texto.includes('alambre') || texto.includes('manguera') || texto.includes('riego') || texto.includes('aspersor')) return 'Equipos y riego';
+  if (texto.includes('concentrado') || texto.includes('purina') || texto.includes('sal mineral') || texto.includes('melaza') || texto.includes('vacuna') || texto.includes('ganado')) return 'Ganadería';
   if (texto.includes('tomate') || texto.includes('cebolla') || texto.includes('pimentón') || texto.includes('cilantro') || texto.includes('lechuga') || texto.includes('ají') || texto.includes('pepino') || texto.includes('habichuela')) return 'Hortalizas';
   return 'Otros';
 }
@@ -77,5 +86,6 @@ export function categoriaDeProducto(nombre: string) {
 export function categoriaVisible(categoria: string) {
   if (categoriasAgricolas.includes(categoria)) return categoria;
   if (categoriasInsumos.includes(categoria)) return categoria;
+  if (insumosViejos[categoria] !== undefined) return insumosViejos[categoria];
   return 'Otros';
 }

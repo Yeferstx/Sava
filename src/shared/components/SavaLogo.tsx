@@ -3,9 +3,10 @@ import Svg, { Path } from 'react-native-svg';
 import { LOGO_ALTO, LOGO_ANCHO, piezas } from '../../features/splash/logoSava';
 
 // logo oficial de sava (simbolo + palabra), con las mismas formas de la animacion de inicio
-export default function SavaLogo({ size = 'regular', centrado = false }: { size?: 'regular' | 'small' | 'medio' | 'large'; centrado?: boolean }) {
+export default function SavaLogo({ size = 'regular', centrado = false }: { size?: 'regular' | 'small' | 'encabezado' | 'medio' | 'large'; centrado?: boolean }) {
   let ancho = 64;
   if (size === 'small') ancho = 54;
+  if (size === 'encabezado') ancho = 76;
   if (size === 'medio') ancho = 96;
   if (size === 'large') ancho = 120;
   const alto = ancho * (LOGO_ALTO / LOGO_ANCHO);

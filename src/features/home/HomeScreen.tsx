@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Alert, Animated, Easing, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ChevronDown, ChevronRight, ChevronUp, LocateFixed, MapPin, MessageCircle, Mic, Moon, Search, ShoppingBasket, Sprout, Sun, WifiOff } from 'lucide-react-native';
+import { ChevronDown, ChevronRight, ChevronUp, LocateFixed, MapPin, MessageCircle, Mic, MoonStar, Search, ShoppingBasket, Sprout, Sun, WifiOff } from 'lucide-react-native';
 import CategoriaIcono from './components/CategoriaIcono';
 import AsistenteOrbe from '../chat/components/AsistenteOrbe';
 import { TarjetaEsqueleto } from '../../shared/components/Esqueleto';
@@ -48,10 +48,10 @@ const rapidas: Record<Seccion, Array<{ corto: string; categoria: string }>> = {
     { corto: 'Papaya', categoria: 'Papaya' },
   ],
   insumos: [
-    { corto: 'Semillas', categoria: 'Semillas' },
-    { corto: 'Abonos', categoria: 'Abonos y fertilizantes' },
-    { corto: 'Agroquímicos', categoria: 'Agroquímicos' },
-    { corto: 'Herramientas', categoria: 'Herramientas' },
+    { corto: 'Semillas y plantas', categoria: 'Semillas y plantas' },
+    { corto: 'Cultivos y suelos', categoria: 'Cultivos y suelos' },
+    { corto: 'Ganadería', categoria: 'Ganadería' },
+    { corto: 'Equipos y riego', categoria: 'Equipos y riego' },
   ],
 };
 
@@ -220,7 +220,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
     <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refreshFeed()} tintColor={colors.brown} />}>
       {/* encabezado: logo y municipio */}
       <Animated.View style={[styles.header, aparecer(0)]}>
-        <SavaLogo size="small" />
+        <SavaLogo size="encabezado" />
         <Pressable accessibilityRole="button" accessibilityLabel={'Buscando en ' + nombreMunicipio + '. Toca para cambiar el municipio'} onPress={() => setVerMunicipios(!verMunicipios)} style={({ pressed }) => [styles.location, pressed && styles.presionado]}>
           <MapPin size={18} color={colors.verde} />
           <Text style={styles.locationText} numberOfLines={1}>{buscandoUbicacion ? 'Buscando…' : nombreMunicipio}</Text>
@@ -244,7 +244,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
       {/* saludo segun la hora */}
       <Animated.View style={aparecer(1)}>
         <View style={styles.saludoFila}>
-          {new Date().getHours() < 19 ? <Sun size={28} color={colors.arcilla} /> : <Moon size={26} color={colors.arcilla} />}
+          {new Date().getHours() < 19 ? <Sun size={28} color={colors.arcilla} /> : <MoonStar size={24} color={colors.arcilla} strokeWidth={1.6} />}
           <Text style={styles.greeting}>{saludo()}</Text>
         </View>
         <Text style={styles.subGreeting}>¿Qué necesitas encontrar hoy?</Text>
@@ -264,7 +264,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
       <Animated.View style={aparecer(3)}>
         <View style={styles.search}>
           <Search size={22} color={colors.verde} />
-          <TextInput ref={buscador} accessibilityLabel="Buscar" value={query} onChangeText={setQuery} placeholder={seccion === 'insumos' ? 'Busca abono, semillas, veneno…' : 'Busca piña, yuca, plátano…'} placeholderTextColor={colors.muted} style={styles.searchInput} returnKeyType="search" maxLength={60} onBlur={() => setAyudaVoz(false)} />
+          <TextInput ref={buscador} accessibilityLabel="Buscar" value={query} onChangeText={setQuery} placeholder={seccion === 'insumos' ? 'Busca abono, semillas…' : 'Busca piña, yuca, plátano…'} placeholderTextColor={colors.muted} style={styles.searchInput} returnKeyType="search" maxLength={60} onBlur={() => setAyudaVoz(false)} />
           <Pressable accessibilityRole="button" accessibilityLabel="Buscar hablando" onPress={usarMicrofono} style={({ pressed }) => [styles.micBoton, pressed && styles.presionado]}><Mic size={22} color={colors.verde} /></Pressable>
         </View>
         {ayudaVoz && <Text style={styles.ayudaVoz}>Toca el micrófono de tu teclado y di lo que buscas.</Text>}
@@ -286,7 +286,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
 
       {/* tarjeta del asistente */}
       <Animated.View style={[styles.asistente, aparecer(5)]}>
-        <View style={styles.asistenteOrbe}><AsistenteOrbe estado="reposo" tamano={78} /></View>
+        <View style={styles.asistenteOrbe}><AsistenteOrbe estado="reposo" tamano={84} /></View>
         <View style={styles.separador} />
         <View style={styles.flex}>
           <Text style={styles.asistenteTitulo}>¿No lo encuentras?</Text>
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
   seccionActiva: { backgroundColor: colors.verde, borderColor: colors.verde },
   seccionTexto: { color: colors.verde, fontSize: 17, fontWeight: '900', flexShrink: 1 }, seccionTextoActivo: { color: colors.white },
   search: { minHeight: 58, backgroundColor: colors.white, borderRadius: 29, paddingLeft: 18, paddingRight: 6, alignItems: 'center', flexDirection: 'row', gap: 10, borderWidth: 1, borderColor: colors.line, ...sombraSuave },
-  searchInput: { flex: 1, fontSize: 16, color: colors.ink, paddingVertical: 8 },
+  searchInput: { flex: 1, fontSize: 15, color: colors.ink, paddingVertical: 8 },
   micBoton: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.salvia, alignItems: 'center', justifyContent: 'center' },
   ayudaVoz: { color: colors.verde, fontSize: 13, fontWeight: '700', marginTop: 8, marginLeft: 6 },
   rapidas: { flexDirection: 'row', marginTop: 16 },
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   verMasTexto: { color: colors.grafito, fontSize: 15, fontWeight: '800' },
   todas: { gap: 4, paddingBottom: 6 },
   asistente: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.white, borderRadius: 24, paddingVertical: 14, paddingLeft: 4, paddingRight: 14, marginTop: 8, marginBottom: 14, ...sombraSuave },
-  asistenteOrbe: { width: 86, height: 96, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  asistenteOrbe: { width: 92, height: 100, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   separador: { width: 1, alignSelf: 'stretch', backgroundColor: colors.line, marginVertical: 8 },
   asistenteTitulo: { color: colors.grafito, fontSize: 19, fontWeight: '900' },
   asistenteTexto: { color: colors.muted, fontSize: 14, marginTop: 2, lineHeight: 19 },

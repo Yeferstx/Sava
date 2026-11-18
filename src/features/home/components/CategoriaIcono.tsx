@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
-import { Apple, Banana, Bean, Carrot, Cherry, FlaskConical, Grape, Hammer, Leaf, Package, PawPrint, Salad, Sprout, Wheat } from 'lucide-react-native';
+import { Apple, Banana, Carrot, Cherry, Grape, Leaf, Package, PawPrint, Salad, Sprout, Tractor, Wheat } from 'lucide-react-native';
 import { colors } from '../../../shared/theme';
 
 type Icono = (props: { size: number; color: string; strokeWidth?: number }) => React.ReactNode;
@@ -30,8 +30,7 @@ function Papaya({ size, color, strokeWidth = 1.8 }: { size: number; color: strin
 const iconos: Record<string, Icono> = {
   'Plátano y banano': Banana, 'Yuca y tubérculos': Carrot, 'Piña': Pina, 'Papaya': Papaya, 'Patilla': Cherry,
   'Ahuyama': Salad, 'Maracuyá y frutas': Grape, 'Hortalizas': Leaf, 'Otros': Sprout,
-  'Semillas': Bean, 'Abonos y fertilizantes': Wheat, 'Agroquímicos': FlaskConical, 'Herramientas': Hammer,
-  'Alimento para animales': PawPrint, 'Otros insumos': Package,
+  'Semillas y plantas': Sprout, 'Cultivos y suelos': Wheat, 'Ganadería': PawPrint, 'Equipos y riego': Tractor, 'Otros insumos': Package,
 };
 
 // fondos suaves de la paleta que se turnan
@@ -51,7 +50,7 @@ export default function CategoriaIcono({ nombre, etiqueta = '', posicion, elegid
       <View style={[grande ? styles.circuloGrande : styles.circulo, { backgroundColor: fondo }, elegida && styles.circuloElegido]}>
         <Icono size={grande ? 36 : 30} color={elegida ? colors.white : colors.verde} strokeWidth={1.8} />
       </View>
-      <Text numberOfLines={grande ? 1 : 2} adjustsFontSizeToFit={grande} minimumFontScale={0.7} style={[grande ? styles.nombreGrande : styles.nombre, elegida && styles.nombreElegido]}>{texto}</Text>
+      <Text numberOfLines={2} style={[grande ? styles.nombreGrande : styles.nombre, elegida && styles.nombreElegido]}>{texto}</Text>
     </Pressable>
   );
 }
@@ -64,6 +63,6 @@ const styles = StyleSheet.create({
   circuloGrande: { width: 70, height: 70, borderRadius: 35, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, shadowColor: '#26332F', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 1 },
   circuloElegido: { backgroundColor: colors.verde, borderColor: colors.verde },
   nombre: { color: colors.grafito, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 6, lineHeight: 15 },
-  nombreGrande: { color: colors.grafito, fontSize: 15, fontWeight: '800', textAlign: 'center', marginTop: 7 },
+  nombreGrande: { color: colors.grafito, fontSize: 14, fontWeight: '800', textAlign: 'center', marginTop: 7, lineHeight: 18, paddingHorizontal: 2 },
   nombreElegido: { color: colors.verde, fontWeight: '900' },
 });
