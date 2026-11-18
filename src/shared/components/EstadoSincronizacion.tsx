@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CloudCheck, CloudOff, CloudUpload, TriangleAlert } from 'lucide-react-native';
 import { colors } from '../theme';
-import { estadoSincronizacion, listarConflictos, resolverConflicto, syncPendingChanges, type EstadoSync } from '../../infrastructure/sync/syncService';
+import { alSincronizar, estadoSincronizacion, listarConflictos, resolverConflicto, syncPendingChanges, type EstadoSync } from '../../infrastructure/sync/syncService';
 import { escucharSenal, hayInternet } from '../../features/chat/pendientes';
 
 function hora(fecha: string) {
@@ -36,7 +36,8 @@ export default function EstadoSincronizacion({ alCambiar }: { alCambiar?: () => 
     void hayInternet().then(setConSenal);
     const quitar = escucharSenal((senal) => { setConSenal(senal); if (senal) void enviar(false); });
     const repaso = setInterval(() => void leer(), 15000);
-    return () => { quitar(); clearInterval(repaso); };
+    const quitarSync = alSincronizar(() => { void leer(); if (alCambiar) alCambiar(); });
+    return () => { quitar(); clearInterval(repaso); quitarSync(); };
   }, [leer, enviar]);
 
   async function revisarConflictos() {

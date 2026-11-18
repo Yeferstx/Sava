@@ -14,11 +14,14 @@ export default function AvisoConexion() {
     let espera: ReturnType<typeof setTimeout> | undefined;
     let antes = true;
     void hayInternet().then((senal) => { antes = senal; if (!senal) setEstado('sin'); });
+    // el celular avisa varias veces seguidas el mismo cambio: solo cuenta cuando de verdad cambia
     const quitar = escucharSenal((senal) => {
-      if (espera) clearTimeout(espera);
-      if (!senal) setEstado('sin');
-      else if (!antes) { setEstado('volvio'); espera = setTimeout(() => setEstado('ok'), 2500); }
+      if (senal === antes) return;
       antes = senal;
+      if (espera) clearTimeout(espera);
+      if (!senal) { setEstado('sin'); return; }
+      setEstado('volvio');
+      espera = setTimeout(() => setEstado('ok'), 2500);
     });
     return () => { quitar(); if (espera) clearTimeout(espera); };
   }, []);

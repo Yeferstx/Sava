@@ -13,6 +13,7 @@ import { compartirCosecha, dinero, textoPrecio } from '../../shared/contacto';
 import { vendidoPorProducto, type VendidoPorProducto } from '../sales/data/salesRepository';
 import { interesPorProducto, type Interes } from './data/inventoryRepository';
 import { useAlVolver } from '../../shared/useAlVolver';
+import { alSincronizar } from '../../infrastructure/sync/syncService';
 
 type Props = { onAddProduct: () => void; onEdit: (product: Product) => void; onOpenSales: () => void; onPromocionar?: (product: Product) => void; tipo?: 'agricultor' | 'tienda' };
 
@@ -35,6 +36,8 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, onP
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+  // cuando termina de subir algo, los estados cambian solos (pendiente -> publicada)
+  useEffect(() => alSincronizar(() => { void refresh(); }), [refresh]);
   // consultas y contactos de cada publicacion (con internet)
   const [interes, setInteres] = useState<Interes | null>(null);
   useEffect(() => { void interesPorProducto().then(setInteres); }, []);

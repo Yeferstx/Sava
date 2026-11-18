@@ -10,8 +10,18 @@ type MovimientoPayload = { id: string; business_id: string; tipo: string; produc
 // solo una sincronizacion a la vez (evita enviar dos veces lo mismo)
 let enCurso: Promise<{ synced: number; reason: 'not-configured' | 'signed-out' | 'complete' | 'conflict' }> | null = null;
 
+// pantallas que quieren enterarse cuando termina una sincronizacion
+const oyentes = new Set<() => void>();
+export function alSincronizar(oyente: () => void) {
+  oyentes.add(oyente);
+  return () => { oyentes.delete(oyente); };
+}
+function avisarOyentes() {
+  for (const oyente of oyentes) { try { oyente(); } catch { /* una pantalla con error no frena a las demas */ } }
+}
+
 export function syncPendingChanges() {
-  if (!enCurso) enCurso = sincronizar().finally(() => { enCurso = null; });
+  if (!enCurso) enCurso = sincronizar().finally(() => { enCurso = null; avisarOyentes(); });
   return enCurso;
 }
 
