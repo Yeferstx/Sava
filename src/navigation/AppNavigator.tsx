@@ -37,7 +37,9 @@ import SalesScreen from '../features/sales/SalesScreen';
 import RoleScreen from '../features/auth/RoleScreen';
 import { CATEGORIA_TIENDA, type Rol } from '../shared/roles';
 import GuardadosScreen from '../features/favoritos/GuardadosScreen';
-import LegalScreen from '../features/legal/LegalScreen';
+import PrivacidadScreen from '../features/legal/PrivacidadScreen';
+import ReautorizarScreen from '../features/legal/ReautorizarScreen';
+import { faltaAutorizarPolitica } from '../features/legal/autorizaciones';
 import { cacheRemoteSales } from '../features/sales/data/salesRepository';
 import VideosScreen from '../features/videos/VideosScreen';
 import MariaFlotante from '../features/chat/MariaFlotante';
@@ -102,6 +104,8 @@ export default function AppNavigator() {
   const [volverAprende, setVolverAprende] = useState<AppTab>('Inicio');
   // visitante: se explica por que hace falta cuenta y, al entrar, se vuelve a lo que estaba haciendo
   const [pedirCuenta, setPedirCuenta] = useState<{ motivo: string; destino: AppTab } | null>(null);
+  // cuentas sin autorizacion de la politica vigente (creadas antes o cuando la politica cambia)
+  const [faltaAutorizacion, setFaltaAutorizacion] = useState(false);
   const [despuesDeEntrar, setDespuesDeEntrar] = useState<AppTab | null>(null);
   const [modoAuth, setModoAuth] = useState<'signIn' | 'signUp'>('signIn');
   // notificaciones sin leer (campana y numero en la barra)
@@ -140,6 +144,14 @@ export default function AppNavigator() {
     }).data.subscription;
     return () => { active = false; subscription?.unsubscribe(); };
   }, [supabase]);
+
+  useEffect(() => {
+    if (!user) { setFaltaAutorizacion(false); return; }
+    let activo = true;
+    // sin internet no se bloquea: se revisa otra vez al volver a entrar
+    void faltaAutorizarPolitica(user.id).then((falta) => { if (activo) setFaltaAutorizacion(falta === true); }).catch(() => undefined);
+    return () => { activo = false; };
+  }, [user?.id]);
 
   useEffect(() => {
     if (stage !== 'checkingBusiness' || !user || !supabase) return;
@@ -436,6 +448,7 @@ export default function AppNavigator() {
   }, [user, stage]);
 
   if (stage === 'loading' || stage === 'checkingBusiness') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><View style={styles.loading}><SavaLogo size="large" centrado /><ActivityIndicator color={colors.brown} style={styles.spinner} /><Text style={styles.loadingText}>{stage === 'checkingBusiness' ? 'Entrando a tu cuenta…' : 'Preparando tu espacio…'}</Text></View></SafeAreaView>;
+  if (user && faltaAutorizacion) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><ReautorizarScreen usuario={user.id} onListo={() => setFaltaAutorizacion(false)} onSalir={() => void signOut()} /></SafeAreaView>;
   if (stage === 'chooseRole') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><RoleScreen onElegido={rolElegido} onSignOut={() => void signOut()} /></SafeAreaView>;
   if (stage === 'signedOut') return <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}><StatusBar barStyle="dark-content" /><AuthScreen key={modoAuth} modoInicial={modoAuth} onAru={() => { setMerchantIntent(false); setDespuesDeEntrar(null); setStage('guest'); openChat('texto'); }} onContinueGuest={continueAsGuest} purpose={orderIntent ? 'buyer' : merchantIntent ? 'seller' : 'general'} /></SafeAreaView>;
   if (stage === 'setupBusiness' && user) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><BusinessSetupScreen user={user} tipo={tipoNegocio} onCreated={(business) => { void onBusinessCreated(business).catch((error) => { setStartupError(error instanceof Error ? error.message : 'No se pudo preparar el negocio.'); setStage('error'); }); }} /></SafeAreaView>;
@@ -453,7 +466,7 @@ export default function AppNavigator() {
   if (isChat) pantalla = <ChatScreen key={'chat-' + modoChat} modoInicial={modoChat} messages={chat.messages} draft={chat.draft} venta={chat.venta} pensando={chat.pensando} leerEnVoz={chat.leerEnVoz} conIA={chat.conIA} sinSenal={chat.sinSenal} enEspera={chat.enEspera} tipo={tipoChat} onSend={(texto, audio) => void chat.sendMessage(texto, audio)} onReset={chat.resetChat} onBack={() => setActiveTab(volverDeMaria)} onCambiarVoz={chat.cambiarVoz} onConfirmDraft={() => void confirmProductDraft()} onEditDraft={editProductDraft} onConfirmarVenta={() => void chat.confirmarVenta()} onCancelarVenta={chat.cancelarVenta} onOpenProduct={(product, business) => { setActiveTab(volverDeMaria); abrirProducto(product, business); }} />;
   else if (selectedProduct) pantalla = <ProductDetailScreen product={selectedProduct.product} business={selectedProduct.business} onBack={() => setSelectedProduct(null)} onOpenBusiness={(business) => { setSelectedProduct(null); setSelectedBusiness(business); }} onConsultar={startOrder} onOpenProduct={abrirProducto} />;
   else if (selectedBusiness) pantalla = <BusinessDetailScreen business={selectedBusiness} onBack={() => setSelectedBusiness(null)} />;
-  else if (activeTab === 'Legal') pantalla = <LegalScreen onBack={() => setActiveTab(volverLegal)} />;
+  else if (activeTab === 'Legal') pantalla = <PrivacidadScreen usuario={user?.id ?? null} onBack={() => setActiveTab(volverLegal)} />;
   else if (activeTab === 'Videos') pantalla = <VideosScreen onOpenProductor={(business) => setSelectedBusiness(business)} canPublish={esAgricultor} onVender={startMerchantFlow} onOpenMaria={openChat} />;
   else if (esAgricultor && activeTab === 'Mi negocio') pantalla = <BusinessDashboardScreen negocios={negocios} onCambiarNegocio={cambiarNegocio} onAgregarNegocio={agregarNegocio} sinLeer={sinLeer} consultasNuevas={consultasNuevas} porConfirmar={seguimientos.length} onConfirmarVentas={() => setVerSeguimiento(true)} tipo={tipoNegocio} onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (esAgricultor && activeTab === 'Inventario') pantalla = <InventoryScreen tipo={tipoNegocio} onAddProduct={() => navigate('Publicar')} onEdit={editarCosecha} onOpenSales={() => setActiveTab('Ventas')} onPromocionar={(product) => void abrirPromocion(product)} />;

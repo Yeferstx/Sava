@@ -172,6 +172,10 @@ Deno.serve(async (req) => {
   const { data: usuario } = await supabase.auth.getUser();
   if (!usuario.user) return responder({ error: "sin-sesion" }, 401);
 
+  // sin autorizacion para enviar preguntas a la ia externa no se envia nada
+  const { data: ultima } = await supabase.from("autorizaciones_datos").select("otorgada").eq("tipo", "ia_externa").order("creado_en", { ascending: false }).limit(1).maybeSingle();
+  if (!ultima || ultima.otorgada !== true) return responder({ error: "sin-autorizacion" }, 403);
+
   // limite de mensajes con ia por persona al dia, para cuidar el saldo.
   // al pasarlo la app sigue respondiendo con las reglas gratis del celular
   const { data: permitido, error: errorLimite } = await supabase.rpc("usar_ia_maria", { p_limite: LIMITE_DIARIO });

@@ -137,7 +137,7 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
     </Pressable>)}
 
     <Pressable onPress={onEditFinca} style={styles.link}><Text style={styles.linkText}>Editar información del negocio</Text></Pressable>
-    <Pressable onPress={onLegal} style={styles.link}><Text style={styles.linkText}>Privacidad y términos de uso</Text></Pressable>
+    <Pressable onPress={onLegal} style={styles.link}><Text style={styles.linkText}>Tus datos y privacidad</Text></Pressable>
     {!!onSignOut && <Pressable onPress={onSignOut} style={styles.link}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}
     <ApoyoGobernacion conMapa />
   </ScrollView>;

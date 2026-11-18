@@ -11,6 +11,8 @@ import { correoValido } from '../../shared/validaciones';
 import Campo from './components/Campo';
 import { pedirReducirMovimiento } from '../../shared/movimiento';
 import LegalScreen from '../legal/LegalScreen';
+import BloqueAutorizacion from '../legal/components/BloqueAutorizacion';
+import { AUTORIZACIONES, POLITICA_VERSION } from '../legal/politica';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
 import { useEspacioTeclado } from '../../shared/useEspacioTeclado';
 import { roles, type Rol } from '../../shared/roles';
@@ -22,14 +24,15 @@ function traducirError(mensaje: string) {
   if (texto.includes('already registered')) return 'Ya existe una cuenta con ese correo. Inicia sesión.';
   if (texto.includes('email not confirmed')) return 'Aún no confirmas tu correo. Revisa tu bandeja de entrada.';
   if (texto.includes('rate limit') || texto.includes('too many') || texto.includes('security purposes')) return 'Hiciste muchos intentos. Espera unos minutos e intenta de nuevo.';
+  if (texto.includes('database error saving new user') || texto.includes('sava_sin_autorizacion')) return 'No pudimos crear la cuenta sin tu autorización de datos. Marca la casilla e intenta otra vez.';
   if (texto.includes('network') || texto.includes('fetch')) return 'No hay conexión. Revisa tu internet e intenta de nuevo.';
   return mensaje;
 }
 
 type AuthPurpose = 'buyer' | 'seller' | 'general';
 type Modo = 'signIn' | 'signUp';
-type Errores = { rol: string; nombre: string; correo: string; clave: string; general: string };
-const sinErrores: Errores = { rol: '', nombre: '', correo: '', clave: '', general: '' };
+type Errores = { rol: string; nombre: string; correo: string; clave: string; general: string; autoriza: string };
+const sinErrores: Errores = { rol: '', nombre: '', correo: '', clave: '', general: '', autoriza: '' };
 
 // boton con una pequena animacion al presionarlo
 function BotonPrincipal({ texto, cargando, listo, onPress }: { texto: string; cargando: boolean; listo: boolean; onPress: () => void }) {
@@ -67,6 +70,10 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
   const [errores, setErrores] = useState<Errores>(sinErrores);
   const [aviso, setAviso] = useState('');
   const [verLegal, setVerLegal] = useState(false);
+  // autorizaciones: siempre empiezan sin marcar
+  const [autoriza, setAutoriza] = useState(false);
+  const [autorizaIA, setAutorizaIA] = useState(false);
+  const [autorizaComunicaciones, setAutorizaComunicaciones] = useState(false);
   const [movimiento, setMovimiento] = useState(false);
   const [anchoTabs, setAnchoTabs] = useState(0);
 
@@ -137,14 +144,15 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
     if (mode === 'signUp' && nombre.trim().length < 3) nuevos.nombre = 'Escribe tu nombre completo.';
     if (correoValido(email) === false) nuevos.correo = 'Escribe un correo válido, por ejemplo tu@correo.com.';
     if (password.length < 8) nuevos.clave = 'La contraseña debe tener al menos 8 caracteres.';
-    if (nuevos.rol !== '' || nuevos.nombre !== '' || nuevos.correo !== '' || nuevos.clave !== '') { setErrores(nuevos); return; }
+    if (mode === 'signUp' && !autoriza) nuevos.autoriza = 'Para crear tu cuenta necesitamos que autorices el tratamiento de tus datos.';
+    if (nuevos.rol !== '' || nuevos.nombre !== '' || nuevos.correo !== '' || nuevos.clave !== '' || nuevos.autoriza !== '') { setErrores(nuevos); return; }
     setWorking(true);
     setErrores(sinErrores);
     setAviso('');
     const correo = email.trim().toLowerCase();
     try {
       if (mode === 'signUp') {
-        const result = await supabase.auth.signUp({ email: correo, password, options: { data: { nombre: nombre.trim(), rol } } });
+        const result = await supabase.auth.signUp({ email: correo, password, options: { data: { nombre: nombre.trim(), rol, autoriza_datos: autoriza, politica_version: POLITICA_VERSION, autorizacion_version: AUTORIZACIONES.tratamiento_datos.version, autoriza_ia: autorizaIA, autoriza_comunicaciones: autorizaComunicaciones } } });
         if (result.error) throw result.error;
         if (!result.data.session) mostrarAviso('Te enviamos un correo a ' + correo + '. Confírmalo y luego inicia sesión.');
         else setListo(true);
@@ -275,6 +283,7 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
             <View onLayout={(e) => { posiciones.current.clave = e.nativeEvent.layout.y; }}><Campo etiqueta="Contraseña" esClave icono={<LockKeyhole size={20} color={colors.verde} />} value={password} onChangeText={(v) => escribir('clave', v)} placeholder={mode === 'signUp' ? 'Crea una contraseña' : 'Tu contraseña'} autoCapitalize="none" autoComplete={mode === 'signUp' ? 'new-password' : 'password'} maxLength={72} error={errores.clave} ayuda={mode === 'signUp' ? 'Usa al menos 8 caracteres' : ''} onSubmitEditing={() => void submit()} onFocus={() => mostrarCampo('clave')} /></View>
             {mode === 'signIn' && <Pressable accessibilityRole="button" hitSlop={8} disabled={working} onPress={() => void olvideClave()} style={styles.olvide}><Text style={styles.enlace}>¿Olvidaste tu contraseña?</Text></Pressable>}
 
+            {mode === 'signUp' && <BloqueAutorizacion autoriza={autoriza} onAutoriza={(v) => { setAutoriza(v); if (v && errores.autoriza !== '') setErrores({ ...errores, autoriza: '' }); }} ia={autorizaIA} onIA={setAutorizaIA} comunicaciones={autorizaComunicaciones} onComunicaciones={setAutorizaComunicaciones} error={errores.autoriza} onLeerPolitica={() => setVerLegal(true)} />}
             {errores.general !== '' && <Text accessibilityRole="alert" style={styles.errorGeneral}>{errores.general}</Text>}
             {aviso !== '' && <View accessibilityRole="alert" style={styles.aviso}>
               <Animated.View style={{ transform: [{ scale: check }] }}><CircleCheck size={22} color={colors.verde} /></Animated.View>
@@ -285,8 +294,7 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
           </Animated.View>
 
           {!!onContinueGuest && <Pressable accessibilityRole="button" onPress={onContinueGuest} style={({ pressed }) => [styles.explorar, pressed && styles.presionado]}><Text style={styles.explorarTexto}>Explorar sin cuenta</Text></Pressable>}
-          {mode === 'signUp' ? <Text style={styles.terminos}>Al continuar, aceptas los <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>términos</Text> y la <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>política de privacidad</Text>.</Text>
-            : <Pressable hitSlop={6} onPress={() => setVerLegal(true)}><Text style={styles.terminos}>Privacidad y términos de uso</Text></Pressable>}
+          <Pressable accessibilityRole="link" hitSlop={6} onPress={() => setVerLegal(true)}><Text style={styles.terminos}>Política de Tratamiento de Datos Personales y términos de uso</Text></Pressable>
           <Text style={styles.pieTexto}>Hecho para el campo de Casanare</Text>
           <View style={{ height: teclaEspacio.espacio > 0 ? 0 : bordeAbajo }} />
         </Animated.View>
@@ -331,7 +339,6 @@ const styles = StyleSheet.create({
   indicador: { position: 'absolute', left: 4, top: 4, bottom: 4, borderRadius: 22, backgroundColor: colors.verde },
   olvide: { alignSelf: 'flex-end', marginTop: -E.xs, marginBottom: E.m, paddingVertical: E.xs },
   enlace: { color: colors.verde, fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
-  enlaceChico: { color: colors.verde, fontWeight: '700', textDecorationLine: 'underline' },
   errorGeneral: { color: '#775D50', fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 12 },
   aviso: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.verdeClaro, borderRadius: 14, padding: 12, marginBottom: 14 },
   avisoTexto: { flex: 1, color: colors.verde, fontSize: 13, lineHeight: 19, fontWeight: '600' },

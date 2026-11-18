@@ -186,7 +186,7 @@ export default function OrdersScreen({ mode, userId, onBack, onSignOut, onLegal,
         {!esVendedor && status !== 'rejected' && status !== 'completed' && !!order.business && !!order.business.phone && <Pressable accessibilityRole="button" onPress={() => void abrirWhatsApp(order.business ? order.business.phone : '', 'Hola, te escribo por mi consulta de ' + producto + ' en Sava.')} style={styles.whatsapp}><MessageCircle size={17} color={colors.white} /><Text style={styles.whatsappText}>Escribirle al vendedor</Text></Pressable>}
       </View>;
     })}
-    {!!onLegal && <Pressable onPress={onLegal} style={styles.signOut}><Text style={styles.linkText}>Privacidad y términos de uso</Text></Pressable>}
+    {!!onLegal && <Pressable onPress={onLegal} style={styles.signOut}><Text style={styles.linkText}>Tus datos y privacidad</Text></Pressable>}
     {!esVendedor && !!onSignOut && <Pressable onPress={onSignOut} style={styles.signOut}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}
   </ScrollView>;
 }
