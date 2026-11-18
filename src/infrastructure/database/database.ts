@@ -88,6 +88,7 @@ async function agregarColumnasCosecha(db: SQLite.SQLiteDatabase) {
   if (!nombres.includes('delivery')) await db.execAsync("ALTER TABLE products ADD COLUMN delivery TEXT NOT NULL DEFAULT 'A convenir'");
   if (!nombres.includes('retired')) await db.execAsync('ALTER TABLE products ADD COLUMN retired INTEGER NOT NULL DEFAULT 0');
   if (!nombres.includes('created_at')) await db.execAsync('ALTER TABLE products ADD COLUMN created_at TEXT');
+  if (!nombres.includes('min_order')) await db.execAsync('ALTER TABLE products ADD COLUMN min_order REAL NOT NULL DEFAULT 0');
 }
 
 // el negocio de prueba solo existe para que la app funcione sin supabase.

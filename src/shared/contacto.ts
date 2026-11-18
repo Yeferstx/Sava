@@ -8,10 +8,24 @@ export function dinero(valor: number) {
   return '$' + valor.toLocaleString('es-CO');
 }
 
+// precio de una publicacion. 0 = el productor prefiere negociarlo
+export function textoPrecio(precio: number, unidad: string) {
+  if (!precio) return 'Precio a convenir';
+  return dinero(precio) + ' por ' + unidad;
+}
+
+// "Desde 100 kilos" cuando el productor pide un minimo
+export function textoMinimo(minimo: number | undefined, unidad: string) {
+  if (!minimo || minimo <= 0) return '';
+  return 'Desde ' + mostrarCantidad(minimo) + ' ' + textoUnidad(minimo, unidad);
+}
+
 // texto corto de la cosecha para whatsapp o para compartir
 export function textoCosecha(product: Product, business: Business | null) {
-  let texto = product.name + ' · ' + dinero(product.price_cop) + ' por ' + product.unit;
+  let texto = product.name + ' · ' + textoPrecio(product.price_cop, product.unit);
   texto = texto + '\nDisponible: ' + mostrarCantidad(product.stock) + ' ' + textoUnidad(product.stock, product.unit);
+  const minimo = textoMinimo(product.min_order, product.unit);
+  if (minimo) texto = texto + ' (' + minimo.toLowerCase() + ')';
   let municipio = product.municipality;
   if (!municipio && business) municipio = business.municipality;
   if (municipio) texto = texto + '\nMunicipio: ' + municipio + ', Casanare';

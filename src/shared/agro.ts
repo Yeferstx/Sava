@@ -5,7 +5,7 @@ export const categoriasAgricolas = [
   'Ahuyama', 'Maracuyá y frutas', 'Hortalizas', 'Otros',
 ];
 
-export const unidades = ['kg', 'bulto', 'caja', 'racimo', 'unidad', 'libra'];
+export const unidades = ['kg', 'tonelada', 'bulto', 'canastilla', 'caja', 'racimo', 'unidad', 'libra'];
 
 // lo que venden las tiendas del campo (agropecuarias)
 export const categoriasInsumos = [

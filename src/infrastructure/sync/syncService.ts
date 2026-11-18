@@ -3,7 +3,7 @@ import { getActiveBusinessId, getDatabase } from '../database/database';
 
 type QueueItem = { id: string; entity: string; operation: string; payload: string };
 type BusinessPayload = { id: string; name: string; category: string; description: string; phone: string; city: string; updated_at: string };
-type ProductPayload = { id: string; business_id: string; name: string; category: string; description: string; price_cop: number; stock: number; unit: string; photo_uri?: string | null; is_published?: number | boolean; updated_at: string; municipality?: string; available_from?: string | null; delivery?: string; retired?: number | boolean };
+type ProductPayload = { id: string; business_id: string; name: string; category: string; description: string; price_cop: number; stock: number; unit: string; photo_uri?: string | null; is_published?: number | boolean; updated_at: string; municipality?: string; available_from?: string | null; delivery?: string; retired?: number | boolean; min_order?: number };
 type SalePayload = { id: string; item_id: string; business_id: string; product_id: string; quantity: number; unit_price_cop: number; total_cop: number; sold_at: string };
 
 export async function syncPendingChanges() {
@@ -45,10 +45,16 @@ export async function syncPendingChanges() {
         await db.runAsync('UPDATE sync_queue SET payload = ? WHERE id = ?', JSON.stringify(product), item.id);
       }
       const fila = { id: product.id, business_id: product.business_id, name: product.name, category: product.category, description: product.description, price_cop: product.price_cop, stock: product.stock, unit: product.unit, photo_path: product.photo_uri ?? null, is_published: Boolean(product.is_published ?? true), updated_at: product.updated_at };
-      const cosecha = { municipality: product.municipality ?? 'Yopal', available_from: product.available_from ?? undefined, delivery: product.delivery ?? 'A convenir', retired: Boolean(product.retired ?? false) };
+      const cosecha = { municipality: product.municipality ?? 'Yopal', available_from: product.available_from ?? undefined, delivery: product.delivery ?? 'A convenir', retired: Boolean(product.retired ?? false), min_order: Number(product.min_order ?? 0) };
       let { error } = await supabase.from('products').upsert({ ...fila, ...cosecha });
       // PGRST204 = falta la columna: la migracion de cosechas aun no esta aplicada en supabase.
       // se sube sin esos datos para no frenar la sincronizacion
+      // primero sin el pedido minimo (migracion nueva), luego sin ningun dato de cosecha
+      if (error && error.code === 'PGRST204') {
+        const { min_order: _sinMinimo, ...sinMinimo } = cosecha;
+        const intento = await supabase.from('products').upsert({ ...fila, ...sinMinimo });
+        error = intento.error;
+      }
       if (error && error.code === 'PGRST204') {
         let filaVieja = fila;
         if (cosecha.retired) filaVieja = { ...fila, is_published: false };

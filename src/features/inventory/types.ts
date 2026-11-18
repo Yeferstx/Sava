@@ -16,5 +16,7 @@ export type Product = {
   available_from?: string;
   delivery?: string;
   retired?: number;
+  // pedido minimo (0 = vende cualquier cantidad). precio 0 = precio a convenir
+  min_order?: number;
   created_at?: string;
 };

@@ -83,7 +83,7 @@ export default function OrderCheckoutScreen({ product, business, quantity, user,
         <View style={styles.cantidadCentro}><Text style={styles.cantidad}>{mostrarCantidad(cantidad)}</Text><Text style={styles.unidad}>{textoUnidad(cantidad, product.unit)}</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Más" disabled={cantidad >= maximo} onPress={() => cambiar(1)} style={[styles.paso, cantidad >= maximo && styles.pasoApagado]}><Plus size={22} color={colors.verde} /></Pressable>
       </View>
-      <View style={styles.summaryRow}><Text style={styles.summaryText}>Valor aproximado</Text><Text style={styles.total}>{dinero(Math.round(cantidad * product.price_cop))}</Text></View>
+      <View style={styles.summaryRow}><Text style={styles.summaryText}>Valor aproximado</Text><Text style={styles.total}>{product.price_cop > 0 ? dinero(Math.round(cantidad * product.price_cop)) : 'A convenir'}</Text></View>
     </View>
 
     <Text style={styles.label}>¿No quieres escribir? Graba lo que necesitas</Text>

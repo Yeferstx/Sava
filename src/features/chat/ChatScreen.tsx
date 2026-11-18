@@ -6,7 +6,7 @@ import type { ChatMessage, ProductDraft, Recomendacion, VentaPropuesta } from '.
 import type { Product } from '../inventory/types';
 import type { Business } from '../business/types';
 import { colors } from '../../shared/theme';
-import { dinero, escribirPorWhatsApp } from '../../shared/contacto';
+import { dinero as dineroCop, escribirPorWhatsApp, textoMinimo, textoPrecio } from '../../shared/contacto';
 import { mostrarCantidad, textoUnidad } from '../../shared/validaciones';
 import { getProductImageUri } from '../marketplace/getProductImageUri';
 import { callar, escucharVoz, hablar } from '../../shared/voz';
@@ -64,7 +64,7 @@ function TarjetaRecomendada({ item, onOpen }: { item: Recomendacion; onOpen: () 
       <View style={styles.recoFoto}>{foto ? <Image source={{ uri: foto }} style={styles.recoImagen} /> : <Sprout size={24} color={colors.verde} />}</View>
       <View style={styles.flex}>
         <Text style={styles.recoNombre} numberOfLines={1}>{item.product.name}</Text>
-        <Text style={styles.recoPrecio}>{dinero(item.product.price_cop)} por {item.product.unit}</Text>
+        <Text style={styles.recoPrecio}>{textoPrecio(item.product.price_cop, item.product.unit)}{textoMinimo(item.product.min_order, item.product.unit) ? ' · ' + textoMinimo(item.product.min_order, item.product.unit).toLowerCase() : ''}</Text>
         <Text style={styles.recoMeta} numberOfLines={1}>{mostrarCantidad(item.product.stock)} {textoUnidad(item.product.stock, item.product.unit)} · {lugar ? lugar : 'Casanare'}{item.business ? ' · ' + item.business.name : ''}</Text>
       </View>
     </Pressable>
@@ -298,7 +298,7 @@ export default function ChatScreen(props: Props) {
               {draft && <Aparecer><View style={styles.card}>
                 <Text style={styles.cardEyebrow}>PUBLICACIÓN LISTA PARA REVISAR</Text>
                 <Text style={styles.cardTitle}>{draft.name}</Text>
-                <Text style={styles.cardDato}>{mostrarCantidad(draft.stock)} {textoUnidad(draft.stock, draft.unit)} · {dinero(draft.price_cop)} por {draft.unit}</Text>
+                <Text style={styles.cardDato}>{mostrarCantidad(draft.stock)} {textoUnidad(draft.stock, draft.unit)} · {textoPrecio(draft.price_cop, draft.unit)}</Text>
                 <Text style={styles.cardHint}>Categoría: {draft.category}. Nada se publica hasta que toques «Confirmar».</Text>
                 <View style={styles.cardBotones}>
                   <Pressable accessibilityRole="button" onPress={props.onEditDraft} style={({ pressed }) => [styles.botonSuave, pressed && styles.presionado]}><Text style={styles.botonSuaveTexto}>Corregir</Text></Pressable>
@@ -309,7 +309,7 @@ export default function ChatScreen(props: Props) {
               {venta && <Aparecer><View style={styles.card}>
                 <Text style={styles.cardEyebrow}>VENTA PARA REGISTRAR</Text>
                 <Text style={styles.cardTitle}>{venta.nombre}</Text>
-                <Text style={styles.cardDato}>{mostrarCantidad(venta.cantidad)} {textoUnidad(venta.cantidad, venta.unidad)} × {dinero(venta.precio)} = {dinero(venta.total)}</Text>
+                <Text style={styles.cardDato}>{mostrarCantidad(venta.cantidad)} {textoUnidad(venta.cantidad, venta.unidad)} × {dineroCop(venta.precio)} = {dineroCop(venta.total)}</Text>
                 <Text style={styles.cardHint}>Al confirmar se descuentan del inventario. Te quedarían {mostrarCantidad(venta.quedan)} {textoUnidad(venta.quedan, venta.unidad)}. Es un registro tuyo, no una factura.</Text>
                 <View style={styles.cardBotones}>
                   <Pressable accessibilityRole="button" onPress={props.onCancelarVenta} style={({ pressed }) => [styles.botonSuave, pressed && styles.presionado]}><Text style={styles.botonSuaveTexto}>No</Text></Pressable>

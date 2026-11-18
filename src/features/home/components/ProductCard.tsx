@@ -4,7 +4,7 @@ import { MapPin, Sprout, UserRound } from 'lucide-react-native';
 import type { Product } from '../../inventory/types';
 import { colors } from '../../../shared/theme';
 import { getProductImageUri } from '../../marketplace/getProductImageUri';
-import { dinero } from '../../../shared/contacto';
+import { dinero, textoMinimo } from '../../../shared/contacto';
 import { mostrarCantidad, textoUnidad } from '../../../shared/validaciones';
 
 type Props = { product: Product; municipio?: string; vendedor?: string; conCategoria?: boolean; enGrilla?: boolean; onPress: () => void };
@@ -41,8 +41,9 @@ export default function ProductCard({ product, municipio, vendedor = '', conCate
         </View>
       </View>
       <Text numberOfLines={1} style={styles.name}>{product.name}</Text>
-      <Text style={styles.price}>{dinero(product.price_cop)} <Text style={styles.unit}>/ {product.unit}</Text></Text>
+      {product.price_cop > 0 ? <Text style={styles.price}>{dinero(product.price_cop)} <Text style={styles.unit}>/ {product.unit}</Text></Text> : <Text style={styles.price}>Precio a convenir</Text>}
       <Text numberOfLines={1} style={styles.stock}>{cantidad}</Text>
+      {!!textoMinimo(product.min_order, product.unit) && <Text numberOfLines={1} style={styles.minimo}>{textoMinimo(product.min_order, product.unit)}</Text>}
       {!!lugar && <View style={styles.place}><MapPin size={12} color={colors.muted} /><Text numberOfLines={1} style={styles.placeText}>{lugar}</Text></View>}
       {vendedor !== '' && <View style={styles.place}><UserRound size={12} color={colors.muted} /><Text numberOfLines={1} style={styles.placeText}>{vendedor}</Text></View>}
     </Pressable>
@@ -66,6 +67,7 @@ const styles = StyleSheet.create({
   price: { color: colors.verde, fontWeight: '900', fontSize: 15, marginTop: 3 },
   unit: { color: colors.muted, fontWeight: '500', fontSize: 12 },
   stock: { color: colors.ink, fontSize: 12, marginTop: 3 },
+  minimo: { color: colors.verde, fontSize: 12, fontWeight: '800', marginTop: 2 },
   place: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   placeText: { color: colors.muted, fontSize: 12, flex: 1 },
 });

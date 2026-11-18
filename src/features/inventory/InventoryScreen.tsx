@@ -9,7 +9,7 @@ import { getBusinessProfile } from '../business/data/businessRepository';
 import type { Product } from './types';
 import { colors } from '../../shared/theme';
 import { mostrarCantidad, textoUnidad } from '../../shared/validaciones';
-import { compartirCosecha, dinero } from '../../shared/contacto';
+import { compartirCosecha, dinero, textoPrecio } from '../../shared/contacto';
 import { vendidoPorProducto, type VendidoPorProducto } from '../sales/data/salesRepository';
 
 type Props = { onAddProduct: () => void; onEdit: (product: Product) => void; onOpenSales: () => void; tipo?: 'agricultor' | 'tienda' };
@@ -131,7 +131,7 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, tip
             <View style={styles.foto}>{foto ? <Image source={{ uri: foto }} style={styles.fotoImagen} /> : <Sprout size={28} color={colors.brown} />}</View>
             <View style={styles.productInfo}>
               <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
-              <Text style={styles.productPrice}>{dinero(product.price_cop)} por {product.unit}</Text>
+              <Text style={styles.productPrice}>{textoPrecio(product.price_cop, product.unit)}</Text>
               <View style={styles.badges}>
                 <Text style={[styles.badge, (pausada || agotada) && styles.badgePaused]}>{estado}</Text>
                 {sync !== '' && <Text style={styles.syncPending}>● {sync}</Text>}

@@ -5,7 +5,7 @@ import { categoriaDeProducto, categoriaVisible, esInsumo } from '../../../shared
 import { listProducts } from '../../inventory/data/inventoryRepository';
 import { recordSale, ventasDesde } from '../../sales/data/salesRepository';
 import { cargarMercado, municipioDe, negocioDe } from '../../marketplace/data/mercadoRepository';
-import { dinero } from '../../../shared/contacto';
+import { dinero, textoPrecio } from '../../../shared/contacto';
 import { mostrarCantidad, textoUnidad } from '../../../shared/validaciones';
 import { callar, hablar } from '../../../shared/voz';
 import { getDatabase } from '../../../infrastructure/database/database';
@@ -315,6 +315,9 @@ export function useAssistantChat(tipo: TipoVendedor) {
     }
     let unitario = encontrado.price_cop;
     if (precio > 0) unitario = precio;
+    // publicacion con precio a convenir: hay que saber a como se vendio
+    if (unitario <= 0 && total <= 0) { responder('¿A cómo vendiste cada ' + encontrado.unit + '? Dime, por ejemplo: «vendí ' + mostrarCantidad(cantidad) + ' ' + textoUnidad(cantidad, encontrado.unit) + ' de ' + encontrado.name.toLowerCase() + ' a 2.000».'); return; }
+    if (unitario <= 0) unitario = Math.round(total / cantidad);
     let totalVenta = Math.round(unitario * cantidad);
     if (total > 0) totalVenta = total;
     const propuesta: VentaPropuesta = { productId: encontrado.id, nombre: encontrado.name, cantidad, unidad: encontrado.unit, precio: unitario, total: totalVenta, quedan: encontrado.stock - cantidad };
@@ -346,7 +349,7 @@ export function useAssistantChat(tipo: TipoVendedor) {
     if (producto !== '') {
       for (const item of productos) {
         if (seParece(item.name, producto)) {
-          responder('Te quedan ' + mostrarCantidad(item.stock) + ' ' + textoUnidad(item.stock, item.unit) + ' de ' + item.name + ', a ' + dinero(item.price_cop) + ' cada ' + item.unit + '.');
+          responder('Te quedan ' + mostrarCantidad(item.stock) + ' ' + textoUnidad(item.stock, item.unit) + ' de ' + item.name + '. ' + textoPrecio(item.price_cop, item.unit) + '.');
           return;
         }
       }
@@ -404,7 +407,7 @@ export function useAssistantChat(tipo: TipoVendedor) {
       let menor = 0;
       let mayor = 0;
       for (const op of lista) {
-        if (op.product.unit !== unidad) continue;
+        if (op.product.unit !== unidad || op.product.price_cop <= 0) continue;
         if (menor === 0 || op.product.price_cop < menor) menor = op.product.price_cop;
         if (op.product.price_cop > mayor) mayor = op.product.price_cop;
       }

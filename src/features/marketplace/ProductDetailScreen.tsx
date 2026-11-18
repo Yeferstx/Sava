@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ArrowLeft, Bookmark, CalendarDays, ClipboardList, MapPin, MessageCircle, Share2, Sprout, Truck, UserRound } from 'lucide-react-native';
+import { ArrowLeft, Bookmark, CalendarDays, ClipboardList, MapPin, MessageCircle, Package, Share2, Sprout, Truck, UserRound } from 'lucide-react-native';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
 import type { Business } from '../business/types';
 import type { Product } from '../inventory/types';
@@ -8,7 +8,7 @@ import { getProductImageUri } from './getProductImageUri';
 import { colors } from '../../shared/theme';
 import { mostrarCantidad, textoUnidad } from '../../shared/validaciones';
 import { textoDisponible, textoFecha } from '../../shared/agro';
-import { compartirCosecha, dinero, escribirPorWhatsApp } from '../../shared/contacto';
+import { compartirCosecha, dinero, escribirPorWhatsApp, textoMinimo } from '../../shared/contacto';
 import { esFavorito, guardarFavorito, quitarFavorito } from '../favoritos/favoritosRepository';
 
 type Props = { product: Product; business: Business | null; onBack: () => void; onOpenBusiness: (business: Business) => void; onConsultar?: (product: Product, business: Business) => void };
@@ -35,7 +35,9 @@ export default function ProductDetailScreen({ product, business, onBack, onOpenB
   let descripcion = product.description.trim();
   if (descripcion === '') descripcion = 'El productor no agregó una descripción. Escríbele para conocer más detalles.';
   // texto para escuchar la publicacion completa
-  let paraOir = product.name + '. Cuesta ' + dinero(product.price_cop).replace('$', '') + ' pesos cada ' + product.unit + '. ' + disponible + '.';
+  let paraOir = product.name + '. ' + (product.price_cop > 0 ? 'Cuesta ' + dinero(product.price_cop).replace('$', '') + ' pesos cada ' + product.unit : 'El precio se negocia con el productor') + '. ' + disponible + '.';
+  const minimo = textoMinimo(product.min_order, product.unit);
+  if (minimo) paraOir = paraOir + ' Vende ' + minimo.toLowerCase() + '.';
   if (municipio) paraOir = paraOir + ' Está en ' + municipio + '.';
   if (business) paraOir = paraOir + ' Lo vende ' + business.name + '.';
   let publicado = product.created_at;
@@ -55,11 +57,12 @@ export default function ProductDetailScreen({ product, business, onBack, onOpenB
       </View>
       <View style={styles.categoryChip}><Text style={styles.categoryText}>{product.category}</Text></View>
       <Text style={styles.name}>{product.name}</Text>
-      <Text style={styles.price}>{dinero(product.price_cop)} <Text style={styles.unit}>por {product.unit}</Text></Text>
+      {product.price_cop > 0 ? <Text style={styles.price}>{dinero(product.price_cop)} <Text style={styles.unit}>por {product.unit}</Text></Text> : <Text style={styles.price}>Precio a convenir</Text>}
       <View style={[styles.availability, !hayStock && styles.unavailable]}><Text style={styles.availabilityText}>{disponible}</Text></View>
       <View style={styles.oir}><BotonEscuchar texto={paraOir} /></View>
 
       <View style={styles.facts}>
+        <View style={styles.fact}><Package size={18} color={colors.brown} /><View style={styles.flex}><Text style={styles.factTitle}>Cantidad</Text><Text style={styles.factText}>{disponible}{minimo ? ' · ' + minimo.toLowerCase() : ' · también en poca cantidad'}</Text></View></View>
         <View style={styles.fact}><MapPin size={18} color={colors.brown} /><View style={styles.flex}><Text style={styles.factTitle}>Municipio</Text><Text style={styles.factText}>{municipio ? municipio + ', Casanare' : 'Casanare'}</Text></View></View>
         <View style={styles.fact}><CalendarDays size={18} color={colors.brown} /><View style={styles.flex}><Text style={styles.factTitle}>{textoDisponible(product.available_from)}</Text><Text style={styles.factText}>Publicado el {textoFecha(publicado)}</Text></View></View>
         <View style={styles.fact}><Truck size={18} color={colors.brown} /><View style={styles.flex}><Text style={styles.factTitle}>Entrega o recogida</Text><Text style={styles.factText}>{entrega}</Text></View></View>
@@ -77,7 +80,7 @@ export default function ProductDetailScreen({ product, business, onBack, onOpenB
       ) : <Text style={styles.missingSeller}>No encontramos la información del productor.</Text>}
 
       <Pressable accessibilityRole="button" disabled={!business} onPress={() => void escribirPorWhatsApp(product, business)} style={[styles.contactButton, !business && styles.disabled]}>
-        <MessageCircle size={18} color={colors.white} /><Text style={styles.contactText}>Contactar por WhatsApp</Text>
+        <MessageCircle size={18} color={colors.white} /><Text style={styles.contactText}>Contactar al productor</Text>
       </Pressable>
       {!!onConsultar && !!business && hayStock && <Pressable accessibilityRole="button" onPress={() => onConsultar(product, business)} style={styles.consultaButton}>
         <ClipboardList size={18} color={colors.verde} /><Text style={styles.consultaText}>Enviar consulta en Sava</Text>

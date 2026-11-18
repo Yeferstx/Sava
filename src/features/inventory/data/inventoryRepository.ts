@@ -9,13 +9,14 @@ export type NewProduct = Pick<Product, 'name' | 'category' | 'description' | 'pr
   municipality?: string;
   available_from?: string;
   delivery?: string;
+  min_order?: number;
 };
 
 // asi llegan los productos desde supabase (select *)
 export type RemoteProduct = {
   id: string; business_id: string; name: string; category: string; description: string; price_cop: number; stock: number; unit: string;
   photo_path: string | null; is_published: boolean; updated_at: string;
-  municipality?: string; available_from?: string; delivery?: string; retired?: boolean; created_at?: string;
+  municipality?: string; available_from?: string; delivery?: string; retired?: boolean; created_at?: string; min_order?: number;
 };
 
 // convierte un producto de supabase al formato de la app
@@ -28,7 +29,7 @@ export function desdeRemoto(remoto: RemoteProduct): Product {
     id: remoto.id, business_id: remoto.business_id, name: remoto.name, category: remoto.category, description: remoto.description,
     price_cop: Number(remoto.price_cop), stock: Number(remoto.stock), unit: remoto.unit, photo_uri: remoto.photo_path,
     is_published: publicado, sync_status: 'synced', updated_at: remoto.updated_at,
-    municipality: remoto.municipality, available_from: remoto.available_from, delivery: remoto.delivery, retired: retirado, created_at: remoto.created_at,
+    municipality: remoto.municipality, available_from: remoto.available_from, delivery: remoto.delivery, retired: retirado, created_at: remoto.created_at, min_order: Number(remoto.min_order ?? 0),
   };
 }
 
@@ -42,6 +43,7 @@ export async function cacheRemoteProducts(remoteProducts: RemoteProduct[]) {
         ON CONFLICT(id) DO UPDATE SET business_id = excluded.business_id, name = excluded.name, category = excluded.category, description = excluded.description, price_cop = excluded.price_cop, stock = excluded.stock, unit = excluded.unit, photo_uri = excluded.photo_uri, is_published = excluded.is_published, sync_status = 'synced', updated_at = excluded.updated_at, municipality = excluded.municipality, available_from = excluded.available_from, delivery = excluded.delivery, retired = excluded.retired, created_at = excluded.created_at`,
       product.id, product.business_id, product.name, product.category, product.description, product.price_cop, product.stock, product.unit, product.photo_uri, product.is_published, product.updated_at,
       product.municipality ?? 'Yopal', product.available_from ?? null, product.delivery ?? 'A convenir', product.retired ?? 0, product.created_at ?? product.updated_at);
+      await db.runAsync('UPDATE products SET min_order = ? WHERE id = ?', product.min_order ?? 0, product.id);
     }
   });
   void syncPendingChanges().catch(() => undefined);
@@ -57,7 +59,9 @@ export async function listProducts() {
 // se revisa aqui tambien porque maria guarda sin pasar por el formulario
 function revisarProducto(input: NewProduct) {
   if (input.name.trim().length < 3) throw new Error('El nombre debe tener al menos 3 letras.');
-  if (!Number.isInteger(input.price_cop) || input.price_cop <= 0 || input.price_cop > PRECIO_MAXIMO) throw new Error('El precio debe ser mayor que 0.');
+  // precio 0 = a convenir
+  if (!Number.isInteger(input.price_cop) || input.price_cop < 0 || input.price_cop > PRECIO_MAXIMO) throw new Error('Revisa el precio.');
+  if (input.min_order !== undefined && (input.min_order < 0 || input.min_order > input.stock)) throw new Error('El pedido mínimo no puede ser mayor que la cantidad disponible.');
   const errorStock = errorCantidad(input.stock, input.unit);
   if (errorStock !== '') throw new Error(errorStock);
   if (input.stock > CANTIDAD_MAXIMA) throw new Error('La cantidad no puede pasar de ' + CANTIDAD_MAXIMA + '.');
@@ -84,12 +88,13 @@ export async function createProduct(input: NewProduct) {
   const product: Product = {
     name: input.name, category: input.category, description: input.description, price_cop: input.price_cop, stock: input.stock, unit: input.unit,
     photo_uri: input.photo_uri ?? null, id, business_id: businessId, is_published: 1, sync_status: 'pending', updated_at: now,
-    municipality: municipio, available_from: input.available_from ?? fechaDesdeHoy(0), delivery: input.delivery ?? 'A convenir', retired: 0, created_at: now,
+    municipality: municipio, available_from: input.available_from ?? fechaDesdeHoy(0), delivery: input.delivery ?? 'A convenir', retired: 0, created_at: now, min_order: input.min_order ?? 0,
   };
   await db.withTransactionAsync(async () => {
     await db.runAsync('INSERT INTO products (id, business_id, name, category, description, price_cop, stock, unit, photo_uri, sync_status, updated_at, municipality, available_from, delivery, retired, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)',
       product.id, product.business_id, product.name, product.category, product.description, product.price_cop, product.stock, product.unit, product.photo_uri, product.sync_status, product.updated_at,
       product.municipality ?? 'Yopal', product.available_from ?? null, product.delivery ?? 'A convenir', now);
+    await db.runAsync('UPDATE products SET min_order = ? WHERE id = ?', product.min_order ?? 0, product.id);
     await enqueueSync(db, 'product', 'upsert', product);
   });
   void syncPendingChanges().catch(() => undefined);
@@ -109,11 +114,12 @@ export async function updateProduct(productId: string, input: NewProduct) {
     if (input.photo_uri !== undefined) foto = input.photo_uri;
     const nuevo: Product = {
       ...actual, name: input.name, category: input.category, description: input.description, price_cop: input.price_cop, stock: input.stock, unit: input.unit,
-      photo_uri: foto, municipality: input.municipality ?? actual.municipality, available_from: input.available_from ?? actual.available_from, delivery: input.delivery ?? actual.delivery,
+      photo_uri: foto, municipality: input.municipality ?? actual.municipality, available_from: input.available_from ?? actual.available_from, delivery: input.delivery ?? actual.delivery, min_order: input.min_order ?? actual.min_order ?? 0,
       sync_status: 'pending', updated_at: now,
     };
     await transaction.runAsync('UPDATE products SET name = ?, category = ?, description = ?, price_cop = ?, stock = ?, unit = ?, photo_uri = ?, municipality = ?, available_from = ?, delivery = ?, sync_status = ?, updated_at = ? WHERE id = ?',
       nuevo.name, nuevo.category, nuevo.description, nuevo.price_cop, nuevo.stock, nuevo.unit, nuevo.photo_uri, nuevo.municipality ?? 'Yopal', nuevo.available_from ?? null, nuevo.delivery ?? 'A convenir', 'pending', now, productId);
+    await transaction.runAsync('UPDATE products SET min_order = ? WHERE id = ?', nuevo.min_order ?? 0, productId);
     await enqueueSync(transaction, 'product', 'upsert', nuevo);
   });
   void syncPendingChanges().catch(() => undefined);

@@ -46,6 +46,9 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
   const [disponible, setDisponible] = useState(producto && producto.available_from ? producto.available_from : fechaDesdeHoy(0));
   const [entrega, setEntrega] = useState(entregaInicial.forma);
   const [detalleEntrega, setDetalleEntrega] = useState(entregaInicial.detalle);
+  // precio a convenir: el productor prefiere negociarlo con cada comprador
+  const [aConvenir, setAConvenir] = useState(!!producto && producto.price_cop === 0);
+  const [minimo, setMinimo] = useState(producto && producto.min_order ? String(producto.min_order) : '');
   const [photoUri, setPhotoUri] = useState<string | null>(producto ? producto.photo_uri : null);
   const [saving, setSaving] = useState(false);
 
@@ -84,8 +87,16 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
       Alert.alert('Revisa la cantidad', 'La cantidad no puede pasar de ' + CANTIDAD_MAXIMA + '.');
       return;
     }
-    if (parsedPrice === 0) {
-      Alert.alert('Revisa el precio', 'Escribe un precio mayor que 0 y sin centavos, por ejemplo 2500 o 2.500.');
+    let pedidoMinimo = 0;
+    if (minimo.trim() !== '') {
+      pedidoMinimo = leerCantidad(minimo);
+      if (pedidoMinimo <= 0 || pedidoMinimo > parsedStock) {
+        Alert.alert('Revisa el pedido mínimo', 'Debe ser mayor que 0 y no más de lo que tienes disponible. Si vendes cualquier cantidad, déjalo vacío.');
+        return;
+      }
+    }
+    if (!aConvenir && parsedPrice === 0) {
+      Alert.alert('Revisa el precio', 'Escribe un precio sin centavos, por ejemplo 2500 o 2.500. Si prefieres negociarlo, toca «A convenir».');
       return;
     }
     if (municipios.includes(municipio) === false) {
@@ -94,7 +105,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
     }
     let textoEntrega = entrega;
     if (detalleEntrega.trim() !== '') textoEntrega = entrega + ' · ' + detalleEntrega.trim();
-    const datos = { name: name.trim(), category, description: description.trim(), price_cop: parsedPrice, stock: parsedStock, unit, photo_uri: photoUri, municipality: municipio, available_from: disponible, delivery: textoEntrega };
+    const datos = { name: name.trim(), category, description: description.trim(), price_cop: aConvenir ? 0 : parsedPrice, stock: parsedStock, min_order: pedidoMinimo, unit, photo_uri: photoUri, municipality: municipio, available_from: disponible, delivery: textoEntrega };
     try {
       setSaving(true);
       if (producto) {
@@ -111,7 +122,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
   }
 
   const fotoVisible = getProductImageUri(photoUri);
-  let tituloPrecio = 'Precio por ' + unit + ' (COP) *';
+  const tituloPrecio = 'Precio por ' + unit;
   let textoBoton = 'Publicar';
   if (editando) textoBoton = 'Guardar cambios';
   if (saving) textoBoton = 'Guardando…';
@@ -142,8 +153,17 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
       <Text style={styles.label}>Unidad de medida</Text>
       <View style={styles.options}>{listaUnidades.map((item) => <Pressable key={item} onPress={() => setUnit(item)} style={[styles.option, unit === item && styles.optionSelected]}><Text style={[styles.optionText, unit === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
 
+      <Text style={styles.label}>Pedido mínimo (opcional)</Text>
+      <TextInput value={minimo} onChangeText={setMinimo} placeholder={'Ej. 100. Vacío = vendes cualquier cantidad'} placeholderTextColor={colors.muted} style={[styles.input, styles.stockInput]} keyboardType={tecladoCantidad(unit)} maxLength={10} />
+      <Text style={styles.ayuda}>Si vendes por lotes, escribe desde cuántos {unit === 'unidad' ? 'unidades' : unit + 's'} ofreces.</Text>
+
       <Text style={styles.label}>{tituloPrecio}</Text>
-      <TextInput value={price} onChangeText={setPrice} placeholder="Ej. 2.500" placeholderTextColor={colors.muted} style={styles.input} keyboardType="number-pad" maxLength={13} />
+      <View style={styles.options}>
+        <Pressable accessibilityRole="button" onPress={() => setAConvenir(false)} style={[styles.option, !aConvenir && styles.optionSelected]}><Text style={[styles.optionText, !aConvenir && styles.optionTextSelected]}>Pongo precio</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => setAConvenir(true)} style={[styles.option, aConvenir && styles.optionSelected]}><Text style={[styles.optionText, aConvenir && styles.optionTextSelected]}>A convenir</Text></Pressable>
+      </View>
+      {!aConvenir && <TextInput value={price} onChangeText={setPrice} placeholder="Ej. 2.500 (pesos)" placeholderTextColor={colors.muted} style={[styles.input, styles.spaced]} keyboardType="number-pad" maxLength={13} />}
+      {aConvenir && <Text style={styles.ayuda}>Los compradores verán «Precio a convenir» y te escribirán para negociar.</Text>}
 
       <Text style={styles.label}>Municipio *</Text>
       <View style={styles.options}>{municipios.map((item) => <Pressable key={item} onPress={() => setMunicipio(item)} style={[styles.option, municipio === item && styles.optionSelected]}><Text style={[styles.optionText, municipio === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
@@ -170,6 +190,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
 }
 
 const styles = StyleSheet.create({
+  ayuda: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 6 },
   flex: { flex: 1 }, content: { padding: 22, paddingTop: 14, paddingBottom: 40 }, back: { color: colors.brown, fontWeight: '700', fontSize: 15, marginBottom: 18 },
   title: { color: colors.ink, fontSize: 27, fontWeight: '900' }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7, marginBottom: 8 },
   label: { color: colors.ink, fontSize: 14, fontWeight: '800', marginTop: 18, marginBottom: 8 },
