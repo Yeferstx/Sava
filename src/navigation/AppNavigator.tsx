@@ -185,6 +185,15 @@ export default function AppNavigator() {
         if (itemsError) throw itemsError;
         phase = 'guardar las ventas en el dispositivo';
         await cacheRemoteSales(sales ?? [], items ?? []);
+        phase = 'cargar el cuaderno del negocio';
+        // el cuaderno guardado en el servidor (si la tabla aun no existe, se sigue sin el)
+        try {
+          const { data: movs } = await supabase.from('movimientos').select('*').eq('business_id', business.id).order('fecha', { ascending: false }).limit(500);
+          if (movs && movs.length > 0) {
+            const { cacheRemoteMovimientos } = await import('../features/cuaderno/cuadernoRepository');
+            await cacheRemoteMovimientos(movs);
+          }
+        } catch { /* el cuaderno local sigue funcionando */ }
         if (active) setStage('signedIn');
       } catch (error) {
         if (active) { setStartupError(`Falló al ${phase}: ${describeError(error)}`); setStage('error'); }

@@ -1,6 +1,49 @@
 import { Platform } from 'react-native';
 import * as Speech from 'expo-speech';
 import { getDatabase } from '../infrastructure/database/database';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import { FRASES_ARU } from './frasesAru';
+import { AUDIOS_ARU } from './frasesAudio';
+
+// frases fijas grabadas con una voz natural: se buscan por su texto (sin tildes ni signos)
+function clave(texto: string) {
+  return texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+}
+const GRABADAS: Record<string, number> = {};
+for (const id of Object.keys(FRASES_ARU)) {
+  if (AUDIOS_ARU[id] !== undefined) GRABADAS[clave(FRASES_ARU[id])] = AUDIOS_ARU[id];
+}
+let reproductor: AudioPlayer | null = null;
+let pulsos: ReturnType<typeof setInterval> | null = null;
+let modoListo = false;
+
+function pararGrabacion() {
+  if (pulsos) { clearInterval(pulsos); pulsos = null; }
+  if (reproductor) { try { reproductor.remove(); } catch { /* ya estaba cerrado */ } reproductor = null; }
+}
+
+// suena la grabacion de una frase fija. devuelve false si esa frase no esta grabada
+async function decirGrabada(texto: string) {
+  const audio = GRABADAS[clave(texto)];
+  if (audio === undefined) return false;
+  try {
+    if (!modoListo) { await setAudioModeAsync({ playsInSilentMode: true }); modoListo = true; }
+    pararGrabacion();
+    const player = createAudioPlayer(audio);
+    reproductor = player;
+    avisar(true);
+    // la grabacion no avisa palabra por palabra: se simulan pulsos suaves para que aru se mueva
+    pulsos = setInterval(() => { for (const oyente of oyentesPalabra) oyente(); }, 280);
+    player.addListener('playbackStatusUpdate', (estado) => {
+      if (estado.didJustFinish) { pararGrabacion(); avisar(false); }
+    });
+    player.play();
+    return true;
+  } catch {
+    pararGrabacion();
+    return false;
+  }
+}
 
 // voz de aru: la del propio celular (gratis y sin internet).
 // se prefieren las voces de mejor calidad en espanol latino; la persona puede elegir otra
@@ -140,6 +183,9 @@ async function vozElegidaAMano() {
 // lee un texto en voz alta en espanol. sirve para personas que leen con dificultad
 export async function hablar(texto: string, vozDePrueba?: VozEspanol, velocidadDePrueba?: number) {
   Speech.stop();
+  pararGrabacion();
+  // las frases fijas suenan con la voz grabada (mas natural); lo demas, con la voz del celular
+  if (!vozDePrueba && await decirGrabada(texto)) return;
   const voz = vozDePrueba ? { identificador: vozDePrueba.identificador, idioma: vozDePrueba.idioma } : await buscarVoz();
   let empezo = false;
   const opciones: Speech.SpeechOptions = {
@@ -171,5 +217,6 @@ export async function hablar(texto: string, vozDePrueba?: VozEspanol, velocidadD
 
 export function callar() {
   Speech.stop();
+  pararGrabacion();
   avisar(false);
 }

@@ -149,3 +149,15 @@ export async function resumenCuentas(periodo: Periodo) {
   // balance: dinero que entro menos todo lo que salio (gastos y compras de mercancia)
   return { vendido, recibido, gastos, compras, ganancia, ventasConCosto, ventasSinCosto, porCobrar, balance: recibido - gastos - compras, perdidas, cosechas, movimientos: lista.length };
 }
+
+// al entrar desde otro celular (o reinstalar la app) se trae el cuaderno guardado en el servidor
+type MovimientoRemoto = { id: string; business_id: string; tipo: string; product_id: string | null; producto: string; cantidad: number; unidad: string; monto: number; pagado: boolean; ref_id: string | null; persona: string; nota: string; fecha: string };
+export async function cacheRemoteMovimientos(lista: MovimientoRemoto[]) {
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    for (const m of lista) {
+      await db.runAsync("INSERT OR REPLACE INTO movimientos (id, business_id, tipo, product_id, producto, cantidad, unidad, monto, pagado, ref_id, persona, nota, fecha, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')",
+        m.id, m.business_id, m.tipo, m.product_id, m.producto, Number(m.cantidad), m.unidad, Number(m.monto), m.pagado ? 1 : 0, m.ref_id, m.persona, m.nota, m.fecha);
+    }
+  });
+}
