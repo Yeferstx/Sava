@@ -7,3 +7,11 @@ web-build/
 .env.*
 !.env.example
 supabase/.temp/
+
+# python
+__pycache__/
+*.pyc
+
+# sistema
+.DS_Store
+Thumbs.db
