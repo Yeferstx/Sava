@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ArrowRight, Bell, CircleDollarSign, ClipboardList, GraduationCap, NotebookPen, Sparkles, Sprout, Store } from 'lucide-react-native';
+import { ActivityIndicator } from 'react-native';
+import { compartirReporte } from '../cuaderno/reporte';
+import { ArrowRight, Bell, FileText, CircleDollarSign, ClipboardList, GraduationCap, NotebookPen, Sparkles, Sprout, Store } from 'lucide-react-native';
 import EstadoSincronizacion from '../../shared/components/EstadoSincronizacion';
 import FotoPerfil from '../../shared/components/FotoPerfil';
 import { CATEGORIA_TIENDA } from '../../shared/roles';
@@ -25,6 +27,7 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
   const [finca, setFinca] = useState('');
   const [municipio, setMunicipio] = useState('');
   const [sincronizando, setSincronizando] = useState(false);
+  const [generando, setGenerando] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -120,6 +123,12 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
         <Text style={styles.principalTexto}>{p.texto}</Text>
       </Pressable>)}
     </View>
+    {/* reporte del mes en pdf (con los datos del cuaderno de este celular) */}
+    <Pressable accessibilityRole="button" disabled={generando} onPress={() => { setGenerando(true); void compartirReporte('mes', esTienda ? 'tienda' : 'agricultor').catch(() => Alert.alert('No se pudo crear el reporte', 'Intenta otra vez.')).finally(() => setGenerando(false)); }} style={({ pressed }) => [styles.reporte, pressed && styles.presionado]}>
+      <View style={styles.reporteIcono}>{generando ? <ActivityIndicator color={colors.white} /> : <FileText size={22} color={colors.white} />}</View>
+      <View style={styles.flex}><Text style={styles.reporteTitulo}>{generando ? 'Preparando tu reporte…' : 'Reporte de mi negocio'}</Text><Text style={styles.reporteTexto}>Así va tu negocio este mes, en PDF para guardar o compartir</Text></View>
+      <ArrowRight size={18} color={colors.white} />
+    </Pressable>
     <Text style={styles.mas}>Más opciones</Text>
     {atajos.map((atajo) => <Pressable key={atajo.tab} accessibilityRole="button" onPress={() => onNavigate(atajo.tab)} style={styles.action}>
       <View style={styles.actionIcon}><atajo.Icon size={21} color={colors.brown} /></View>
@@ -145,6 +154,10 @@ const styles = StyleSheet.create({
   confirmarTitulo: { color: colors.grafito, fontSize: 16, fontWeight: '900' }, confirmarTexto: { color: colors.grafito, fontSize: 13, marginTop: 2 },
   metric: { flex: 1, borderRadius: 17, padding: 14, backgroundColor: colors.brown }, metricLabel: { color: colors.verdeClaro, fontSize: 10, letterSpacing: 0.8, fontWeight: '800' }, metricValue: { color: colors.white, fontSize: 22, fontWeight: '900', marginTop: 6 },
   estado: { marginTop: 12, marginBottom: 6 },
+  reporte: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, backgroundColor: colors.verde, marginTop: 4, marginBottom: 2 },
+  reporteIcono: { width: 42, height: 42, borderRadius: 14, backgroundColor: 'rgba(240,233,223,0.18)', alignItems: 'center', justifyContent: 'center' },
+  reporteTitulo: { color: colors.white, fontSize: 16, fontWeight: '900' },
+  reporteTexto: { color: colors.verdeClaro, fontSize: 12, marginTop: 2 },
   negocios: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   negocio: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, maxWidth: '100%' },
   negocioActivo: { backgroundColor: colors.verde, borderColor: colors.verde },

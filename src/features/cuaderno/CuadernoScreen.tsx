@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ArrowLeft, HandCoins, PackageMinus, PackagePlus, Receipt, ShoppingBag, Wheat } from 'lucide-react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ArrowLeft, FileText, HandCoins, PackageMinus, PackagePlus, Receipt, ShoppingBag, Wheat } from 'lucide-react-native';
 import { colors } from '../../shared/theme';
 import { dinero } from '../../shared/contacto';
 import { leerCantidad, leerPrecio, mostrarCantidad, tecladoCantidad, textoUnidad } from '../../shared/validaciones';
@@ -8,6 +8,7 @@ import { listProducts } from '../inventory/data/inventoryRepository';
 import { recordSale } from '../sales/data/salesRepository';
 import type { Product } from '../inventory/types';
 import EstadoSincronizacion from '../../shared/components/EstadoSincronizacion';
+import { compartirReporte } from './reporte';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
 import { useEspacioTeclado } from '../../shared/useEspacioTeclado';
 import { listarMovimientos, registrarCobro, registrarCompra, registrarCosecha, registrarGasto, registrarPerdida, resumenCuentas, ventasPorCobrar, type Movimiento, type Periodo, type TipoMovimiento, type VentaPorCobrar } from './cuadernoRepository';
@@ -60,6 +61,15 @@ export default function CuadernoScreen({ onBack, onNuevaCosecha, tipo = 'agricul
   const [fiada, setFiada] = useState(false);
   const [ventaId, setVentaId] = useState('');
   const teclaEspacio = useEspacioTeclado();
+  const [generando, setGenerando] = useState(false);
+
+  // reporte pdf con los datos del periodo elegido; la persona decide si lo guarda o lo comparte
+  async function descargar() {
+    setGenerando(true);
+    try { await compartirReporte(periodo, tipo); }
+    catch { Alert.alert('No se pudo crear el reporte', 'Intenta otra vez.'); }
+    finally { setGenerando(false); }
+  }
 
   const refrescar = useCallback(async () => {
     try {
@@ -142,6 +152,10 @@ export default function CuadernoScreen({ onBack, onNuevaCosecha, tipo = 'agricul
         <EstadoSincronizacion alCambiar={() => void refrescar()} />
 
         <View style={styles.periodos}>{periodos.map((p) => <Pressable key={p.valor} onPress={() => setPeriodo(p.valor)} style={[styles.periodo, periodo === p.valor && styles.periodoActivo]}><Text style={[styles.periodoTexto, periodo === p.valor && styles.periodoTextoActivo]}>{p.texto}</Text></Pressable>)}</View>
+        <Pressable accessibilityRole="button" disabled={generando} onPress={() => void descargar()} style={({ pressed }) => [styles.reporte, pressed && styles.presionado]}>
+          {generando ? <ActivityIndicator color={colors.verde} /> : <FileText size={20} color={colors.verde} />}
+          <View style={styles.flex}><Text style={styles.reporteTitulo}>{generando ? 'Preparando tu reporte…' : 'Descargar reporte en PDF'}</Text><Text style={styles.reporteTexto}>{periodos.find((p) => p.valor === periodo)?.texto} · funciona sin internet</Text></View>
+        </Pressable>
         <View style={styles.resumen}>
           <View style={[styles.cifra, styles.cifraFuerte]}><Text style={styles.cifraEtiquetaClara}>DINERO RECIBIDO</Text><Text style={styles.cifraValorClaro}>{dinero(resumen.recibido)}</Text></View>
           {esTienda && <View style={styles.cifra}><Text style={styles.cifraEtiqueta}>COMPRAS DE MERCANCÍA</Text><Text style={styles.cifraValor}>{dinero(resumen.compras)}</Text></View>}
@@ -232,6 +246,9 @@ const styles = StyleSheet.create({
   subtitulo: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 2 },
   escuchar: { marginTop: 8, marginBottom: 10 },
   periodos: { flexDirection: 'row', gap: 6, marginTop: 4 },
+  reporte: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 16, backgroundColor: colors.salvia, marginTop: 10 },
+  reporteTitulo: { color: colors.verde, fontSize: 15, fontWeight: '900' },
+  reporteTexto: { color: colors.verde, fontSize: 12, marginTop: 1 },
   periodo: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 16, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },
   periodoActivo: { backgroundColor: colors.verde, borderColor: colors.verde },
   periodoTexto: { color: colors.verde, fontSize: 13, fontWeight: '800' }, periodoTextoActivo: { color: colors.white },

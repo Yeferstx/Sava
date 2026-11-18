@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChatMessage, ProductDraft, Recomendacion, VentaPropuesta } from '../types';
-import { entender, extraerCantidad, extraerPrecio, normalizar, seParece, type Periodo } from '../maria';
+import { entender, extraerCantidad, extraerPrecio, municipioEn, normalizar, seParece, type Periodo } from '../maria';
 import { categoriaDeProducto, categoriaVisible, esInsumo } from '../../../shared/agro';
 import { listProducts } from '../../inventory/data/inventoryRepository';
 import { recordSale, ventasDesde } from '../../sales/data/salesRepository';
-import { cargarMercado, municipioDe, negocioDe } from '../../marketplace/data/mercadoRepository';
+import { cargarMercado, leerCopia, municipioDe, negocioDe } from '../../marketplace/data/mercadoRepository';
 import { dinero, textoPrecio } from '../../../shared/contacto';
 import { mostrarCantidad, textoUnidad } from '../../../shared/validaciones';
 import { callar, hablar } from '../../../shared/voz';
-import { getDatabase } from '../../../infrastructure/database/database';
+import { getActiveBusinessId, getDatabase } from '../../../infrastructure/database/database';
 import { preguntarAMaria, type AccionIA } from '../mariaIA';
 import { escucharSenal, guardarPendiente, hayInternet, listarPendientes, quitarPendiente } from '../pendientes';
 import { borrarAudio, prepararSinInternet, transcribirAudio } from '../../../shared/escucha';
@@ -77,7 +77,7 @@ function desdeCuando(periodo: Periodo) {
 }
 
 // acciones que el asistente puede pedirle a la app (abrir pantallas)
-type Acciones = { onPromocionar?: (product: Product) => void; onAprender?: () => void };
+type Acciones = { onPromocionar?: (product: Product) => void; onAprender?: () => void; onConfirmarBorrador?: () => void };
 
 export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([bienvenida()]);
@@ -96,8 +96,10 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
   const [enEspera, setEnEspera] = useState(0);
   const ocupado = useRef(false);
   // valores actuales para las funciones que corren cuando vuelve la senal
-  const actual = useRef({ messages, leerEnVoz, draft });
-  actual.current = { messages, leerEnVoz, draft };
+  const actual = useRef({ messages, leerEnVoz, draft, venta });
+  actual.current = { messages, leerEnVoz, draft, venta };
+  // lo ultimo que se busco: para entender "¿y en Yopal?" o "¿y de platano?"
+  const ultimaBusqueda = useRef<{ producto: string; municipio: string } | null>(null);
   // publicacion guiada en curso (null = no hay) y los datos del ultimo borrador para poder corregirlo
   const guia = useRef<DatosGuia | null>(null);
   const ultimaGuia = useRef<DatosGuia | null>(null);
@@ -170,6 +172,20 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
     // durante la publicacion guiada todo lo responde el celular (sin internet ni ia)
     const enTarea = !!guia.current || !!porConfirmar.current || (!!actual.current.draft && pasoACorregir(valor) !== null);
     if (enTarea) { setConIA(false); await procesar(valor); return true; }
+    const t = normalizar(valor);
+    const dijoQueSi = /^(si|sí|dale|listo|claro|de una|hagale|confirmo|confirmar|publicala|publicalo|publicar|registrala|registralo|registrar|anotala|anotalo)\b/.test(t) && t.split(' ').length <= 4;
+    // confirmar con la voz lo que esta en pantalla (publicacion o venta)
+    if (dijoQueSi && actual.current.draft && acciones.onConfirmarBorrador) { setConIA(false); acciones.onConfirmarBorrador(); return true; }
+    if (dijoQueSi && actual.current.venta) { setConIA(false); await confirmarVenta(); return true; }
+    // seguir la busqueda anterior: "¿y en yopal?", "¿y de platano?"
+    if (ultimaBusqueda.current && intencion.tipo === 'nada' && /^(y|y en|en|y de|y que tal|y el|y la|y los|y las)\b/.test(t) && t.split(' ').length <= 6) {
+      const anterior = ultimaBusqueda.current;
+      const municipio = municipioEn(t);
+      const resto = t.replace(/^(y que tal|y en|y de|y el|y la|y los|y las|y|en)\s+/, '').replace(/\b(en|de|el|la|los|las|hay|alguien|quien|vende|tiene)\b/g, ' ').replace(normalizar(municipio), ' ').replace(/\s+/g, ' ').trim();
+      setConIA(false);
+      if (municipio !== '' && resto === '') { await buscar(anterior.producto, municipio, 0); return true; }
+      if (resto.length >= 3) { await buscar(resto, municipio !== '' ? municipio : anterior.municipio, 0); return true; }
+    }
     const necesitaInternet = !pendiente.current && (intencion.tipo === 'nada' || intencion.tipo === 'buscar');
     if (necesitaInternet && !(await hayInternet())) return false;
     let resuelto = false;
@@ -469,6 +485,19 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
     return nuevo;
   }
 
+  // a como se esta publicando ese producto en sava (solo publicaciones reales de otros, con precio)
+  async function precioDeReferencia(nombre: string, unidad: string) {
+    try {
+      const copia = await leerCopia();
+      if (!copia) return '';
+      const propio = await getActiveBusinessId();
+      const precios = copia.products.filter((p) => p.business_id !== propio && p.price_cop > 0 && p.unit === unidad && seParece(p.name, nombre)).map((p) => p.price_cop).sort((a, b) => a - b);
+      if (precios.length === 0) return '';
+      const rango = precios.length === 1 || precios[0] === precios[precios.length - 1] ? dinero(precios[0]) : 'entre ' + dinero(precios[0]) + ' y ' + dinero(precios[precios.length - 1]);
+      return 'En Sava, ' + nombre.toLocaleLowerCase('es-CO') + ' se está publicando a ' + rango + ' por ' + unidad + ' (' + precios.length + (precios.length === 1 ? ' publicación). ' : ' publicaciones). ');
+    } catch { return ''; }
+  }
+
   async function preguntaDe(datos: DatosGuia) {
     const paso = siguientePaso(datos);
     // el municipio de la finca va primero en los botones
@@ -480,7 +509,9 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
     let medidas = ['kg', 'tonelada', 'bulto', 'canastilla', 'racimo', 'unidad'];
     if (tipo === 'tienda') medidas = unidadesInsumo;
     if (!paso) return { texto: '', opciones: [] as string[] };
-    return preguntar(paso, datos, sugeridos, medidas.filter((m) => unidades.includes(m) || unidadesInsumo.includes(m)));
+    const pregunta = preguntar(paso, datos, sugeridos, medidas.filter((m) => unidades.includes(m) || unidadesInsumo.includes(m)));
+    if (paso === 'precio' && datos.nombre) pregunta.texto = (await precioDeReferencia(datos.nombre, datos.unidad ?? 'kg')) + pregunta.texto;
+    return pregunta;
   }
 
   // hace la siguiente pregunta o, si ya esta todo, arma el borrador para confirmar
@@ -504,13 +535,13 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
     };
     setDraft(borrador);
     setVenta(null);
-    responder('Listo. Así quedaría: ' + resumen(datos) + '. Revísala y toca «Confirmar», o dime qué cambiar.', undefined, ['Cambiar precio', 'Cambiar cantidad', 'Cambiar municipio']);
+    responder('Listo. Así quedaría: ' + resumen(datos) + '. Si está bien, dime «sí, publícala» o toca «Confirmar». Si no, dime qué cambiar.', undefined, ['Cambiar precio', 'Cambiar cantidad', 'Cambiar municipio']);
   }
 
   function mostrarBorrador(borrador: ProductDraft) {
     setDraft(borrador);
     setVenta(null);
-    responder('Preparé esta publicación: ' + borrador.name + ', ' + mostrarCantidad(borrador.stock) + ' ' + textoUnidad(borrador.stock, borrador.unit) + ' a ' + dinero(borrador.price_cop) + ' cada ' + borrador.unit + '. Revísala y toca «Confirmar» para publicarla.');
+    responder('Preparé esta publicación: ' + borrador.name + ', ' + mostrarCantidad(borrador.stock) + ' ' + textoUnidad(borrador.stock, borrador.unit) + ' a ' + dinero(borrador.price_cop) + ' cada ' + borrador.unit + '. Si está bien, dime «sí, publícala» o toca «Confirmar».');
   }
 
   async function prepararVenta(producto: string, cantidad: number, precio: number, total: number, fiada = false) {
@@ -598,6 +629,7 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
   }
 
   async function buscar(producto: string, municipio: string, cantidad: number, soloPrecio = false) {
+    if (producto !== '') ultimaBusqueda.current = { producto, municipio };
     if (producto === '') { responder('¿Qué estás buscando? Dime el producto, por ejemplo «plátano» o «semillas de maíz».'); return; }
     let mercado;
     try { mercado = await cargarMercado(); }

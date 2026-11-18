@@ -392,17 +392,6 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
       <Animated.View style={aparecer(2)}>{contenido}</Animated.View>
 
       {vista === 'inicio' && texto === '' && <>
-        {/* aru, compacto */}
-        <Animated.View style={[styles.asistente, aparecer(3)]}>
-          <View style={styles.asistenteOrbe}><AsistenteOrbe estado="reposo" tamano={56} /></View>
-          <View style={styles.flex}>
-            <Text style={styles.asistenteTitulo}>¿No lo encuentras?</Text>
-            <Text style={styles.asistenteTexto}>Aru te ayuda a buscar o a publicar.</Text>
-          </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Hablar con Aru" onPress={onHablar} style={({ pressed }) => [styles.asistenteBoton, pressed && styles.presionado]}><Mic size={19} color={colors.white} /></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Escribirle a Aru" onPress={onEscribir} style={({ pressed }) => [styles.asistenteBoton, styles.asistenteBotonSuave, pressed && styles.presionado]}><MessageCircle size={19} color={colors.verde} /></Pressable>
-        </Animated.View>
-
         <View style={styles.vender}>
           <Sprout size={26} color={colors.crema} strokeWidth={1.8} />
           <View style={styles.flex}>

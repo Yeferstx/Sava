@@ -112,7 +112,7 @@ export default function AppNavigator() {
   const [tipoNegocio, setTipoNegocio] = useState<'agricultor' | 'tienda'>('agricultor');
   let tipoChat: 'agricultor' | 'tienda' | '' = '';
   if (stage === 'signedIn') tipoChat = tipoNegocio;
-  const chat = useAssistantChat(tipoChat, { onPromocionar: (product) => void abrirPromocion(product), onAprender: () => abrirAprende('María') });
+  const chat = useAssistantChat(tipoChat, { onPromocionar: (product) => void abrirPromocion(product), onAprender: () => abrirAprende('María'), onConfirmarBorrador: () => void confirmProductDraft() });
   const bordes = useSafeAreaInsets();
   const pantallaAncho = useWindowDimensions().width;
   const supabase = getSupabaseClient();
@@ -418,6 +418,7 @@ export default function AppNavigator() {
 
   // novedades reales del servidor: al abrir, al volver a la app o la senal, y cada minuto mientras esta abierta
   function contarNotificaciones() {
+    if (stage === 'signedIn') void import('../features/cuaderno/recordatorios').then((m) => m.revisarRecordatoriosDeCobro());
     void contarSinLeer().then(setSinLeer).catch(() => undefined);
     void contarSinLeerDe('consulta').then(setConsultasNuevas).catch(() => undefined);
   }
@@ -459,7 +460,7 @@ export default function AppNavigator() {
   else if (activeTab === 'Notificaciones') pantalla = <NotificacionesScreen onBack={() => setActiveTab('Mi negocio')} onAbrir={(n) => {
     if (n.tipo === 'consulta') { setOrdersMode('business'); setActiveTab(esAgricultor ? 'Pedidos' : 'Mi negocio'); }
     else if (n.tipo === 'contacto') setActiveTab(esAgricultor ? 'Inventario' : 'Mi negocio');
-    else if (n.tipo === 'sincronizacion') setActiveTab(esAgricultor ? 'Cuaderno' : 'Mi negocio');
+    else if (n.tipo === 'sincronizacion' || n.tipo === 'recordatorio') setActiveTab(esAgricultor ? 'Cuaderno' : 'Mi negocio');
     else setActiveTab('Mi negocio');
   }} />;
   else if (activeTab === 'Aprende') pantalla = <AprendeScreen onBack={() => setActiveTab(volverAprende)} onPreguntar={() => openChat('texto')} />;
@@ -480,10 +481,12 @@ export default function AppNavigator() {
   const enVideos = activeTab === 'Videos' && conBarra;
   // en el inicio el asistente ya esta en su tarjeta: no se pone el boton flotante encima
   const enInicio = conBarra && (activeTab === 'Inicio' || activeTab === 'Explorar');
-  const verMaria = !isChat && !enVideos && !enInicio && (conBarra || !!selectedProduct || !!selectedBusiness);
+  const verMaria = !isChat && !enVideos && !pedirCuenta;
   // la barra de abajo llega hasta el borde del celular; maria queda encima de ella
   let alturaMaria = 20 + bordes.bottom;
   if (conBarra) alturaMaria = alturaBarra(pantallaAncho, bordes.bottom) + 12;
+  // en el detalle va encima de la barra de «Contactar al productor»
+  if (selectedProduct) alturaMaria = 84 + bordes.bottom;
 
   const hayAtras = !!selectedProduct || !!selectedBusiness || ['María', 'Legal', 'Publicar', 'Ventas', 'Pedidos', 'Editar negocio', 'Cuaderno', 'Aprende', 'Promocionar', 'Notificaciones'].includes(activeTab);
   // solo se respeta el borde de arriba: abajo la barra de pestanas pinta hasta el final
@@ -494,7 +497,7 @@ export default function AppNavigator() {
     <Animated.View style={[styles.flex, { transform: [{ translateX: arrastre }] }]} {...(Platform.OS === 'ios' && hayAtras ? gestoVolver.panHandlers : {})}>
       <PantallaAnimada key={activeTab + (selectedProduct ? '-p' + selectedProduct.product.id : '') + (selectedBusiness ? '-n' + selectedBusiness.id : '')}>{pantalla}</PantallaAnimada>
     </Animated.View>
-    {verMaria && <MariaFlotante abajo={alturaMaria} onPress={openChat} />}
+    {verMaria && <MariaFlotante abajo={alturaMaria} onPress={() => openChat()} />}
     {esAgricultor && <SeguimientoModal visible={verSeguimiento} pendientes={seguimientos} leerEnVoz={chat.leerEnVoz} onListo={seguimientoListo} onCerrar={() => setVerSeguimiento(false)} />}
     {!isTransient && !selectedBusiness && !selectedProduct && <TabBar active={activeTab} onChange={(tab) => {
       if (!esAgricultor && tab === 'Publicar') { startMerchantFlow(); return; }

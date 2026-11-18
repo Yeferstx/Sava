@@ -16,13 +16,16 @@ export default function MariaFlotante({ onPress, abajo }: { onPress: () => void;
     return () => { a.remove(); b.remove(); };
   }, []);
   useEffect(() => escucharVoz(setHablando), []);
+  // al aparecer dice «¿Te ayudo?» unos segundos y luego queda solo con su nombre
+  const [saludo, setSaludo] = useState(true);
+  useEffect(() => { const t = setTimeout(() => setSaludo(false), 5000); return () => clearTimeout(t); }, []);
 
   if (teclado) return null;
   return (
     <View pointerEvents="box-none" style={[styles.contenedor, { bottom: abajo }]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Hablar con Aru" accessibilityHint="Abre el chat con Aru, el asistente de Sava" onPress={onPress} style={({ pressed }) => [styles.boton, pressed && styles.presionado]}>
         <View style={styles.orbe}><AsistenteOrbe estado={hablando ? 'hablando' : 'reposo'} tamano={40} /></View>
-        <Text style={styles.texto}>Aru</Text>
+        <View><Text style={styles.texto}>Aru</Text>{saludo && <Text style={styles.saludo}>¿Te ayudo?</Text>}</View>
       </Pressable>
     </View>
   );
@@ -34,4 +37,5 @@ const styles = StyleSheet.create({
   presionado: { transform: [{ scale: 0.95 }] },
   orbe: { width: 58, height: 52, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   texto: { color: colors.verde, fontSize: 16, fontWeight: '900' },
+  saludo: { color: colors.muted, fontSize: 11, fontWeight: '700', marginTop: -1 },
 });

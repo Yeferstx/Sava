@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { ArrowLeft, Bell, ClipboardList, CloudCheck, MessageCircle, Reply } from 'lucide-react-native';
+import { ArrowLeft, Bell, HandCoins, ClipboardList, CloudCheck, MessageCircle, Reply } from 'lucide-react-native';
 import { colors } from '../../shared/theme';
 import { activarAvisos, alCambiarNotificaciones, avisosActivos, listarNotificaciones, marcarLeida, marcarTodasLeidas, type Notificacion } from './notificacionesRepository';
 
-const iconos = { consulta: ClipboardList, contacto: MessageCircle, respuesta: Reply, sincronizacion: CloudCheck };
+const iconos = { consulta: ClipboardList, contacto: MessageCircle, respuesta: Reply, sincronizacion: CloudCheck, recordatorio: HandCoins };
 
 function cuando(fecha: string) {
   const minutos = Math.round((Date.now() - new Date(fecha).getTime()) / 60000);

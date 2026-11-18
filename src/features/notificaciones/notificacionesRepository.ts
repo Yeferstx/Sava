@@ -5,7 +5,7 @@ import * as Notifications from 'expo-notifications';
 import { getActiveBusinessId, getDatabase } from '../../infrastructure/database/database';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
 
-export type TipoNotificacion = 'consulta' | 'contacto' | 'respuesta' | 'sincronizacion';
+export type TipoNotificacion = 'consulta' | 'contacto' | 'respuesta' | 'sincronizacion' | 'recordatorio';
 export type Notificacion = { id: string; tipo: TipoNotificacion; titulo: string; texto: string; product_id: string | null; leida: number; fecha: string };
 
 async function tabla() {
