@@ -15,5 +15,7 @@ export const AUDIOS_ARU: Record<string, number> = {
   f12: require('../../assets/voz/f12.wav'),
   f13: require('../../assets/voz/f13.wav'),
   f14: require('../../assets/voz/f14.wav'),
+  f15: require('../../assets/voz/f15.wav'),
   f16: require('../../assets/voz/f16.wav'),
+  f23: require('../../assets/voz/f23.wav'),
 };
