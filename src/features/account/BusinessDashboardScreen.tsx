@@ -3,6 +3,7 @@ import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } 
 import { ArrowRight, Bell, CircleDollarSign, ClipboardList, GraduationCap, NotebookPen, Sparkles, Sprout, Store } from 'lucide-react-native';
 import EstadoSincronizacion from '../../shared/components/EstadoSincronizacion';
 import FotoPerfil from '../../shared/components/FotoPerfil';
+import { CATEGORIA_TIENDA } from '../../shared/roles';
 import { contarPendientes, listProducts } from '../inventory/data/inventoryRepository';
 import { listSales } from '../sales/data/salesRepository';
 import { getBusinessProfile } from '../business/data/businessRepository';
@@ -13,10 +14,10 @@ import { dinero } from '../../shared/contacto';
 import ApoyoGobernacion from '../../shared/components/ApoyoGobernacion';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
 
-type Props = { onNavigate: (tab: AppTab) => void; onEditFinca: () => void; onSignOut?: () => void; onLegal: () => void; tipo?: 'agricultor' | 'tienda'; porConfirmar?: number; onConfirmarVentas?: () => void; sinLeer?: number; consultasNuevas?: number };
+type Props = { onNavigate: (tab: AppTab) => void; onEditFinca: () => void; onSignOut?: () => void; onLegal: () => void; tipo?: 'agricultor' | 'tienda'; porConfirmar?: number; onConfirmarVentas?: () => void; sinLeer?: number; consultasNuevas?: number; negocios?: Array<{ id: string; name: string; category: string }>; onCambiarNegocio?: (id: string) => void; onAgregarNegocio?: (tipo: 'agricultor' | 'tienda') => void };
 
 // panel del agricultor: accesos rapidos y un resumen corto, sin graficas
-export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSignOut, onLegal, tipo = 'agricultor', porConfirmar = 0, onConfirmarVentas, sinLeer = 0, consultasNuevas = 0 }: Props) {
+export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSignOut, onLegal, tipo = 'agricultor', porConfirmar = 0, onConfirmarVentas, sinLeer = 0, consultasNuevas = 0, negocios = [], onCambiarNegocio, onAgregarNegocio }: Props) {
   const esTienda = tipo === 'tienda';
   const [activas, setActivas] = useState(0);
   const [ventasSemana, setVentasSemana] = useState(0);
@@ -97,6 +98,19 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
       <View style={styles.metric}><Text style={styles.metricLabel}>VENTAS 7 DÍAS</Text><Text style={styles.metricValue}>{dinero(ventasSemana)}</Text></View>
     </View>
 
+    {/* finca y tienda en la misma cuenta: cada una lleva sus propias cuentas */}
+    {(negocios.length > 1 || !!onAgregarNegocio) && <View style={styles.negocios}>
+      {negocios.length > 1 && negocios.map((n) => {
+        const esActivo = n.name === finca;
+        return <Pressable key={n.id} accessibilityRole="button" accessibilityState={{ selected: esActivo }} disabled={esActivo || !onCambiarNegocio} onPress={() => { if (onCambiarNegocio) onCambiarNegocio(n.id); }} style={[styles.negocio, esActivo && styles.negocioActivo]}>
+          {n.category === CATEGORIA_TIENDA ? <Store size={16} color={esActivo ? colors.white : colors.verde} /> : <Sprout size={16} color={esActivo ? colors.white : colors.verde} />}
+          <Text style={[styles.negocioTexto, esActivo && styles.negocioTextoActivo]} numberOfLines={1}>{n.name}</Text>
+        </Pressable>;
+      })}
+      {negocios.length < 2 && !!onAgregarNegocio && <Pressable accessibilityRole="button" onPress={() => onAgregarNegocio(esTienda ? 'agricultor' : 'tienda')} style={styles.agregar}>
+        <Text style={styles.agregarTexto}>{esTienda ? '¿También tienes finca? Agrégala' : '¿También tienes una tienda del campo? Agrégala'}</Text>
+      </Pressable>}
+    </View>}
     <View style={styles.estado}><EstadoSincronizacion alCambiar={() => void refresh()} /></View>
 
     <View style={styles.principales}>
@@ -131,6 +145,13 @@ const styles = StyleSheet.create({
   confirmarTitulo: { color: colors.grafito, fontSize: 16, fontWeight: '900' }, confirmarTexto: { color: colors.grafito, fontSize: 13, marginTop: 2 },
   metric: { flex: 1, borderRadius: 17, padding: 14, backgroundColor: colors.brown }, metricLabel: { color: colors.verdeClaro, fontSize: 10, letterSpacing: 0.8, fontWeight: '800' }, metricValue: { color: colors.white, fontSize: 22, fontWeight: '900', marginTop: 6 },
   estado: { marginTop: 12, marginBottom: 6 },
+  negocios: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  negocio: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, maxWidth: '100%' },
+  negocioActivo: { backgroundColor: colors.verde, borderColor: colors.verde },
+  negocioTexto: { color: colors.verde, fontSize: 13, fontWeight: '800', flexShrink: 1 },
+  negocioTextoActivo: { color: colors.white },
+  agregar: { paddingVertical: 6 },
+  agregarTexto: { color: colors.verde, fontSize: 13, fontWeight: '800', textDecorationLine: 'underline' },
   cabecera: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   campana: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   insignia: { position: 'absolute', top: -4, right: -4, minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 4, backgroundColor: colors.arcilla, alignItems: 'center', justifyContent: 'center' },

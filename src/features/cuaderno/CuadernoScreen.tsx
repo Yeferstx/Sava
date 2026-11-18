@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ArrowLeft, HandCoins, PackageMinus, Receipt, ShoppingBag, Wheat } from 'lucide-react-native';
+import { ArrowLeft, HandCoins, PackageMinus, PackagePlus, Receipt, ShoppingBag, Wheat } from 'lucide-react-native';
 import { colors } from '../../shared/theme';
 import { dinero } from '../../shared/contacto';
 import { leerCantidad, leerPrecio, mostrarCantidad, tecladoCantidad, textoUnidad } from '../../shared/validaciones';
@@ -10,9 +10,9 @@ import type { Product } from '../inventory/types';
 import EstadoSincronizacion from '../../shared/components/EstadoSincronizacion';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
 import { useEspacioTeclado } from '../../shared/useEspacioTeclado';
-import { listarMovimientos, registrarCobro, registrarCosecha, registrarGasto, registrarPerdida, resumenCuentas, ventasPorCobrar, type Movimiento, type Periodo, type TipoMovimiento, type VentaPorCobrar } from './cuadernoRepository';
+import { listarMovimientos, registrarCobro, registrarCompra, registrarCosecha, registrarGasto, registrarPerdida, resumenCuentas, ventasPorCobrar, type Movimiento, type Periodo, type TipoMovimiento, type VentaPorCobrar } from './cuadernoRepository';
 
-type Props = { onBack: () => void; onNuevaCosecha: () => void };
+type Props = { onBack: () => void; onNuevaCosecha: () => void; tipo?: 'agricultor' | 'tienda' };
 
 const acciones: Array<{ tipo: TipoMovimiento; titulo: string; Icono: typeof Wheat }> = [
   { tipo: 'cosecha', titulo: 'Cosecha', Icono: Wheat },
@@ -22,10 +22,19 @@ const acciones: Array<{ tipo: TipoMovimiento; titulo: string; Icono: typeof Whea
   { tipo: 'cobro', titulo: 'Cobro', Icono: HandCoins },
 ];
 
-const conceptos = ['Abono', 'Jornal', 'Transporte', 'Semillas', 'Empaques', 'Fumigación'];
+// la finca gasta en producir; la tienda en tener el local abierto (la mercancia va en «Compra»)
+const conceptosFinca = ['Abono', 'Jornal', 'Transporte', 'Semillas', 'Empaques', 'Fumigación'];
+const conceptosTienda = ['Arriendo', 'Transporte', 'Servicios', 'Empleados', 'Empaques', 'Impuestos'];
+const accionesTienda: typeof acciones = [
+  { tipo: 'compra', titulo: 'Compra', Icono: PackagePlus },
+  { tipo: 'venta', titulo: 'Venta', Icono: ShoppingBag },
+  { tipo: 'gasto', titulo: 'Gasto', Icono: Receipt },
+  { tipo: 'perdida', titulo: 'Pérdida', Icono: PackageMinus },
+  { tipo: 'cobro', titulo: 'Cobro', Icono: HandCoins },
+];
 const periodos: Array<{ valor: Periodo; texto: string }> = [{ valor: 'hoy', texto: 'Hoy' }, { valor: 'semana', texto: '7 días' }, { valor: 'mes', texto: 'Este mes' }, { valor: 'todo', texto: 'Todo' }];
 
-const nombreTipo: Record<string, string> = { cosecha: 'Cosecha', venta: 'Venta', gasto: 'Gasto', perdida: 'Pérdida', cobro: 'Cobro' };
+const nombreTipo: Record<string, string> = { cosecha: 'Cosecha', venta: 'Venta', gasto: 'Gasto', perdida: 'Pérdida', cobro: 'Cobro', compra: 'Compra' };
 
 function estadoTexto(estado: string) {
   if (estado === 'synced' || estado === 'historial') return { texto: 'Guardado en el servidor', estilo: styles.badgeOk };
@@ -34,9 +43,12 @@ function estadoTexto(estado: string) {
 }
 
 // cuaderno del campo: funciona sin internet. todo se guarda en el celular y se sincroniza despues
-export default function CuadernoScreen({ onBack, onNuevaCosecha }: Props) {
+export default function CuadernoScreen({ onBack, onNuevaCosecha, tipo = 'agricultor' }: Props) {
+  const esTienda = tipo === 'tienda';
+  const conceptos = esTienda ? conceptosTienda : conceptosFinca;
+  const botones = esTienda ? accionesTienda : acciones;
   const [periodo, setPeriodo] = useState<Periodo>('mes');
-  const [resumen, setResumen] = useState({ vendido: 0, recibido: 0, gastos: 0, porCobrar: 0, balance: 0 });
+  const [resumen, setResumen] = useState({ vendido: 0, recibido: 0, gastos: 0, compras: 0, ganancia: 0, ventasConCosto: 0, ventasSinCosto: 0, porCobrar: 0, balance: 0 });
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [productos, setProductos] = useState<Product[]>([]);
   const [deudas, setDeudas] = useState<VentaPorCobrar[]>([]);
@@ -96,6 +108,12 @@ export default function CuadernoScreen({ onBack, onNuevaCosecha }: Props) {
     const numero = leerCantidad(cantidad);
     if (numero <= 0) { Alert.alert('Revisa la cantidad', 'Escribe la cantidad con números, por ejemplo 100.'); return; }
     const medida = mostrarCantidad(numero) + ' ' + textoUnidad(numero, producto.unit) + ' de ' + producto.name;
+    if (formulario === 'compra') {
+      const costo = leerPrecio(monto);
+      if (costo <= 0) { Alert.alert('Falta el costo', 'Escribe cuánto pagaste en total por esa mercancía.'); return; }
+      confirmar('Compra de ' + medida + ' por ' + dinero(costo) + ' (' + dinero(Math.round(costo / numero)) + ' cada ' + producto.unit + '). Te quedarían ' + mostrarCantidad(producto.stock + numero) + ' ' + textoUnidad(producto.stock + numero, producto.unit) + '.', () => registrarCompra(producto.id, numero, costo, nota));
+      return;
+    }
     if (formulario === 'cosecha') {
       confirmar('Cosecha de ' + medida + '. Te quedarían ' + mostrarCantidad(producto.stock + numero) + ' ' + textoUnidad(producto.stock + numero, producto.unit) + '.', () => registrarCosecha(producto.id, numero, nota));
       return;
@@ -112,29 +130,31 @@ export default function CuadernoScreen({ onBack, onNuevaCosecha }: Props) {
     confirmar('Venta de ' + medida + ' por ' + dinero(total) + (fiada ? ', fiada (te la deben)' : ', pagada') + '. Te quedarían ' + mostrarCantidad(producto.stock - numero) + ' ' + textoUnidad(producto.stock - numero, producto.unit) + '.', () => recordSale(producto.id, numero, precio, !fiada, nota.trim()));
   }
 
-  const necesitaProducto = formulario === 'cosecha' || formulario === 'venta' || formulario === 'perdida';
+  const necesitaProducto = formulario === 'cosecha' || formulario === 'venta' || formulario === 'perdida' || formulario === 'compra';
 
   return (
     <View ref={teclaEspacio.ref} onLayout={teclaEspacio.medir} style={[styles.flex, { paddingBottom: teclaEspacio.espacio }]}>
       <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Pressable accessibilityRole="button" onPress={onBack} style={styles.volver}><ArrowLeft size={20} color={colors.verde} /><Text style={styles.volverTexto}>Volver</Text></Pressable>
         <Text style={styles.titulo}>Mi cuaderno</Text>
-        <Text style={styles.subtitulo}>Anota cosechas, ventas, gastos y cobros. Funciona sin internet.</Text>
+        <Text style={styles.subtitulo}>{esTienda ? 'Anota compras de mercancía, ventas, gastos y cobros. Funciona sin internet.' : 'Anota cosechas, ventas, gastos y cobros. Funciona sin internet.'}</Text>
         <View style={styles.escuchar}><BotonEscuchar texto="Aquí anotas lo que pasa en tu finca: cosechas, ventas, gastos, pérdidas y cobros. Todo se guarda en tu celular aunque no tengas señal, y se envía cuando vuelva el internet." /></View>
         <EstadoSincronizacion alCambiar={() => void refrescar()} />
 
         <View style={styles.periodos}>{periodos.map((p) => <Pressable key={p.valor} onPress={() => setPeriodo(p.valor)} style={[styles.periodo, periodo === p.valor && styles.periodoActivo]}><Text style={[styles.periodoTexto, periodo === p.valor && styles.periodoTextoActivo]}>{p.texto}</Text></Pressable>)}</View>
         <View style={styles.resumen}>
           <View style={[styles.cifra, styles.cifraFuerte]}><Text style={styles.cifraEtiquetaClara}>DINERO RECIBIDO</Text><Text style={styles.cifraValorClaro}>{dinero(resumen.recibido)}</Text></View>
-          <View style={styles.cifra}><Text style={styles.cifraEtiqueta}>GASTOS</Text><Text style={styles.cifraValor}>{dinero(resumen.gastos)}</Text></View>
+          {esTienda && <View style={styles.cifra}><Text style={styles.cifraEtiqueta}>COMPRAS DE MERCANCÍA</Text><Text style={styles.cifraValor}>{dinero(resumen.compras)}</Text></View>}
+          {esTienda && <View style={styles.cifra}><Text style={styles.cifraEtiqueta}>GANANCIA EN VENTAS</Text><Text style={[styles.cifraValor, resumen.ganancia < 0 && styles.negativo]}>{dinero(resumen.ganancia)}</Text></View>}
+          <View style={styles.cifra}><Text style={styles.cifraEtiqueta}>{esTienda ? 'OTROS GASTOS' : 'GASTOS'}</Text><Text style={styles.cifraValor}>{dinero(resumen.gastos)}</Text></View>
           <View style={styles.cifra}><Text style={styles.cifraEtiqueta}>TE DEBEN</Text><Text style={styles.cifraValor}>{dinero(resumen.porCobrar)}</Text></View>
           <View style={styles.cifra}><Text style={styles.cifraEtiqueta}>BALANCE</Text><Text style={[styles.cifraValor, resumen.balance < 0 && styles.negativo]}>{dinero(resumen.balance)}</Text></View>
         </View>
-        <Text style={styles.nota}>Lo que te deben no se cuenta como dinero recibido hasta que lo cobres.</Text>
+        <Text style={styles.nota}>Lo que te deben no se cuenta como dinero recibido hasta que lo cobres.{esTienda ? ' La ganancia es lo que vendiste menos lo que te costó esa mercancía.' + (resumen.ventasSinCosto > 0 ? ' ' + resumen.ventasSinCosto + (resumen.ventasSinCosto === 1 ? ' venta no tiene' : ' ventas no tienen') + ' costo: anota la compra de ese producto.' : '') : ''}</Text>
 
         <Text style={styles.seccion}>Anotar</Text>
         <View style={styles.acciones}>
-          {acciones.map((a) => <Pressable key={a.tipo} accessibilityRole="button" accessibilityLabel={'Anotar ' + a.titulo} onPress={() => abrir(a.tipo)} style={({ pressed }) => [styles.accion, formulario === a.tipo && styles.accionActiva, pressed && styles.presionado]}>
+          {botones.map((a) => <Pressable key={a.tipo} accessibilityRole="button" accessibilityLabel={'Anotar ' + a.titulo} onPress={() => abrir(a.tipo)} style={({ pressed }) => [styles.accion, formulario === a.tipo && styles.accionActiva, pressed && styles.presionado]}>
             <a.Icono size={22} color={formulario === a.tipo ? colors.white : colors.verde} />
             <Text style={[styles.accionTexto, formulario === a.tipo && styles.accionTextoActivo]}>{a.titulo}</Text>
           </Pressable>)}
@@ -145,7 +165,7 @@ export default function CuadernoScreen({ onBack, onNuevaCosecha }: Props) {
             <Text style={styles.etiqueta}>¿De qué producto?</Text>
             {productos.length === 0 ? <Pressable onPress={onNuevaCosecha} style={styles.vacio}><Text style={styles.vacioTexto}>Todavía no tienes productos. Toca aquí para registrar tu primera cosecha.</Text></Pressable> :
               <View style={styles.chips}>{productos.map((p) => <Pressable key={p.id} onPress={() => setProductoId(p.id)} style={[styles.chip, productoId === p.id && styles.chipActivo]}><Text style={[styles.chipTexto, productoId === p.id && styles.chipTextoActivo]}>{p.name} · {mostrarCantidad(p.stock)} {p.unit}</Text></Pressable>)}</View>}
-            {formulario === 'cosecha' && <Pressable onPress={onNuevaCosecha}><Text style={styles.enlace}>¿Es un producto nuevo? Regístralo aquí</Text></Pressable>}
+            {(formulario === 'cosecha' || formulario === 'compra') && <Pressable onPress={onNuevaCosecha}><Text style={styles.enlace}>¿Es un producto nuevo? Regístralo aquí</Text></Pressable>}
             <Text style={styles.etiqueta}>Cantidad{producto ? ' (' + textoUnidad(2, producto.unit) + ')' : ''}</Text>
             <TextInput value={cantidad} onChangeText={setCantidad} placeholder="Ej. 100" placeholderTextColor={colors.muted} keyboardType={tecladoCantidad(producto ? producto.unit : 'kg')} style={styles.input} maxLength={10} />
           </>}
@@ -165,6 +185,11 @@ export default function CuadernoScreen({ onBack, onNuevaCosecha }: Props) {
             <View style={styles.chips}>{conceptos.map((c) => <Pressable key={c} onPress={() => setNota(c)} style={[styles.chip, nota === c && styles.chipActivo]}><Text style={[styles.chipTexto, nota === c && styles.chipTextoActivo]}>{c}</Text></Pressable>)}</View>
             <TextInput value={nota} onChangeText={setNota} placeholder="O escríbelo" placeholderTextColor={colors.muted} style={styles.input} maxLength={120} />
           </>}
+          {formulario === 'compra' && <>
+            <Text style={styles.etiqueta}>¿Cuánto pagaste en total?</Text>
+            <TextInput value={monto} onChangeText={setMonto} placeholder="Ej. 1.600.000" placeholderTextColor={colors.muted} keyboardType="number-pad" style={styles.input} maxLength={13} />
+            <TextInput value={nota} onChangeText={setNota} placeholder="¿A quién se la compraste? (opcional)" placeholderTextColor={colors.muted} style={styles.input} maxLength={60} />
+          </>}
           {formulario === 'perdida' && <TextInput value={nota} onChangeText={setNota} placeholder="¿Qué pasó? (opcional)" placeholderTextColor={colors.muted} style={styles.input} maxLength={120} />}
           {formulario === 'cobro' && <>
             <Text style={styles.etiqueta}>¿Qué venta te pagaron?</Text>
@@ -176,17 +201,17 @@ export default function CuadernoScreen({ onBack, onNuevaCosecha }: Props) {
         </View>}
 
         <Text style={styles.seccion}>Movimientos</Text>
-        {movimientos.length === 0 && <Text style={styles.vacioTexto}>Todavía no hay movimientos. Empieza anotando una cosecha o una venta.</Text>}
+        {movimientos.length === 0 && <Text style={styles.vacioTexto}>{esTienda ? 'Todavía no hay movimientos. Empieza anotando una compra de mercancía o una venta.' : 'Todavía no hay movimientos. Empieza anotando una cosecha o una venta.'}</Text>}
         {movimientos.map((m) => {
           const estado = estadoTexto(m.sync_status);
           let detalle = '';
           if (m.tipo === 'gasto') detalle = m.nota;
           else if (m.tipo === 'cobro') detalle = 'Pago de ' + m.producto + (m.persona ? ' · ' + m.persona : '');
           else detalle = mostrarCantidad(m.cantidad) + ' ' + textoUnidad(m.cantidad, m.unidad) + ' de ' + m.producto + (m.tipo === 'venta' && m.pagado === 0 ? ' · fiada' : '');
-          const conMonto = m.tipo === 'venta' || m.tipo === 'gasto' || m.tipo === 'cobro';
+          const conMonto = m.tipo === 'venta' || m.tipo === 'gasto' || m.tipo === 'cobro' || m.tipo === 'compra';
           return <View key={m.id} style={styles.mov}>
             <View style={styles.flex}>
-              <Text style={styles.movTitulo}>{nombreTipo[m.tipo]}{conMonto ? ' · ' + (m.tipo === 'gasto' ? '−' : '') + dinero(m.monto) : ''}</Text>
+              <Text style={styles.movTitulo}>{nombreTipo[m.tipo]}{conMonto ? ' · ' + (m.tipo === 'gasto' || m.tipo === 'compra' ? '−' : '') + dinero(m.monto) : ''}</Text>
               <Text style={styles.movDetalle} numberOfLines={2}>{detalle}</Text>
               <Text style={styles.movFecha}>{new Date(m.fecha).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</Text>
             </View>

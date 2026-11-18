@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChatMessage, ProductDraft, Recomendacion, VentaPropuesta } from '../types';
-import { entender, normalizar, seParece, type Periodo } from '../maria';
+import { entender, extraerCantidad, extraerPrecio, normalizar, seParece, type Periodo } from '../maria';
 import { categoriaDeProducto, categoriaVisible, esInsumo } from '../../../shared/agro';
 import { listProducts } from '../../inventory/data/inventoryRepository';
 import { recordSale, ventasDesde } from '../../sales/data/salesRepository';
@@ -17,7 +17,7 @@ import { municipios } from '../../../shared/validaciones';
 import { unidades, unidadesInsumo } from '../../../shared/agro';
 import { getBusinessProfile } from '../../business/data/businessRepository';
 import type { Product } from '../../inventory/types';
-import { registrarCosecha, registrarGasto, registrarPerdida, resumenCuentas, ventasPorCobrar } from '../../cuaderno/cuadernoRepository';
+import { registrarCompra, registrarCosecha, registrarGasto, registrarPerdida, resumenCuentas, ventasPorCobrar } from '../../cuaderno/cuadernoRepository';
 import { guiaPara } from '../../aprende/guias';
 
 // tipoVendedor: 'agricultor' o 'tienda' si la persona vende, '' si solo compra
@@ -298,6 +298,19 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
       responder('Para eso necesitas una cuenta de vendedor, que es gratis. Si tienes cosecha o una tienda del campo, toca «Vender» abajo y te ayudo a crearla.');
       return;
     }
+    if (intencion.tipo === 'gasto' && tipo === 'tienda') {
+      const t = normalizar(valor);
+      const datos = extraerCantidad(t);
+      const existente = datos.cantidad > 0 && datos.producto !== '' ? (await listProducts()).find((p) => seParece(p.name, datos.producto)) : undefined;
+      if (existente) {
+        const precio = extraerPrecio(t);
+        const total = precio.precio > 0 ? (precio.esTotal ? precio.precio : Math.round(precio.precio * datos.cantidad)) : intencion.monto;
+        const quedan = existente.stock + datos.cantidad;
+        porConfirmar.current = { texto: '', guardar: () => registrarCompra(existente.id, datos.cantidad, total), listo: '¡Anotado! Compraste ' + mostrarCantidad(datos.cantidad) + ' ' + textoUnidad(datos.cantidad, existente.unit) + ' de ' + existente.name + '. Ahora tienes ' + mostrarCantidad(quedan) + '.' };
+        responder('¿Anoto una compra de mercancía: ' + mostrarCantidad(datos.cantidad) + ' ' + textoUnidad(datos.cantidad, existente.unit) + ' de ' + existente.name + ' por ' + dinero(total) + '? Con esto sé cuánto ganas al venderlo.', undefined, ['Sí, anotar', 'No']);
+        return;
+      }
+    }
     if (intencion.tipo === 'gasto') {
       let concepto = intencion.concepto;
       if (concepto === '') concepto = 'gasto del campo';
@@ -327,7 +340,7 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
         responder('Te deben ' + dinero(r.porCobrar) + ':\n' + deudas.slice(0, 5).map((d) => '• ' + d.producto + (d.persona ? ' (' + d.persona + ')' : '') + ': ' + dinero(d.debe)).join('\n'));
         return;
       }
-      responder('Cuentas de ' + cuando + ': recibiste ' + dinero(r.recibido) + ', gastaste ' + dinero(r.gastos) + ' y te quedan ' + dinero(r.balance) + '.' + (r.porCobrar > 0 ? ' Además te deben ' + dinero(r.porCobrar) + '.' : '') + ' Son solo tus registros en Sava.');
+      responder('Cuentas de ' + cuando + ': recibiste ' + dinero(r.recibido) + ', gastaste ' + dinero(r.gastos + r.compras) + ' y te quedan ' + dinero(r.balance) + '.' + (r.porCobrar > 0 ? ' Además te deben ' + dinero(r.porCobrar) + '.' : '') + (tipo === 'tienda' ? ' En mercancía compraste ' + dinero(r.compras) + ' y lo que vendiste te dejó ' + dinero(r.ganancia) + ' de ganancia.' : '') + ' Son solo tus registros en Sava.');
       return;
     }
     if (intencion.tipo === 'promocionar') {

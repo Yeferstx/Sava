@@ -105,6 +105,8 @@ export default function AppNavigator() {
   // notificaciones sin leer (campana y numero en la barra)
   const [sinLeer, setSinLeer] = useState(0);
   const [consultasNuevas, setConsultasNuevas] = useState(0);
+  // negocios de la cuenta (finca, tienda)
+  const [negocios, setNegocios] = useState<Array<{ id: string; name: string; category: string }>>([]);
   const ultimaPregunta = useRef(0);
   // quien vende: campesino (finca) o tienda del campo
   const [tipoNegocio, setTipoNegocio] = useState<'agricultor' | 'tienda'>('agricultor');
@@ -143,8 +145,14 @@ export default function AppNavigator() {
     void (async () => {
       let phase = 'consultar el negocio de tu cuenta';
       try {
-        const { data: business, error } = await supabase.from('businesses').select('id,owner_id,name,category,description,phone,municipality,is_published').eq('owner_id', user.id).order('created_at', { ascending: true }).limit(1).maybeSingle();
+        // una persona puede tener finca y tienda: se abre la que eligio la ultima vez
+        const { data: lista, error } = await supabase.from('businesses').select('id,owner_id,name,category,description,phone,municipality,is_published').eq('owner_id', user.id).order('created_at', { ascending: true }).limit(5);
         if (error) throw error;
+        const db = await (await import('../infrastructure/database/database')).getDatabase();
+        const preferido = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', 'negocio_preferido');
+        const todos = (lista ?? []) as RemoteBusiness[];
+        setNegocios(todos.map((n) => ({ id: n.id, name: n.name, category: n.category })));
+        const business = todos.find((n) => preferido && n.id === preferido.value) ?? todos[0] ?? null;
         if (!active) return;
         if (!business) {
           const rol = datoUsuario(user, 'rol');
@@ -349,7 +357,21 @@ export default function AppNavigator() {
     catch (error) { Alert.alert('No se pudo guardar', error instanceof Error ? error.message + ' Toca Editar para corregir el borrador.' : 'El borrador sigue aquí. Intenta de nuevo.'); }
   }
   function editProductDraft() { if (chat.draft) { setDraftForPublish(chat.draft); setActiveTab('Publicar'); } }
+  async function guardarPreferido(id: string) {
+    const db = await (await import('../infrastructure/database/database')).getDatabase();
+    await db.runAsync('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', 'negocio_preferido', id);
+  }
+  // cambiar entre la finca y la tienda: se cargan los datos de esa (cada una tiene sus cuentas)
+  function cambiarNegocio(id: string) {
+    void guardarPreferido(id).then(() => { setActiveTab('Mi negocio'); setStage('checkingBusiness'); });
+  }
+  function agregarNegocio(tipo: 'agricultor' | 'tienda') {
+    setTipoNegocio(tipo);
+    setStage('setupBusiness');
+  }
   async function onBusinessCreated(business: RemoteBusiness) {
+    await guardarPreferido(business.id);
+    setNegocios((lista) => lista.some((n) => n.id === business.id) ? lista : lista.concat({ id: business.id, name: business.name, category: business.category }));
     await setActiveBusinessId(business.id);
     await cacheRemoteBusiness(business);
     setStage('signedIn');
@@ -404,7 +426,7 @@ export default function AppNavigator() {
 
   if (stage === 'loading' || stage === 'checkingBusiness') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><View style={styles.loading}><SavaLogo size="large" centrado /><ActivityIndicator color={colors.brown} style={styles.spinner} /><Text style={styles.loadingText}>{stage === 'checkingBusiness' ? 'Entrando a tu cuenta…' : 'Preparando tu espacio…'}</Text></View></SafeAreaView>;
   if (stage === 'chooseRole') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><RoleScreen onElegido={rolElegido} onSignOut={() => void signOut()} /></SafeAreaView>;
-  if (stage === 'signedOut') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><AuthScreen key={modoAuth} modoInicial={modoAuth} onAru={() => { setMerchantIntent(false); setDespuesDeEntrar(null); setStage('guest'); openChat('texto'); }} onContinueGuest={continueAsGuest} purpose={orderIntent ? 'buyer' : merchantIntent ? 'seller' : 'general'} /></SafeAreaView>;
+  if (stage === 'signedOut') return <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}><StatusBar barStyle="dark-content" /><AuthScreen key={modoAuth} modoInicial={modoAuth} onAru={() => { setMerchantIntent(false); setDespuesDeEntrar(null); setStage('guest'); openChat('texto'); }} onContinueGuest={continueAsGuest} purpose={orderIntent ? 'buyer' : merchantIntent ? 'seller' : 'general'} /></SafeAreaView>;
   if (stage === 'setupBusiness' && user) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><BusinessSetupScreen user={user} tipo={tipoNegocio} onCreated={(business) => { void onBusinessCreated(business).catch((error) => { setStartupError(error instanceof Error ? error.message : 'No se pudo preparar el negocio.'); setStage('error'); }); }} /></SafeAreaView>;
   if (stage === 'error') return <SafeAreaView style={styles.safe}><View style={styles.errorScreen}><SavaLogo size="large" centrado /><Text style={styles.errorTitle}>No pudimos conectar</Text><Text style={styles.loadingText}>{startupError}</Text><Pressable onPress={() => setStage(user ? 'checkingBusiness' : 'signedOut')} style={styles.retry}><Text style={styles.retryText}>Intentar de nuevo</Text></Pressable>{!!user && <Pressable onPress={() => void signOut()} style={styles.signOut}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}</View></SafeAreaView>;
 
@@ -422,7 +444,7 @@ export default function AppNavigator() {
   else if (selectedBusiness) pantalla = <BusinessDetailScreen business={selectedBusiness} onBack={() => setSelectedBusiness(null)} />;
   else if (activeTab === 'Legal') pantalla = <LegalScreen onBack={() => setActiveTab(volverLegal)} />;
   else if (activeTab === 'Videos') pantalla = <VideosScreen onOpenProductor={(business) => setSelectedBusiness(business)} canPublish={esAgricultor} onVender={startMerchantFlow} onOpenMaria={openChat} />;
-  else if (esAgricultor && activeTab === 'Mi negocio') pantalla = <BusinessDashboardScreen sinLeer={sinLeer} consultasNuevas={consultasNuevas} porConfirmar={seguimientos.length} onConfirmarVentas={() => setVerSeguimiento(true)} tipo={tipoNegocio} onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
+  else if (esAgricultor && activeTab === 'Mi negocio') pantalla = <BusinessDashboardScreen negocios={negocios} onCambiarNegocio={cambiarNegocio} onAgregarNegocio={agregarNegocio} sinLeer={sinLeer} consultasNuevas={consultasNuevas} porConfirmar={seguimientos.length} onConfirmarVentas={() => setVerSeguimiento(true)} tipo={tipoNegocio} onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (esAgricultor && activeTab === 'Inventario') pantalla = <InventoryScreen tipo={tipoNegocio} onAddProduct={() => navigate('Publicar')} onEdit={editarCosecha} onOpenSales={() => setActiveTab('Ventas')} onPromocionar={(product) => void abrirPromocion(product)} />;
   else if (esAgricultor && activeTab === 'Publicar') pantalla = <PublishScreen onUsarVoz={productoEditar ? undefined : publicarConVoz} key={productoEditar ? productoEditar.id : 'nueva'} tipo={tipoNegocio} producto={productoEditar} initialDraft={draftForPublish} onBack={volverDePublicar} onCreated={() => { if (draftForPublish) chat.confirmDraft(); setDraftForPublish(null); setProductoEditar(null); setActiveTab('Inventario'); }} />;
   else if (activeTab === 'Notificaciones') pantalla = <NotificacionesScreen onBack={() => setActiveTab('Mi negocio')} onAbrir={(n) => {
@@ -432,7 +454,7 @@ export default function AppNavigator() {
     else setActiveTab('Mi negocio');
   }} />;
   else if (activeTab === 'Aprende') pantalla = <AprendeScreen onBack={() => setActiveTab(volverAprende)} onPreguntar={() => openChat('texto')} />;
-  else if (esAgricultor && activeTab === 'Cuaderno') pantalla = <CuadernoScreen onBack={() => setActiveTab('Mi negocio')} onNuevaCosecha={() => navigate('Publicar')} />;
+  else if (esAgricultor && activeTab === 'Cuaderno') pantalla = <CuadernoScreen tipo={tipoNegocio} onBack={() => setActiveTab('Mi negocio')} onNuevaCosecha={() => navigate('Publicar')} />;
   else if (esAgricultor && activeTab === 'Promocionar' && promocion) pantalla = <PromocionarScreen product={promocion.product} business={promocion.business} tipo={tipoNegocio} onBack={() => setActiveTab('Inventario')} />;
   else if (esAgricultor && activeTab === 'Ventas') pantalla = <SalesScreen onBack={() => setActiveTab('Mi negocio')} />;
   else if (esAgricultor && activeTab === 'Pedidos') pantalla = <OrdersScreen mode={ordersMode} userId={user?.id} onBack={() => setActiveTab('Mi negocio')} />;

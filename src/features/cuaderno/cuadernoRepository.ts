@@ -5,7 +5,8 @@ import { syncPendingChanges } from '../../infrastructure/sync/syncService';
 import type { Product } from '../inventory/types';
 import { errorCantidad, redondear } from '../../shared/validaciones';
 
-export type TipoMovimiento = 'cosecha' | 'venta' | 'gasto' | 'perdida' | 'cobro';
+// compra: la tienda compra mercancia para revender (suma a lo disponible y guarda el costo)
+export type TipoMovimiento = 'cosecha' | 'venta' | 'gasto' | 'perdida' | 'cobro' | 'compra';
 
 export type Movimiento = {
   id: string; business_id: string; tipo: TipoMovimiento; product_id: string | null; producto: string; cantidad: number; unidad: string;
@@ -46,6 +47,16 @@ export async function registrarCosecha(productId: string, cantidad: number, nota
   const error = errorCantidad(cantidad, product.unit);
   if (error !== '') throw new Error(error);
   const movimiento = { ...(await base('cosecha')), product_id: product.id, producto: product.name, cantidad, unidad: product.unit, nota };
+  return guardar(movimiento, { anterior: product, stock: redondear(product.stock + cantidad) });
+}
+
+// tienda: compra de mercancia. el costo sirve para saber cuanto se gana al revender
+export async function registrarCompra(productId: string, cantidad: number, costoTotal: number, proveedor = '') {
+  const product = await productoDelNegocio(productId);
+  const error = errorCantidad(cantidad, product.unit);
+  if (error !== '') throw new Error(error);
+  if (!Number.isInteger(costoTotal) || costoTotal <= 0) throw new Error('Escribe cuánto pagaste en total, en pesos.');
+  const movimiento = { ...(await base('compra')), product_id: product.id, producto: product.name, cantidad, unidad: product.unit, monto: costoTotal, persona: proveedor.trim().slice(0, 60) };
   return guardar(movimiento, { anterior: product, stock: redondear(product.stock + cantidad) });
 }
 
@@ -114,8 +125,19 @@ export async function resumenCuentas(periodo: Periodo) {
   const db = await getDatabase();
   const businessId = await getActiveBusinessId();
   const lista = await db.getAllAsync<Movimiento>('SELECT * FROM movimientos WHERE business_id = ? AND fecha >= ?', businessId, desdeFecha(periodo).toISOString());
-  let vendido = 0; let recibido = 0; let gastos = 0; let perdidas = 0; let cosechas = 0;
+  let vendido = 0; let recibido = 0; let gastos = 0; let perdidas = 0; let cosechas = 0; let compras = 0;
+  // costo promedio de cada producto segun lo que se ha comprado (para la ganancia de la tienda)
+  const historial = await db.getAllAsync<{ product_id: string; cantidad: number; monto: number }>("SELECT product_id, SUM(cantidad) AS cantidad, SUM(monto) AS monto FROM movimientos WHERE business_id = ? AND tipo = 'compra' GROUP BY product_id", businessId);
+  const costo: Record<string, number> = {};
+  for (const h of historial) { if (h.cantidad > 0) costo[h.product_id] = h.monto / h.cantidad; }
+  let ganancia = 0; let ventasConCosto = 0; let ventasSinCosto = 0;
   for (const m of lista) {
+    if (m.tipo === 'compra') compras += m.monto;
+    if (m.tipo === 'venta') {
+      const unitario = m.product_id ? costo[m.product_id] : undefined;
+      if (unitario === undefined) ventasSinCosto += 1;
+      else { ventasConCosto += 1; ganancia += m.monto - Math.round(unitario * m.cantidad); }
+    }
     if (m.tipo === 'venta') { vendido += m.monto; if (m.pagado === 1) recibido += m.monto; }
     if (m.tipo === 'cobro') recibido += m.monto;
     if (m.tipo === 'gasto') gastos += m.monto;
@@ -124,5 +146,6 @@ export async function resumenCuentas(periodo: Periodo) {
   }
   let porCobrar = 0;
   for (const venta of await ventasPorCobrar()) porCobrar += venta.debe;
-  return { vendido, recibido, gastos, porCobrar, balance: recibido - gastos, perdidas, cosechas, movimientos: lista.length };
+  // balance: dinero que entro menos todo lo que salio (gastos y compras de mercancia)
+  return { vendido, recibido, gastos, compras, ganancia, ventasConCosto, ventasSinCosto, porCobrar, balance: recibido - gastos - compras, perdidas, cosechas, movimientos: lista.length };
 }

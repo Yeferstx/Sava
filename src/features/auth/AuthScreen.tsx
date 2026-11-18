@@ -3,6 +3,7 @@ import { ActivityIndicator, Animated, Easing, Image, Keyboard, Pressable, Scroll
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { ArrowRight, CircleCheck, LockKeyhole, Mail, UserRound } from 'lucide-react-native';
 import AsistenteOrbe from '../chat/components/AsistenteOrbe';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
 import { colors } from '../../shared/theme';
 import SavaLogo from '../../shared/components/SavaLogo';
@@ -178,6 +179,8 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
   }
 
   const teclaEspacio = useEspacioTeclado();
+  // la tarjeta blanca llega hasta abajo; aqui solo se deja el espacio de la barra del celular
+  const bordeAbajo = useSafeAreaInsets().bottom;
   const { width, height } = useWindowDimensions();
   // el alto de cada parte sale del alto real de la pantalla (no de un celular en particular).
   // al crear cuenta el encabezado se achica para dar espacio a los campos
@@ -224,8 +227,8 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
   const subirTarjeta = entrada[2].interpolate({ inputRange: [0, 1], outputRange: [40, 0] });
 
   return (
-    <View ref={teclaEspacio.ref} onLayout={teclaEspacio.medir} style={[styles.screen, { paddingBottom: teclaEspacio.espacio }]}>
-      <ScrollView ref={scroll} style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} bounces={false}>
+    <View ref={teclaEspacio.ref} onLayout={teclaEspacio.medir} style={[styles.screen, { paddingBottom: teclaEspacio.espacio, backgroundColor: '#FAF7F2' }]}>
+      <ScrollView ref={scroll} style={[styles.flex, styles.fondoCrema]} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} bounces={false}>
         {/* parte de arriba: crema con el logo y la bienvenida, y el paisaje original abajo */}
         <View onLayout={(e) => setAltoArriba(e.nativeEvent.layout.height)} style={{ paddingTop: compacto ? E.xs : E.s }}>
           <Animated.View style={[styles.encabezado, aparecer(0)]}>
@@ -266,6 +269,7 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
               </View>
               {errores.rol !== '' && <Text accessibilityRole="alert" style={styles.rolMensaje}>{errores.rol}</Text>}
             </View>}
+            {mode === 'signUp' && <Text style={styles.rolNota}>¿Haces las dos cosas? Elige una ahora y agrega la otra después en «Mi negocio». Comprar lo puede hacer cualquiera.</Text>}
             {mode === 'signUp' && <View onLayout={(e) => { posiciones.current.nombre = e.nativeEvent.layout.y; }}><Campo etiqueta="Nombre completo" icono={<UserRound size={20} color={colors.verde} />} value={nombre} onChangeText={(v) => escribir('nombre', v)} placeholder="Escribe tu nombre completo" autoComplete="name" autoCapitalize="words" maxLength={80} error={errores.nombre} onFocus={() => mostrarCampo('nombre')} /></View>}
             <View onLayout={(e) => { posiciones.current.correo = e.nativeEvent.layout.y; }}><Campo etiqueta="Correo electrónico" icono={<Mail size={20} color={colors.verde} />} value={email} onChangeText={(v) => escribir('correo', v)} placeholder="tucorreo@ejemplo.com" autoCapitalize="none" autoComplete="email" keyboardType="email-address" maxLength={100} error={errores.correo} onFocus={() => mostrarCampo('correo')} /></View>
             <View onLayout={(e) => { posiciones.current.clave = e.nativeEvent.layout.y; }}><Campo etiqueta="Contraseña" esClave icono={<LockKeyhole size={20} color={colors.verde} />} value={password} onChangeText={(v) => escribir('clave', v)} placeholder={mode === 'signUp' ? 'Crea una contraseña' : 'Tu contraseña'} autoCapitalize="none" autoComplete={mode === 'signUp' ? 'new-password' : 'password'} maxLength={72} error={errores.clave} ayuda={mode === 'signUp' ? 'Usa al menos 8 caracteres' : ''} onSubmitEditing={() => void submit()} onFocus={() => mostrarCampo('clave')} /></View>
@@ -284,6 +288,7 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
           {mode === 'signUp' ? <Text style={styles.terminos}>Al continuar, aceptas los <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>términos</Text> y la <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>política de privacidad</Text>.</Text>
             : <Pressable hitSlop={6} onPress={() => setVerLegal(true)}><Text style={styles.terminos}>Privacidad y términos de uso</Text></Pressable>}
           <Text style={styles.pieTexto}>Hecho para el campo de Casanare</Text>
+          <View style={{ height: teclaEspacio.espacio > 0 ? 0 : bordeAbajo }} />
         </Animated.View>
         {/* aru va encima de todo, en el borde entre el paisaje y el formulario */}
         {!!onAru && altoArriba > 0 && <Animated.View style={[styles.aruCaja, { top: altoArriba - MONTA_TARJETA - ALTO_ARU / 2 }, aparecer(1)]}>
@@ -304,6 +309,7 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.crema },
   flex: { flex: 1 },
+  fondoCrema: { backgroundColor: colors.crema },
   content: { flexGrow: 1 },
   encabezado: { alignItems: 'center', paddingHorizontal: E.xl, gap: 2 },
   titulo: { color: colors.verde, fontSize: 26, fontWeight: '900', textAlign: 'center', marginTop: E.xs },
@@ -345,5 +351,6 @@ const styles = StyleSheet.create({
   rolError: { borderColor: '#775D50' },
   rolTexto: { color: colors.grafito, fontSize: 13, fontWeight: '800', textAlign: 'center' },
   rolTextoElegido: { color: colors.white },
+  rolNota: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: -4, marginBottom: 12 },
   rolMensaje: { color: '#775D50', fontSize: 12, fontWeight: '600', marginTop: 6 },
 });
