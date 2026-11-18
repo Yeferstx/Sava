@@ -27,7 +27,8 @@ export async function cacheRemoteSales(remoteSales: Array<{ id: string; business
 }
 
 // precioUnitario es opcional: si la venta fue a otro precio (lo dice maria) se usa ese
-export async function recordSale(productId: string, quantity = 1, precioUnitario = 0) {
+// pagado = false: venta fiada (no se cuenta como dinero recibido hasta que se cobre)
+export async function recordSale(productId: string, quantity = 1, precioUnitario = 0, pagado = true, persona = '') {
   const db = await getDatabase();
   const businessId = await getActiveBusinessId();
   const saleId = createLocalId('sale');
@@ -49,6 +50,11 @@ export async function recordSale(productId: string, quantity = 1, precioUnitario
     await transaction.runAsync('UPDATE products SET stock = ?, sync_status = ?, updated_at = ? WHERE id = ?', nuevoStock, 'pending', now, productId);
     await enqueueSync(transaction, 'product', 'upsert', { ...product, stock: nuevoStock, sync_status: 'pending', updated_at: now });
     await enqueueSync(transaction, 'sale', 'create', { id: saleId, item_id: itemId, business_id: businessId, product_id: productId, quantity, unit_price_cop: precio, total_cop: total, sold_at: now });
+    // la venta tambien queda en el cuaderno (mismo id, asi nunca se cuenta dos veces)
+    const movimiento = { id: saleId, business_id: businessId, tipo: 'venta', product_id: productId, producto: product.name, cantidad: quantity, unidad: product.unit, monto: total, pagado: pagado ? 1 : 0, ref_id: null, persona, nota: '', fecha: now, sync_status: 'pending' };
+    await transaction.runAsync('INSERT INTO movimientos (id, business_id, tipo, product_id, producto, cantidad, unidad, monto, pagado, ref_id, persona, nota, fecha, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      movimiento.id, movimiento.business_id, movimiento.tipo, movimiento.product_id, movimiento.producto, movimiento.cantidad, movimiento.unidad, movimiento.monto, movimiento.pagado, movimiento.ref_id, movimiento.persona, movimiento.nota, movimiento.fecha, movimiento.sync_status);
+    await enqueueSync(transaction, 'movimiento', 'create', movimiento);
   });
   void syncPendingChanges().catch(() => undefined);
 }

@@ -64,10 +64,32 @@ export async function getDatabase() {
           negocio TEXT,
           guardado_en TEXT NOT NULL
         );
+        -- cuaderno del campo: cosechas, ventas, gastos, perdidas y cobros. cada uno con id unico
+        CREATE TABLE IF NOT EXISTS movimientos (
+          id TEXT PRIMARY KEY NOT NULL,
+          business_id TEXT NOT NULL,
+          tipo TEXT NOT NULL,
+          product_id TEXT,
+          producto TEXT NOT NULL DEFAULT '',
+          cantidad REAL NOT NULL DEFAULT 0,
+          unidad TEXT NOT NULL DEFAULT '',
+          monto INTEGER NOT NULL DEFAULT 0,
+          pagado INTEGER NOT NULL DEFAULT 1,
+          ref_id TEXT,
+          persona TEXT NOT NULL DEFAULT '',
+          nota TEXT NOT NULL DEFAULT '',
+          fecha TEXT NOT NULL,
+          sync_status TEXT NOT NULL DEFAULT 'pending'
+        );
+        CREATE INDEX IF NOT EXISTS movimientos_business_idx ON movimientos(business_id, fecha);
         CREATE INDEX IF NOT EXISTS products_business_idx ON products(business_id, is_published);
         CREATE INDEX IF NOT EXISTS sales_business_date_idx ON sales(business_id, sold_at);
       `);
       await agregarColumnasCosecha(db);
+      // ventas de antes del cuaderno: se copian como historial (ya estaban en el servidor como ventas)
+      await db.execAsync(`INSERT OR IGNORE INTO movimientos (id, business_id, tipo, product_id, producto, cantidad, unidad, monto, pagado, fecha, sync_status)
+        SELECT sales.id, sales.business_id, 'venta', sale_items.product_id, COALESCE(products.name, ''), sale_items.quantity, COALESCE(products.unit, ''), sales.total_cop, 1, sales.sold_at, 'historial'
+        FROM sales JOIN sale_items ON sale_items.sale_id = sales.id LEFT JOIN products ON products.id = sale_items.product_id`);
       await seedDemoData(db);
       return db;
     })().catch((error) => {
@@ -89,6 +111,14 @@ async function agregarColumnasCosecha(db: SQLite.SQLiteDatabase) {
   if (!nombres.includes('retired')) await db.execAsync('ALTER TABLE products ADD COLUMN retired INTEGER NOT NULL DEFAULT 0');
   if (!nombres.includes('created_at')) await db.execAsync('ALTER TABLE products ADD COLUMN created_at TEXT');
   if (!nombres.includes('min_order')) await db.execAsync('ALTER TABLE products ADD COLUMN min_order REAL NOT NULL DEFAULT 0');
+  // version del servidor sobre la que se hizo el cambio (para detectar cambios desde otro celular)
+  if (!nombres.includes('server_updated_at')) await db.execAsync('ALTER TABLE products ADD COLUMN server_updated_at TEXT');
+  const cola = await db.getAllAsync<{ name: string }>('PRAGMA table_info(sync_queue)');
+  const columnasCola: string[] = [];
+  for (const columna of cola) columnasCola.push(columna.name);
+  // estado de cada envio: pending, syncing, error o conflict
+  if (!columnasCola.includes('status')) await db.execAsync("ALTER TABLE sync_queue ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'");
+  if (!columnasCola.includes('last_error')) await db.execAsync("ALTER TABLE sync_queue ADD COLUMN last_error TEXT NOT NULL DEFAULT ''");
 }
 
 // el negocio de prueba solo existe para que la app funcione sin supabase.
@@ -113,6 +143,22 @@ export function createLocalId(_prefix: string) {
     const random = Math.floor(Math.random() * 16);
     return (character === 'x' ? random : (random & 0x3) | 0x8).toString(16);
   });
+}
+
+// al cerrar sesion: se borran del celular los datos privados del negocio (cuentas, ventas, inventario),
+// para que otra persona que use este celular no los vea. lo publico del mercado se puede volver a cargar
+export async function borrarDatosPrivados() {
+  const db = await getDatabase();
+  await db.withExclusiveTransactionAsync(async (t) => {
+    await t.runAsync('DELETE FROM movimientos');
+    await t.runAsync('DELETE FROM sale_items');
+    await t.runAsync('DELETE FROM sales');
+    await t.runAsync('DELETE FROM sync_queue');
+    await t.runAsync('DELETE FROM products');
+    await t.runAsync('DELETE FROM businesses WHERE id <> ?', DEMO_BUSINESS_ID);
+    await t.runAsync("DELETE FROM app_settings WHERE key IN ('active_business_id', 'ultima_sincronizacion')");
+  });
+  try { await db.runAsync('DELETE FROM maria_pendientes'); } catch { /* la tabla aun no existe */ }
 }
 
 export async function getActiveBusinessId() {

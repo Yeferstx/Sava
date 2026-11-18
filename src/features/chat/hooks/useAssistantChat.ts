@@ -16,6 +16,9 @@ import { guiaVacia, pasoACorregir, preguntar, quiereCancelar, responder as leerP
 import { municipios } from '../../../shared/validaciones';
 import { unidades, unidadesInsumo } from '../../../shared/agro';
 import { getBusinessProfile } from '../../business/data/businessRepository';
+import type { Product } from '../../inventory/types';
+import { registrarCosecha, registrarGasto, registrarPerdida, resumenCuentas, ventasPorCobrar } from '../../cuaderno/cuadernoRepository';
+import { guiaPara } from '../../aprende/guias';
 
 // tipoVendedor: 'agricultor' o 'tienda' si la persona vende, '' si solo compra
 type TipoVendedor = 'agricultor' | 'tienda' | '';
@@ -52,7 +55,10 @@ function desdeCuando(periodo: Periodo) {
   return fecha;
 }
 
-export function useAssistantChat(tipo: TipoVendedor) {
+// acciones que el asistente puede pedirle a la app (abrir pantallas)
+type Acciones = { onPromocionar?: (product: Product) => void; onAprender?: () => void };
+
+export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([bienvenida()]);
   const [draft, setDraft] = useState<ProductDraft | null>(null);
   const [venta, setVenta] = useState<VentaPropuesta | null>(null);
@@ -74,6 +80,8 @@ export function useAssistantChat(tipo: TipoVendedor) {
   // publicacion guiada en curso (null = no hay) y los datos del ultimo borrador para poder corregirlo
   const guia = useRef<DatosGuia | null>(null);
   const ultimaGuia = useRef<DatosGuia | null>(null);
+  // movimiento del cuaderno esperando un si o un no
+  const porConfirmar = useRef<{ texto: string; guardar: () => Promise<unknown>; listo: string } | null>(null);
   const revisarCola = useRef<() => Promise<void>>(async () => undefined);
   revisarCola.current = responderPendientes;
 
@@ -139,7 +147,7 @@ export function useAssistantChat(tipo: TipoVendedor) {
   async function resolver(valor: string) {
     const intencion = entender(valor);
     // durante la publicacion guiada todo lo responde el celular (sin internet ni ia)
-    const enTarea = !!guia.current || (!!actual.current.draft && pasoACorregir(valor) !== null);
+    const enTarea = !!guia.current || !!porConfirmar.current || (!!actual.current.draft && pasoACorregir(valor) !== null);
     if (enTarea) { setConIA(false); await procesar(valor); return true; }
     const necesitaInternet = !pendiente.current && (intencion.tipo === 'nada' || intencion.tipo === 'buscar');
     if (necesitaInternet && !(await hayInternet())) return false;
@@ -208,6 +216,19 @@ export function useAssistantChat(tipo: TipoVendedor) {
         return;
       }
     }
+    // un movimiento del cuaderno espera confirmacion
+    if (porConfirmar.current) {
+      const espera = porConfirmar.current;
+      porConfirmar.current = null;
+      const t = normalizar(valor);
+      if (/^(si|sí|claro|dale|listo|ok|de una|hagale|correcto|eso|anotalo|anota)/.test(t)) {
+        try { await espera.guardar(); responder(espera.listo + ' Quedó guardado en tu celular; se envía cuando haya señal.'); }
+        catch (error) { responder('No pude anotarlo: ' + (error instanceof Error ? error.message : 'intenta de nuevo.')); }
+        return;
+      }
+      if (/^no\b/.test(t)) { responder('Listo, no anoté nada.'); return; }
+    }
+
     // corregir el borrador ya armado: "cambiar el precio"
     if (actual.current.draft && ultimaGuia.current) {
       const corregir = pasoACorregir(valor);
@@ -255,6 +276,65 @@ export function useAssistantChat(tipo: TipoVendedor) {
       return;
     }
 
+    // aprender: guias cortas (sin internet)
+    if (intencion.tipo === 'aprender') {
+      const guia = guiaPara(valor);
+      if (!guia) { responder('Te abro «Aprende con Sava» para que elijas una guía.'); if (acciones.onAprender) acciones.onAprender(); return; }
+      responder(guia.titulo + ':\n' + guia.pasos.slice(0, 5).map((p, i) => (i + 1) + '. ' + p).join('\n'), undefined, ['Ver todas las guías']);
+      return;
+    }
+
+    // lo del cuaderno es para quien vende
+    if ((intencion.tipo === 'gasto' || intencion.tipo === 'perdida' || intencion.tipo === 'cuentas' || intencion.tipo === 'promocionar') && !vende) {
+      responder('Eso es para quien vende en Sava. Si tienes cosecha o una tienda del campo, toca «Vender» abajo para registrarte.');
+      return;
+    }
+    if (intencion.tipo === 'gasto') {
+      let concepto = intencion.concepto;
+      if (concepto === '') concepto = 'gasto del campo';
+      porConfirmar.current = { texto: '', guardar: () => registrarGasto(intencion.monto, concepto), listo: '¡Anotado! Gasto de ' + dinero(intencion.monto) + ' en ' + concepto + '.' };
+      responder('¿Anoto un gasto de ' + dinero(intencion.monto) + ' en ' + concepto + '?', undefined, ['Sí, anotar', 'No']);
+      return;
+    }
+    if (intencion.tipo === 'perdida') {
+      const productos = await listProducts();
+      const encontrado = productos.find((p) => seParece(p.name, intencion.producto));
+      if (!encontrado) { responder('No encontré «' + intencion.producto + '» entre tus productos.'); return; }
+      if (intencion.cantidad > encontrado.stock) { responder('Solo tienes ' + mostrarCantidad(encontrado.stock) + ' ' + textoUnidad(encontrado.stock, encontrado.unit) + ' de ' + encontrado.name + '.'); return; }
+      const quedan = encontrado.stock - intencion.cantidad;
+      porConfirmar.current = { texto: '', guardar: () => registrarPerdida(encontrado.id, intencion.cantidad), listo: 'Anoté la pérdida. Te quedan ' + mostrarCantidad(quedan) + ' ' + textoUnidad(quedan, encontrado.unit) + ' de ' + encontrado.name + '.' };
+      responder('¿Anoto una pérdida de ' + mostrarCantidad(intencion.cantidad) + ' ' + textoUnidad(intencion.cantidad, encontrado.unit) + ' de ' + encontrado.name + '? Te quedarían ' + mostrarCantidad(quedan) + '.', undefined, ['Sí, anotar', 'No']);
+      return;
+    }
+    if (intencion.tipo === 'cuentas') {
+      const r = await resumenCuentas(intencion.periodo);
+      let cuando = 'este mes';
+      if (intencion.periodo === 'hoy') cuando = 'hoy';
+      if (intencion.periodo === 'semana') cuando = 'esta semana';
+      if (intencion.tema === 'gastos') { responder('Llevas ' + dinero(r.gastos) + ' en gastos ' + cuando + '.'); return; }
+      if (intencion.tema === 'deben') {
+        const deudas = await ventasPorCobrar();
+        if (deudas.length === 0) { responder('Nadie te debe: no tienes ventas fiadas por cobrar.'); return; }
+        responder('Te deben ' + dinero(r.porCobrar) + ':\n' + deudas.slice(0, 5).map((d) => '• ' + d.producto + (d.persona ? ' (' + d.persona + ')' : '') + ': ' + dinero(d.debe)).join('\n'));
+        return;
+      }
+      responder('Cuentas de ' + cuando + ': recibiste ' + dinero(r.recibido) + ', gastaste ' + dinero(r.gastos) + ' y te quedan ' + dinero(r.balance) + '.' + (r.porCobrar > 0 ? ' Además te deben ' + dinero(r.porCobrar) + '.' : '') + ' Son solo tus registros en Sava.');
+      return;
+    }
+    if (intencion.tipo === 'promocionar') {
+      const productos = await listProducts();
+      let encontrado = intencion.producto !== '' ? productos.find((p) => seParece(p.name, intencion.producto)) : undefined;
+      if (!encontrado && productos.length === 1) encontrado = productos[0];
+      if (encontrado && acciones.onPromocionar) {
+        responder('¡Vamos! Te abro «Promocionar con Sava» para tu ' + encontrado.name.toLocaleLowerCase('es-CO') + ': imagen para compartir y textos para WhatsApp, Facebook e Instagram.');
+        const elegido = encontrado;
+        setTimeout(() => { if (acciones.onPromocionar) acciones.onPromocionar(elegido); }, 900);
+        return;
+      }
+      responder('Para promocionarla primero hay que publicarla. Unos consejos: usa una foto real con luz de día, di la cantidad y desde cuánto vendes, y comparte la publicación en tus estados de WhatsApp. ¿Publicamos tu cosecha?', undefined, ['Publicar una cosecha', 'Cómo tomar buenas fotos']);
+      return;
+    }
+
     if (intencion.tipo === 'buscar') { await buscar(nombreOriginal(valor, intencion.producto).toLocaleLowerCase('es-CO'), intencion.municipio, intencion.cantidad, intencion.soloPrecio); return; }
 
     // lo que sigue es para quien vende
@@ -262,7 +342,17 @@ export function useAssistantChat(tipo: TipoVendedor) {
       if (!vende) { responder('Eso es para quien vende en Sava. Si tienes cosecha o una tienda del campo, toca «Vender» abajo para registrarte.'); return; }
     }
 
-    // "tengo 500 kilos de pina": se empieza la guia con lo que ya dijo
+    // "tengo 500 kilos de pina": se empieza la guia con lo que ya dijo.
+    // si ese producto ya existe, se ofrece anotarlo como nueva cosecha
+    if (intencion.tipo === 'publicar' && intencion.cantidad > 0) {
+      const existente = (await listProducts()).find((p) => seParece(p.name, intencion.producto));
+      if (existente) {
+        const total = existente.stock + intencion.cantidad;
+        porConfirmar.current = { texto: '', guardar: () => registrarCosecha(existente.id, intencion.cantidad), listo: '¡Anotado! Ahora tienes ' + mostrarCantidad(total) + ' ' + textoUnidad(total, existente.unit) + ' de ' + existente.name + '.' };
+        responder('Ya tienes ' + existente.name + ' publicado. ¿Sumo ' + mostrarCantidad(intencion.cantidad) + ' ' + textoUnidad(intencion.cantidad, existente.unit) + ' como nueva cosecha? Quedarías con ' + mostrarCantidad(total) + '.', undefined, ['Sí, anotar', 'No']);
+        return;
+      }
+    }
     if (intencion.tipo === 'publicar') {
       const nombreDicho = nombreOriginal(valor, intencion.producto);
       setDraft(null); setVenta(null);
@@ -270,7 +360,7 @@ export function useAssistantChat(tipo: TipoVendedor) {
       return;
     }
 
-    if (intencion.tipo === 'venta') { await prepararVenta(intencion.producto, intencion.cantidad, intencion.precio, intencion.total); return; }
+    if (intencion.tipo === 'venta') { await prepararVenta(intencion.producto, intencion.cantidad, intencion.precio, intencion.total, intencion.fiada); return; }
     if (intencion.tipo === 'inventario') { await contarInventario(intencion.producto); return; }
     if (intencion.tipo === 'resumen') { await resumir(intencion.periodo); return; }
 
@@ -380,7 +470,7 @@ export function useAssistantChat(tipo: TipoVendedor) {
     responder('Preparé esta publicación: ' + borrador.name + ', ' + mostrarCantidad(borrador.stock) + ' ' + textoUnidad(borrador.stock, borrador.unit) + ' a ' + dinero(borrador.price_cop) + ' cada ' + borrador.unit + '. Revísala y toca «Confirmar» para publicarla.');
   }
 
-  async function prepararVenta(producto: string, cantidad: number, precio: number, total: number) {
+  async function prepararVenta(producto: string, cantidad: number, precio: number, total: number, fiada = false) {
     const productos = await listProducts();
     let encontrado = null;
     for (const item of productos) {
@@ -401,17 +491,17 @@ export function useAssistantChat(tipo: TipoVendedor) {
     if (unitario <= 0) unitario = Math.round(total / cantidad);
     let totalVenta = Math.round(unitario * cantidad);
     if (total > 0) totalVenta = total;
-    const propuesta: VentaPropuesta = { productId: encontrado.id, nombre: encontrado.name, cantidad, unidad: encontrado.unit, precio: unitario, total: totalVenta, quedan: encontrado.stock - cantidad };
+    const propuesta: VentaPropuesta = { productId: encontrado.id, nombre: encontrado.name, cantidad, unidad: encontrado.unit, precio: unitario, total: totalVenta, quedan: encontrado.stock - cantidad, fiada };
     setVenta(propuesta);
     setDraft(null);
-    responder('Vendiste ' + mostrarCantidad(cantidad) + ' ' + textoUnidad(cantidad, encontrado.unit) + ' de ' + encontrado.name + ' por ' + dinero(totalVenta) + '. ¿La registro? Te quedarían ' + mostrarCantidad(propuesta.quedan) + ' ' + textoUnidad(propuesta.quedan, encontrado.unit) + '.');
+    responder('Vendiste ' + mostrarCantidad(cantidad) + ' ' + textoUnidad(cantidad, encontrado.unit) + ' de ' + encontrado.name + ' por ' + dinero(totalVenta) + (fiada ? ', fiada (no la cuento como dinero recibido hasta que te paguen)' : '') + '. ¿La registro? Te quedarían ' + mostrarCantidad(propuesta.quedan) + ' ' + textoUnidad(propuesta.quedan, encontrado.unit) + '.');
   }
 
   async function confirmarVenta() {
     if (!venta) return;
     const propuesta = venta;
     try {
-      await recordSale(propuesta.productId, propuesta.cantidad, propuesta.precio);
+      await recordSale(propuesta.productId, propuesta.cantidad, propuesta.precio, !propuesta.fiada);
       setVenta(null);
       responder('¡Listo! Registré la venta de ' + propuesta.nombre + ' por ' + dinero(propuesta.total) + '. Te quedan ' + mostrarCantidad(propuesta.quedan) + ' ' + textoUnidad(propuesta.quedan, propuesta.unidad) + '.');
     } catch (error) {
@@ -501,8 +591,15 @@ export function useAssistantChat(tipo: TipoVendedor) {
       let aviso = '';
       if (cantidad > 0) {
         let alcanzan = 0;
-        for (const op of opciones) { if (op.product.stock >= cantidad) alcanzan = alcanzan + 1; }
+        let piden = 0;
+        for (const op of opciones) {
+          if (op.product.stock >= cantidad) alcanzan = alcanzan + 1;
+          if ((op.product.min_order ?? 0) > cantidad) piden = piden + 1;
+        }
+        // primero los que tienen la cantidad completa y aceptan ese pedido
+        opciones.sort((a, b) => Number((b.product.stock >= cantidad) && (b.product.min_order ?? 0) <= cantidad) - Number((a.product.stock >= cantidad) && (a.product.min_order ?? 0) <= cantidad));
         if (alcanzan === 0) aviso = ' Ninguno tiene esa cantidad completa, pero puedes juntar varios.';
+        if (piden > 0) aviso = aviso + ' Ojo: ' + (piden === 1 ? 'uno pide' : piden + ' piden') + ' un pedido mínimo mayor.';
       }
       responder('Encontré ' + opciones.length + ' ' + (opciones.length === 1 ? 'opción' : 'opciones') + lugar + '. Puedes escribirle al vendedor por WhatsApp.' + aviso, opciones.slice(0, 3));
       return;

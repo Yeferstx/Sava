@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ArrowRight, CircleDollarSign, ClipboardList, CloudUpload, PackagePlus, Sparkles, Sprout, Store } from 'lucide-react-native';
+import { ArrowRight, CircleDollarSign, ClipboardList, GraduationCap, NotebookPen, PackagePlus, Sparkles, Sprout, Store } from 'lucide-react-native';
+import EstadoSincronizacion from '../../shared/components/EstadoSincronizacion';
 import { contarPendientes, listProducts } from '../inventory/data/inventoryRepository';
 import { listSales } from '../sales/data/salesRepository';
 import { getBusinessProfile } from '../business/data/businessRepository';
@@ -58,17 +59,16 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
   }
 
   const atajos: Array<{ tab: AppTab; titulo: string; texto: string; Icon: typeof Sprout }> = [
+    { tab: 'Cuaderno', titulo: 'Mi cuaderno', texto: 'Cosechas, ventas, gastos y cobros. Funciona sin internet', Icon: NotebookPen },
     { tab: 'Publicar', titulo: esTienda ? 'Publicar producto' : 'Publicar cosecha', texto: 'Muestra lo que tienes disponible', Icon: PackagePlus },
     { tab: 'Inventario', titulo: esTienda ? 'Mis productos' : 'Mis cosechas', texto: 'Cantidades, precios y publicaciones', Icon: Sprout },
     { tab: 'Ventas', titulo: 'Ventas registradas', texto: 'Anota lo que vendiste', Icon: CircleDollarSign },
     { tab: 'Pedidos', titulo: 'Consultas de compradores', texto: 'Solicitudes que te enviaron en Sava', Icon: ClipboardList },
-    { tab: 'María', titulo: 'Hablar con María', texto: 'Publica, anota ventas y pregunta tu inventario', Icon: Sparkles },
+    { tab: 'María', titulo: 'Hablar con tu asistente', texto: 'Publica, anota ventas y gastos, pregunta tus cuentas', Icon: Sparkles },
+    { tab: 'Aprende', titulo: 'Aprende con Sava', texto: 'Fotos, descripciones, costos y cuentas', Icon: GraduationCap },
     { tab: 'Explorar', titulo: esTienda ? 'Ver el mercado' : 'Comprar insumos', texto: esTienda ? 'Mira lo que se vende en Casanare' : 'Semillas, abonos y herramientas', Icon: Store },
   ];
 
-  let textoPendientes = 'Todo está sincronizado';
-  if (pendientes === 1) textoPendientes = '1 cambio pendiente de sincronizar';
-  if (pendientes > 1) textoPendientes = pendientes + ' cambios pendientes de sincronizar';
 
   return <ScrollView style={styles.flex} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refresh()} tintColor={colors.brown} />}>
     <Text style={styles.eyebrow}>MI NEGOCIO</Text>
@@ -87,11 +87,7 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
       <View style={styles.metric}><Text style={styles.metricLabel}>VENTAS 7 DÍAS</Text><Text style={styles.metricValue}>{dinero(ventasSemana)}</Text></View>
     </View>
 
-    <Pressable accessibilityRole="button" disabled={pendientes === 0 || sincronizando} onPress={() => void sincronizar()} style={[styles.sync, pendientes > 0 && styles.syncPending]}>
-      <CloudUpload size={18} color={pendientes > 0 ? '#775D50' : colors.brown} />
-      <Text style={[styles.syncText, pendientes > 0 && styles.syncTextPending]}>{sincronizando ? 'Sincronizando…' : textoPendientes}</Text>
-      {pendientes > 0 && !sincronizando && <Text style={styles.syncAction}>Sincronizar</Text>}
-    </Pressable>
+    <View style={styles.estado}><EstadoSincronizacion alCambiar={() => void refresh()} /></View>
 
     {atajos.map((atajo) => <Pressable key={atajo.tab} accessibilityRole="button" onPress={() => onNavigate(atajo.tab)} style={styles.action}>
       <View style={styles.actionIcon}><atajo.Icon size={21} color={colors.brown} /></View>
@@ -116,6 +112,7 @@ const styles = StyleSheet.create({
   confirmarNumeroTexto: { color: colors.grafito, fontSize: 18, fontWeight: '900' },
   confirmarTitulo: { color: colors.grafito, fontSize: 16, fontWeight: '900' }, confirmarTexto: { color: colors.grafito, fontSize: 13, marginTop: 2 },
   metric: { flex: 1, borderRadius: 17, padding: 14, backgroundColor: colors.brown }, metricLabel: { color: colors.verdeClaro, fontSize: 10, letterSpacing: 0.8, fontWeight: '800' }, metricValue: { color: colors.white, fontSize: 22, fontWeight: '900', marginTop: 6 },
+  estado: { marginTop: 12, marginBottom: 6 },
   sync: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 13, borderRadius: 14, backgroundColor: colors.verdeClaro, marginTop: 12, marginBottom: 14 },
   syncPending: { backgroundColor: '#F5E7E2' }, syncText: { flex: 1, color: colors.brown, fontSize: 13, fontWeight: '700' }, syncTextPending: { color: '#775D50' }, syncAction: { color: '#775D50', fontSize: 13, fontWeight: '900' },
   action: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: 16, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, marginBottom: 9 },

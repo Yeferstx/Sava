@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Alert, Animated, Easing, LayoutAnimation, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ChevronDown, ChevronUp, LocateFixed, MapPin, MessageCircle, Mic, MoonStar, Search, ShoppingBasket, Sprout, Sun, Sunrise, Sunset, WifiOff } from 'lucide-react-native';
+import { ChevronDown, ChevronRight, ChevronUp, GraduationCap, LocateFixed, MapPin, MessageCircle, Mic, MoonStar, Search, ShoppingBasket, Sprout, Sun, Sunrise, Sunset, WifiOff } from 'lucide-react-native';
 import { ChipCategoria } from './components/CategoriaIcono';
 import AsistenteOrbe from '../chat/components/AsistenteOrbe';
 import { TarjetaEsqueleto } from '../../shared/components/Esqueleto';
@@ -28,6 +28,7 @@ type Props = {
   onVender: () => void;
   // abre el asistente en modo voz o en modo texto
   onHablar: () => void;
+  onAprender?: () => void;
   onEscribir: () => void;
 };
 
@@ -52,7 +53,7 @@ const BLOQUES = 7;
 
 // inicio: el mercado de cosechas e insumos de casanare.
 // solo muestra publicaciones reales de supabase
-export default function HomeScreen({ municipioInicial = '', seccionInicial = 'cosechas', onProductPress, onVender, onHablar, onEscribir }: Props) {
+export default function HomeScreen({ municipioInicial = '', seccionInicial = 'cosechas', onProductPress, onVender, onHablar, onEscribir, onAprender }: Props) {
   const [seccion, setSeccion] = useState<Seccion>(seccionInicial);
   const [query, setQuery] = useState('');
   const [categoria, setCategoria] = useState('');
@@ -348,6 +349,12 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
         <Pressable accessibilityRole="button" onPress={onVender} style={({ pressed }) => [styles.venderBoton, pressed && styles.presionado]}><Text style={styles.venderBotonTexto}>Publicar</Text></Pressable>
       </View>
 
+      {!!onAprender && <Pressable accessibilityRole="button" onPress={onAprender} style={({ pressed }) => [styles.aprende, pressed && styles.presionado]}>
+        <GraduationCap size={22} color={colors.verde} />
+        <View style={styles.flex}><Text style={styles.aprendeTitulo}>Aprende con Sava</Text><Text style={styles.aprendeTexto}>Fotos, descripciones, costos y cuentas</Text></View>
+        <ChevronRight size={20} color={colors.verde} />
+      </Pressable>}
+
       <View style={styles.apoyo}><ApoyoGobernacion /></View>
     </ScrollView>
   );
@@ -413,4 +420,7 @@ const styles = StyleSheet.create({
   retry: { backgroundColor: colors.verde, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 11 },
   retryText: { color: colors.white, fontWeight: '800', fontSize: 13 },
   apoyo: { marginTop: 18 },
+  aprende: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.white, borderRadius: 18, borderWidth: 1, borderColor: colors.line, padding: 14, marginTop: 12 },
+  aprendeTitulo: { color: colors.grafito, fontSize: 15, fontWeight: '900' },
+  aprendeTexto: { color: colors.muted, fontSize: 13, marginTop: 1 },
 });

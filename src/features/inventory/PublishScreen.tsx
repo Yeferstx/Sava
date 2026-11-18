@@ -71,7 +71,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
     if (!result.canceled && result.assets.length > 0) setPhotoUri(result.assets[0].uri);
   }
 
-  async function submit() {
+  async function submit(borrador = false) {
     const parsedPrice = leerPrecio(price);
     const parsedStock = leerCantidad(stock);
     if (name.trim().length < 3) {
@@ -105,7 +105,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
     }
     let textoEntrega = entrega;
     if (detalleEntrega.trim() !== '') textoEntrega = entrega + ' · ' + detalleEntrega.trim();
-    const datos = { name: name.trim(), category, description: description.trim(), price_cop: aConvenir ? 0 : parsedPrice, stock: parsedStock, min_order: pedidoMinimo, unit, photo_uri: photoUri, municipality: municipio, available_from: disponible, delivery: textoEntrega };
+    const datos = { name: name.trim(), category, description: description.trim(), price_cop: aConvenir ? 0 : parsedPrice, stock: parsedStock, min_order: pedidoMinimo, is_published: borrador ? 0 : 1, unit, photo_uri: photoUri, municipality: municipio, available_from: disponible, delivery: textoEntrega };
     try {
       setSaving(true);
       if (producto) {
@@ -113,7 +113,8 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
         Alert.alert('Publicación actualizada', 'Los cambios quedaron guardados en el celular y se sincronizarán cuando haya internet.');
       } else {
         await createProduct(datos);
-        Alert.alert('Publicado', 'Quedó guardado en el celular. Los compradores lo verán cuando se sincronice con internet.');
+        if (borrador) Alert.alert('Borrador guardado', 'Quedó en tu celular y no lo ven los compradores. Cuando quieras, ábrelo en «Mis cosechas» y toca «Reanudar» para publicarlo.');
+        else Alert.alert('Listo para publicar', 'Quedó guardado en el celular. Los compradores lo verán cuando se suba a internet; mientras tanto aparece como «Pendiente de publicación».');
       }
       onCreated();
     } catch (error) {
@@ -184,12 +185,15 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
       <Text style={styles.counter}>{description.length}/240</Text>
 
       <Pressable disabled={saving} onPress={() => void submit()} style={[styles.submit, saving && styles.disabled]}><Text style={styles.submitText}>{textoBoton}</Text></Pressable>
+      {!editando && <Pressable accessibilityRole="button" disabled={saving} onPress={() => void submit(true)} style={styles.borrador}><Text style={styles.borradorTexto}>Guardar como borrador</Text></Pressable>}
       <Text style={styles.footnote}>Puedes publicar sin internet. La publicación queda pendiente y se sube cuando vuelva la conexión.</Text>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  borrador: { alignItems: 'center', paddingVertical: 13, marginTop: 8, borderRadius: 24, borderWidth: 1.5, borderColor: colors.verde },
+  borradorTexto: { color: colors.verde, fontSize: 15, fontWeight: '800' },
   ayuda: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 6 },
   flex: { flex: 1 }, content: { padding: 22, paddingTop: 14, paddingBottom: 40 }, back: { color: colors.brown, fontWeight: '700', fontSize: 15, marginBottom: 18 },
   title: { color: colors.ink, fontSize: 27, fontWeight: '900' }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7, marginBottom: 8 },

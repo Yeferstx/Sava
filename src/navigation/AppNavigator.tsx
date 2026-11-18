@@ -19,7 +19,13 @@ import InventoryScreen from '../features/inventory/InventoryScreen';
 import PublishScreen from '../features/inventory/PublishScreen';
 import { getActiveBusinessId, getDatabase, setActiveBusinessId } from '../infrastructure/database/database';
 import { getSupabaseClient } from '../infrastructure/supabase/client';
-import { syncPendingChanges } from '../infrastructure/sync/syncService';
+import { estadoSincronizacion, syncPendingChanges } from '../infrastructure/sync/syncService';
+import { borrarDatosPrivados } from '../infrastructure/database/database';
+import CuadernoScreen from '../features/cuaderno/CuadernoScreen';
+import AprendeScreen from '../features/aprende/AprendeScreen';
+import PromocionarScreen from '../features/promocion/PromocionarScreen';
+import { escucharSenal } from '../features/chat/pendientes';
+import { getBusinessProfile } from '../features/business/data/businessRepository';
 import SalesScreen from '../features/sales/SalesScreen';
 import RoleScreen from '../features/auth/RoleScreen';
 import { CATEGORIA_TIENDA, type Rol } from '../shared/roles';
@@ -84,12 +90,15 @@ export default function AppNavigator() {
   // ventas que la app le pregunta al vendedor si se hicieron
   const [seguimientos, setSeguimientos] = useState<Seguimiento[]>([]);
   const [verSeguimiento, setVerSeguimiento] = useState(false);
+  // promocionar con sava: la publicacion elegida y los datos de la finca
+  const [promocion, setPromocion] = useState<{ product: Product; business: Business | null } | null>(null);
+  const [volverAprende, setVolverAprende] = useState<AppTab>('Inicio');
   const ultimaPregunta = useRef(0);
   // quien vende: campesino (finca) o tienda del campo
   const [tipoNegocio, setTipoNegocio] = useState<'agricultor' | 'tienda'>('agricultor');
   let tipoChat: 'agricultor' | 'tienda' | '' = '';
   if (stage === 'signedIn') tipoChat = tipoNegocio;
-  const chat = useAssistantChat(tipoChat);
+  const chat = useAssistantChat(tipoChat, { onPromocionar: (product) => void abrirPromocion(product), onAprender: () => abrirAprende('María') });
   const bordes = useSafeAreaInsets();
   const pantallaAncho = useWindowDimensions().width;
   const supabase = getSupabaseClient();
@@ -197,6 +206,16 @@ export default function AppNavigator() {
     setSelectedBusiness(null); setSelectedProduct(null); setProductoEditar(null); setActiveTab(tab);
     if (tab === 'Pedidos') setOrdersMode('business');
   }
+  async function abrirPromocion(product: Product) {
+    let business: Business | null = null;
+    try {
+      const finca = await getBusinessProfile();
+      if (finca) business = { id: finca.id, name: finca.name, category: finca.category, description: finca.description, phone: finca.phone, municipality: finca.city } as Business;
+    } catch { /* se promociona sin el nombre de la finca */ }
+    setPromocion({ product, business });
+    setActiveTab('Promocionar');
+  }
+  function abrirAprende(volver: AppTab) { setVolverAprende(volver); setActiveTab('Aprende'); }
   function abrirLegal(volver: AppTab) { setVolverLegal(volver); setActiveTab('Legal'); }
   function editarCosecha(product: Product) { setProductoEditar(product); setDraftForPublish(null); setActiveTab('Publicar'); }
   function rolElegido(rol: Rol) {
@@ -225,7 +244,9 @@ export default function AppNavigator() {
       Alert.alert('¿Salir sin publicar?', 'Lo que escribiste en el formulario se pierde.', [{ text: 'Seguir aquí', style: 'cancel' }, { text: 'Salir', style: 'destructive', onPress: volverDePublicar }]);
       return true;
     }
-    if (activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio') { setActiveTab('Mi negocio'); return true; }
+    if (activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio' || activeTab === 'Cuaderno') { setActiveTab('Mi negocio'); return true; }
+    if (activeTab === 'Aprende') { setActiveTab(volverAprende); return true; }
+    if (activeTab === 'Promocionar') { setActiveTab('Inventario'); return true; }
     return false;
   }
   const volverRef = useRef(volverAtras);
@@ -294,7 +315,30 @@ export default function AppNavigator() {
     setStage('signedIn');
     void syncPendingChanges().catch(() => undefined);
   }
-  async function signOut() { const { error } = await supabase?.auth.signOut() ?? { error: null }; if (error) Alert.alert('No se pudo cerrar sesión', error.message); }
+  // cerrar sesion: si hay registros sin enviar se avisa antes; nunca se borran sin preguntar
+  async function signOut() {
+    const estado = await estadoSincronizacion().catch(() => null);
+    const sinEnviar = estado ? estado.pendientes + estado.conflictos : 0;
+    if (sinEnviar > 0) {
+      Alert.alert('Tienes registros sin enviar', 'Hay ' + sinEnviar + (sinEnviar === 1 ? ' movimiento guardado' : ' movimientos guardados') + ' solo en este celular. Si cierras sesión ahora se borran de aquí y no llegarán al servidor.', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Enviar primero', onPress: () => { void syncPendingChanges().then(() => Alert.alert('Listo', 'Tus registros se enviaron. Ya puedes cerrar sesión.')).catch(() => Alert.alert('Sin conexión', 'Conéctate a internet y vuelve a intentarlo. Tus registros siguen guardados.')); } },
+        { text: 'Cerrar y borrar', style: 'destructive', onPress: () => void cerrarSesion() },
+      ]);
+      return;
+    }
+    await cerrarSesion();
+  }
+  async function cerrarSesion() {
+    // los datos privados no quedan en el celular para la siguiente persona
+    try { await borrarDatosPrivados(); } catch { /* se intenta cerrar igual */ }
+    chat.resetChat();
+    const { error } = await supabase?.auth.signOut() ?? { error: null };
+    if (error) Alert.alert('No se pudo cerrar sesión', error.message);
+  }
+
+  // cuando vuelve la senal se envia lo pendiente (sin bloquear nada)
+  useEffect(() => escucharSenal((conSenal) => { if (conSenal) void syncPendingChanges().catch(() => undefined); }), []);
 
   if (stage === 'loading' || stage === 'checkingBusiness') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><View style={styles.loading}><SavaLogo size="large" centrado /><ActivityIndicator color={colors.brown} style={styles.spinner} /><Text style={styles.loadingText}>{stage === 'checkingBusiness' ? 'Entrando a tu cuenta…' : 'Preparando tu espacio…'}</Text></View></SafeAreaView>;
   if (stage === 'chooseRole') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><RoleScreen onElegido={rolElegido} onSignOut={() => void signOut()} /></SafeAreaView>;
@@ -304,7 +348,7 @@ export default function AppNavigator() {
 
   if (orderIntent && user && (stage === 'guest' || stage === 'signedIn')) return <SafeAreaView style={styles.safe} {...(Platform.OS === 'ios' ? gestoVolver.panHandlers : {})}><OrderCheckoutScreen product={orderIntent.product} business={orderIntent.business} quantity={orderIntent.quantity} user={user} onBack={() => setOrderIntent(null)} onCreated={orderCreated} /></SafeAreaView>;
   const isChat = activeTab === 'María';
-  const isTransient = activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio' || activeTab === 'Legal' || productoEditar !== null;
+  const isTransient = activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio' || activeTab === 'Legal' || activeTab === 'Cuaderno' || activeTab === 'Aprende' || activeTab === 'Promocionar' || productoEditar !== null;
   const esAgricultor = stage === 'signedIn';
   const municipioComprador = datoUsuario(user, 'municipio');
   const abrirProducto = (product: Product, business: Business | null) => setSelectedProduct({ product, business });
@@ -317,15 +361,18 @@ export default function AppNavigator() {
   else if (activeTab === 'Legal') pantalla = <LegalScreen onBack={() => setActiveTab(volverLegal)} />;
   else if (activeTab === 'Videos') pantalla = <VideosScreen canPublish={esAgricultor} onVender={startMerchantFlow} onOpenMaria={openChat} />;
   else if (esAgricultor && activeTab === 'Mi negocio') pantalla = <BusinessDashboardScreen porConfirmar={seguimientos.length} onConfirmarVentas={() => setVerSeguimiento(true)} tipo={tipoNegocio} onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
-  else if (esAgricultor && activeTab === 'Inventario') pantalla = <InventoryScreen tipo={tipoNegocio} onAddProduct={() => navigate('Publicar')} onEdit={editarCosecha} onOpenSales={() => setActiveTab('Ventas')} />;
+  else if (esAgricultor && activeTab === 'Inventario') pantalla = <InventoryScreen tipo={tipoNegocio} onAddProduct={() => navigate('Publicar')} onEdit={editarCosecha} onOpenSales={() => setActiveTab('Ventas')} onPromocionar={(product) => void abrirPromocion(product)} />;
   else if (esAgricultor && activeTab === 'Publicar') pantalla = <PublishScreen key={productoEditar ? productoEditar.id : 'nueva'} tipo={tipoNegocio} producto={productoEditar} initialDraft={draftForPublish} onBack={volverDePublicar} onCreated={() => { if (draftForPublish) chat.confirmDraft(); setDraftForPublish(null); setProductoEditar(null); setActiveTab('Inventario'); }} />;
+  else if (activeTab === 'Aprende') pantalla = <AprendeScreen onBack={() => setActiveTab(volverAprende)} onPreguntar={() => openChat('texto')} />;
+  else if (esAgricultor && activeTab === 'Cuaderno') pantalla = <CuadernoScreen onBack={() => setActiveTab('Mi negocio')} onNuevaCosecha={() => navigate('Publicar')} />;
+  else if (esAgricultor && activeTab === 'Promocionar' && promocion) pantalla = <PromocionarScreen product={promocion.product} business={promocion.business} tipo={tipoNegocio} onBack={() => setActiveTab('Inventario')} />;
   else if (esAgricultor && activeTab === 'Ventas') pantalla = <SalesScreen onBack={() => setActiveTab('Mi negocio')} />;
   else if (esAgricultor && activeTab === 'Pedidos') pantalla = <OrdersScreen mode={ordersMode} userId={user?.id} onBack={() => setActiveTab('Mi negocio')} />;
   else if (esAgricultor && activeTab === 'Editar negocio') pantalla = <ProfileScreen onBack={() => setActiveTab('Mi negocio')} />;
   else if (activeTab === 'Guardados') pantalla = <GuardadosScreen onProductPress={abrirProducto} />;
   else if (activeTab === 'Mi negocio' && user) pantalla = <OrdersScreen mode={'customer'} userId={user.id} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (activeTab === 'Mi negocio' || activeTab === 'Publicar') pantalla = <AuthScreen onContinueGuest={continueAsGuest} />;
-  else pantalla = <HomeScreen key={municipioComprador + tipoChat} municipioInicial={municipioComprador} seccionInicial={tipoChat === 'agricultor' ? 'insumos' : 'cosechas'} onProductPress={abrirProducto} onVender={() => { if (esAgricultor) navigate('Publicar'); else startMerchantFlow(); }} onHablar={() => openChat('voz')} onEscribir={() => openChat('texto')} />;
+  else pantalla = <HomeScreen key={municipioComprador + tipoChat} municipioInicial={municipioComprador} seccionInicial={tipoChat === 'agricultor' ? 'insumos' : 'cosechas'} onProductPress={abrirProducto} onVender={() => { if (esAgricultor) navigate('Publicar'); else startMerchantFlow(); }} onHablar={() => openChat('voz')} onEscribir={() => openChat('texto')} onAprender={() => abrirAprende('Inicio')} />;
 
   // el boton de maria se ve en las pantallas principales y en el detalle de un producto
   const conBarra = !isTransient && !selectedBusiness && !selectedProduct;
@@ -338,7 +385,7 @@ export default function AppNavigator() {
   let alturaMaria = 20 + bordes.bottom;
   if (conBarra) alturaMaria = alturaBarra(pantallaAncho, bordes.bottom) + 12;
 
-  const hayAtras = !!selectedProduct || !!selectedBusiness || ['María', 'Legal', 'Publicar', 'Ventas', 'Pedidos', 'Editar negocio'].includes(activeTab);
+  const hayAtras = !!selectedProduct || !!selectedBusiness || ['María', 'Legal', 'Publicar', 'Ventas', 'Pedidos', 'Editar negocio', 'Cuaderno', 'Aprende', 'Promocionar'].includes(activeTab);
   // solo se respeta el borde de arriba: abajo la barra de pestanas pinta hasta el final
   return <SafeAreaView edges={conBarra ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']} style={[styles.safe, enVideos && styles.oscuro]}>
     <StatusBar barStyle={enVideos ? 'light-content' : 'dark-content'} />

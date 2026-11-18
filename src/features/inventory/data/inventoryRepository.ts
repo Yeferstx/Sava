@@ -10,6 +10,8 @@ export type NewProduct = Pick<Product, 'name' | 'category' | 'description' | 'pr
   available_from?: string;
   delivery?: string;
   min_order?: number;
+  // 0 = borrador (no se muestra a los compradores)
+  is_published?: number;
 };
 
 // asi llegan los productos desde supabase (select *)
@@ -40,10 +42,12 @@ export async function cacheRemoteProducts(remoteProducts: RemoteProduct[]) {
       const product = desdeRemoto(remoto);
       await db.runAsync(`INSERT INTO products (id, business_id, name, category, description, price_cop, stock, unit, photo_uri, is_published, sync_status, updated_at, municipality, available_from, delivery, retired, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET business_id = excluded.business_id, name = excluded.name, category = excluded.category, description = excluded.description, price_cop = excluded.price_cop, stock = excluded.stock, unit = excluded.unit, photo_uri = excluded.photo_uri, is_published = excluded.is_published, sync_status = 'synced', updated_at = excluded.updated_at, municipality = excluded.municipality, available_from = excluded.available_from, delivery = excluded.delivery, retired = excluded.retired, created_at = excluded.created_at`,
+        ON CONFLICT(id) DO UPDATE SET business_id = excluded.business_id, name = excluded.name, category = excluded.category, description = excluded.description, price_cop = excluded.price_cop, stock = excluded.stock, unit = excluded.unit, photo_uri = excluded.photo_uri, is_published = excluded.is_published, sync_status = 'synced', updated_at = excluded.updated_at, municipality = excluded.municipality, available_from = excluded.available_from, delivery = excluded.delivery, retired = excluded.retired, created_at = excluded.created_at
+        WHERE products.sync_status = 'synced'`,
       product.id, product.business_id, product.name, product.category, product.description, product.price_cop, product.stock, product.unit, product.photo_uri, product.is_published, product.updated_at,
       product.municipality ?? 'Yopal', product.available_from ?? null, product.delivery ?? 'A convenir', product.retired ?? 0, product.created_at ?? product.updated_at);
-      await db.runAsync('UPDATE products SET min_order = ? WHERE id = ?', product.min_order ?? 0, product.id);
+      // lo que llega del servidor no pisa cambios de este celular que aun no se han enviado
+      await db.runAsync("UPDATE products SET min_order = ?, server_updated_at = ? WHERE id = ? AND sync_status = 'synced'", product.min_order ?? 0, remoto.updated_at, product.id);
     }
   });
   void syncPendingChanges().catch(() => undefined);
@@ -87,14 +91,14 @@ export async function createProduct(input: NewProduct) {
   if (!municipio) municipio = await municipioDeLaFinca();
   const product: Product = {
     name: input.name, category: input.category, description: input.description, price_cop: input.price_cop, stock: input.stock, unit: input.unit,
-    photo_uri: input.photo_uri ?? null, id, business_id: businessId, is_published: 1, sync_status: 'pending', updated_at: now,
+    photo_uri: input.photo_uri ?? null, id, business_id: businessId, is_published: input.is_published ?? 1, sync_status: 'pending', updated_at: now,
     municipality: municipio, available_from: input.available_from ?? fechaDesdeHoy(0), delivery: input.delivery ?? 'A convenir', retired: 0, created_at: now, min_order: input.min_order ?? 0,
   };
   await db.withTransactionAsync(async () => {
     await db.runAsync('INSERT INTO products (id, business_id, name, category, description, price_cop, stock, unit, photo_uri, sync_status, updated_at, municipality, available_from, delivery, retired, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)',
       product.id, product.business_id, product.name, product.category, product.description, product.price_cop, product.stock, product.unit, product.photo_uri, product.sync_status, product.updated_at,
       product.municipality ?? 'Yopal', product.available_from ?? null, product.delivery ?? 'A convenir', now);
-    await db.runAsync('UPDATE products SET min_order = ? WHERE id = ?', product.min_order ?? 0, product.id);
+    await db.runAsync('UPDATE products SET min_order = ?, is_published = ? WHERE id = ?', product.min_order ?? 0, product.is_published, product.id);
     await enqueueSync(db, 'product', 'upsert', product);
   });
   void syncPendingChanges().catch(() => undefined);

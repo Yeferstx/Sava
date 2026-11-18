@@ -15,6 +15,12 @@ export default function LegalScreen({ onBack }: { onBack: () => void }) {
     <Text style={styles.section}>Quién ve tus datos</Text>
     <Text style={styles.body}>Los compradores ven tus publicaciones, el nombre de tu finca, tu municipio y tu teléfono para contactarte por WhatsApp. Tus ventas e inventario solo los ves tú. Los guardados del comprador quedan únicamente en su celular.</Text>
 
+    <Text style={styles.section}>Público y privado</Text>
+    <Text style={styles.body}>Público, solo si tú lo publicas: nombre de la finca, producto, municipio, cantidad ofrecida, fotos que elijas y tu contacto. Privado siempre: gastos, ingresos, cobros, deudas, historial de tu cuaderno e inventario que no publicaste. Lo privado nunca aparece en tu perfil ni en las búsquedas.</Text>
+
+    <Text style={styles.section}>Sin internet</Text>
+    <Text style={styles.body}>Tu cuaderno (cosechas, ventas, gastos, pérdidas y cobros) se guarda primero en este celular y se envía a tu cuenta cuando vuelve la señal. Al cerrar sesión se borran de este celular tus datos privados para que otra persona no los vea; si hay registros sin enviar, Sava te avisa antes. Los datos guardados en el celular no están cifrados por la app: protege tu celular con clave o huella.</Text>
+
     <Text style={styles.section}>Tus derechos</Text>
     <Text style={styles.body}>De acuerdo con la Ley 1581 de 2012 de protección de datos personales en Colombia, puedes conocer, actualizar, rectificar o pedir que se eliminen tus datos. Puedes editar la información de tu finca desde la app y pedir la eliminación de tu cuenta al equipo de Sava.</Text>
 

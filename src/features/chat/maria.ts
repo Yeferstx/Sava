@@ -8,7 +8,12 @@ export type Periodo = 'hoy' | 'semana' | 'mes';
 
 export type Intencion =
   | { tipo: 'publicar'; producto: string; cantidad: number; unidad: string; precio: number }
-  | { tipo: 'venta'; producto: string; cantidad: number; unidad: string; precio: number; total: number }
+  | { tipo: 'venta'; producto: string; cantidad: number; unidad: string; precio: number; total: number; fiada: boolean }
+  | { tipo: 'gasto'; monto: number; concepto: string }
+  | { tipo: 'perdida'; producto: string; cantidad: number; unidad: string }
+  | { tipo: 'cuentas'; periodo: Periodo; tema: 'gastos' | 'deben' | 'balance' }
+  | { tipo: 'promocionar'; producto: string }
+  | { tipo: 'aprender'; pregunta: string }
   | { tipo: 'inventario'; producto: string }
   | { tipo: 'resumen'; periodo: Periodo }
   | { tipo: 'buscar'; producto: string; municipio: string; cantidad: number; unidad: string; soloPrecio: boolean }
@@ -149,7 +154,8 @@ export function entender(mensaje: string): Intencion {
   if (/^(gracias|muchas gracias|listo gracias|ok gracias|dios le pague)/.test(t)) return { tipo: 'gracias' };
   // "ayudame a publicar una cosecha": empieza la publicacion guiada (va antes que la ayuda general)
   if (!/\d/.test(t) && (/\b(publicar|publica|publiquemos|subir|mostrar|montar)\b.*\b(cosecha|cosechas|producto|productos|algo|publicacion)\b/.test(t) || /^(quiero |ayudame a |vamos a )?publicar$/.test(t))) return { tipo: 'publicarGuiado' };
-  if (/\b(ayuda|ayudame|que (puedes|sabes) hacer|como (funciona|te uso)|que haces)\b/.test(t)) return { tipo: 'ayuda' };
+  // "ayudame a promocionar…" o "ayudame con mis cuentas" no son la ayuda general
+  if (!/(promocion|publicidad|propaganda|anunciar|a conocer|foto|descripcion|costo|cuentas|gaste|me deben)/.test(t) && /\b(ayuda|ayudame|que (puedes|sabes) hacer|como (funciona|te uso)|que haces)\b/.test(t)) return { tipo: 'ayuda' };
   // como encontrar compradores o como vender en sava
   if (/(encontrar|encuentro|conseguir|consigo|buscar|busco) compradores|quien me compr|como (vendo|vender|vendemos)/.test(t)) return { tipo: 'compradores' };
 
@@ -161,6 +167,51 @@ export function entender(mensaje: string): Intencion {
     return { tipo: 'resumen', periodo };
   }
 
+  // gasto: "gaste 80 mil en abono", "pague 50.000 de jornal"
+  if (/\b(gaste|gastamos|pague|pagamos|compre|invertí|inverti|me costo|me costaron)\b/.test(t) || /\bgasto\b/.test(t)) {
+    const todas = Array.from(t.matchAll(/\$?\s*(\d[\d.,]*)\s*(mil|millon|millones|pesos)?/g));
+    let plata = todas.find((m) => !!m[2]);
+    if (!plata && todas.length > 0) plata = todas[todas.length - 1];
+    if (plata) {
+      let valor = Number(plata[1].replace(/[.,]/g, ''));
+      if (plata[2] === 'mil') valor = valor * 1000;
+      if (plata[2] === 'millon' || plata[2] === 'millones') valor = valor * 1000000;
+      const concepto = (t.split(/\b(?:en|de|del|para)\b/).slice(1).join(' ').replace(/\d[\d.,]*|\b(mil|pesos|millones?)\b/g, ' ').replace(/\s+/g, ' ').trim()).replace(/\s+(a|al|por|el|la|los|las|y)$/, '');
+      if (valor >= 100) return { tipo: 'gasto', monto: Math.round(valor), concepto };
+    }
+  }
+
+  // perdida: "se me danaron 20 kilos de pina", "perdi 5 racimos de platano"
+  if (/\b(perdi|perdimos|se (me )?(dano|danaron|perdio|perdieron|pudrio|pudrieron|robaron)|bote|botamos|se murio|se murieron)\b/.test(t)) {
+    const datos = extraerCantidad(t.replace(/\b(se me|se|me)\b/g, ' ').replace(/\s+/g, ' '));
+    if (datos.cantidad > 0 && datos.producto !== '') return { tipo: 'perdida', producto: datos.producto, cantidad: datos.cantidad, unidad: datos.unidad };
+  }
+
+  // cuentas: "cuanto gaste este mes", "cuanto me deben", "como van mis cuentas"
+  if (/\b(cuanto (he )?(gaste|gastado|gastamos)|mis gastos|cuanto me deben|quien me debe|que me deben|por cobrar|mis cuentas|como van (mis )?cuentas|balance|cuanto (gane|me gane|he ganado|recibi|me quedo de plata))\b/.test(t)) {
+    let periodo: Periodo = 'mes';
+    if (/\bhoy\b/.test(t)) periodo = 'hoy';
+    if (/\bsemana\b/.test(t)) periodo = 'semana';
+    let tema: 'gastos' | 'deben' | 'balance' = 'balance';
+    if (/gast/.test(t)) tema = 'gastos';
+    if (/deben|debe|cobrar/.test(t)) tema = 'deben';
+    return { tipo: 'cuentas', periodo, tema };
+  }
+
+  // promocionar: "ayudame a promocionar mis 500 kilos de platano", "no se como darla a conocer"
+  if (/\b(promocion\w*|publicidad|propaganda|anunciar|dar a conocer|darla a conocer|darlo a conocer|darlos a conocer|darlas a conocer)\b/.test(t)) {
+    const datos = extraerCantidad(t);
+    let producto = datos.producto;
+    if (producto === '') {
+      const palabras = t.replace(/\b(ayudame|ayuda|quiero|a|promocion\w*|publicidad|propaganda|anunciar|hacer|mi|mis|el|la|los|las|de|del|para|dar|conocer|darla|darlo|darlos|darlas|como|no se|tengo|bastante|mucha|mucho|pero|sava|maria)\b/g, ' ').trim();
+      producto = palabras.replace(/\s+/g, ' ');
+    }
+    return { tipo: 'promocionar', producto };
+  }
+
+  // aprender: "como tomo buenas fotos", "ensename a llevar cuentas"
+  if (/\b(como (tomo|tomar|saco|sacar|hago|hacer|escribo|escribir|calculo|calcular|llevo|llevar|respondo|responder|muestro|mostrar|fotografio)|ensename|aprender|guia|guias|consejo|consejos|tips)\b/.test(t)) return { tipo: 'aprender', pregunta: t };
+
   // registrar una venta: "vendi", "anotame una venta", "acabo de vender"
   if (/\b(vendi|vendimos|acabo de vender|acabamos de vender|anota|anotame|anote|apunta|apuntame|registra|registrame|registre)\b/.test(t) || /\bventa\b/.test(t)) {
     const sinFrase = t.replace(/\b(una|la|otra) venta( de)?\b/g, ' ').replace(/\bregistr\w*|\banot\w*|\bapunt\w*/g, ' ').replace(/\s+/g, ' ');
@@ -170,7 +221,7 @@ export function entender(mensaje: string): Intencion {
       let unitario = precio.precio;
       let total = 0;
       if (precio.esTotal) { total = precio.precio; unitario = Math.round(precio.precio / datos.cantidad); }
-      return { tipo: 'venta', producto: datos.producto, cantidad: datos.cantidad, unidad: datos.unidad, precio: unitario, total };
+      return { tipo: 'venta', producto: datos.producto, cantidad: datos.cantidad, unidad: datos.unidad, precio: unitario, total, fiada: /\b(fiad\w*|quedo debiendo|quedaron debiendo|me debe|me deben|a credito|sin pagar)\b/.test(t) };
     }
     // quiere anotar una venta pero no dijo que ni cuanto
     if (/\b(registrar|anotar|apuntar) (una )?venta\b/.test(t)) return { tipo: 'pedirVenta' };

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ChevronRight, Minus, Pause, Pencil, Play, Plus, Share2, Sprout, Trash2, Wifi } from 'lucide-react-native';
+import { ChevronRight, Megaphone, Minus, Pause, Pencil, Play, Plus, Sprout, Trash2, Wifi } from 'lucide-react-native';
 import { getProductImageUri } from '../marketplace/getProductImageUri';
 import { FilaEsqueleto } from '../../shared/components/Esqueleto';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
@@ -12,10 +12,10 @@ import { mostrarCantidad, textoUnidad } from '../../shared/validaciones';
 import { compartirCosecha, dinero, textoPrecio } from '../../shared/contacto';
 import { vendidoPorProducto, type VendidoPorProducto } from '../sales/data/salesRepository';
 
-type Props = { onAddProduct: () => void; onEdit: (product: Product) => void; onOpenSales: () => void; tipo?: 'agricultor' | 'tienda' };
+type Props = { onAddProduct: () => void; onEdit: (product: Product) => void; onOpenSales: () => void; onPromocionar?: (product: Product) => void; tipo?: 'agricultor' | 'tienda' };
 
 // mis cosechas: publicaciones del agricultor con su cantidad disponible
-export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, tipo = 'agricultor' }: Props) {
+export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, onPromocionar, tipo = 'agricultor' }: Props) {
   const [products, setProducts] = useState<Product[]>([]);
   const [vendidos, setVendidos] = useState<VendidoPorProducto[]>([]);
   const [finca, setFinca] = useState('');
@@ -121,11 +121,15 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, tip
         const foto = getProductImageUri(product.photo_uri);
         const pausada = product.is_published === 0;
         const agotada = product.stock <= 0;
+        // nunca se dice "publicada" si el servidor todavia no la tiene
+        const enServidor = !!product.server_updated_at;
         let estado = 'Publicada';
-        if (pausada) estado = 'Pausada';
-        if (agotada) estado = 'Agotada';
+        if (!enServidor && product.sync_status !== 'synced') estado = pausada ? 'Borrador' : 'Pendiente de publicación';
+        else if (pausada) estado = 'Pausada';
+        if (agotada && estado === 'Publicada') estado = 'Agotada';
         let sync = '';
-        if (product.sync_status === 'pending') sync = 'Falta subir a internet';
+        if (product.sync_status === 'pending' && enServidor) sync = 'Cambios sin enviar';
+        if (product.sync_status === 'conflict') sync = 'Revisa: cambió en otro celular';
         return <View key={product.id} style={[styles.product, pausada && styles.productPausado]}>
           <View style={styles.productTop}>
             <View style={styles.foto}>{foto ? <Image source={{ uri: foto }} style={styles.fotoImagen} /> : <Sprout size={28} color={colors.brown} />}</View>
@@ -153,7 +157,7 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, tip
           <View style={styles.actions}>
             <Pressable accessibilityRole="button" onPress={() => onEdit(product)} style={styles.action}><Pencil size={20} color={colors.brown} /><Text style={styles.actionText}>Editar</Text></Pressable>
             <Pressable accessibilityRole="button" onPress={() => pausar(product)} style={styles.action}>{pausada ? <Play size={20} color={colors.brown} /> : <Pause size={20} color={colors.brown} />}<Text style={styles.actionText}>{pausada ? 'Reanudar' : 'Pausar'}</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={() => void compartirCosecha(product, null)} style={styles.action}><Share2 size={20} color={colors.brown} /><Text style={styles.actionText}>Compartir</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => { if (onPromocionar) onPromocionar(product); else void compartirCosecha(product, null); }} style={styles.action}><Megaphone size={20} color={colors.brown} /><Text style={styles.actionText}>Promocionar</Text></Pressable>
             <Pressable accessibilityRole="button" onPress={() => retirar(product)} style={styles.action}><Trash2 size={20} color="#775D50" /><Text style={[styles.actionText, styles.warning]}>Retirar</Text></Pressable>
           </View>
         </View>;

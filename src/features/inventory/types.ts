@@ -9,7 +9,7 @@ export type Product = {
   unit: string;
   photo_uri: string | null;
   is_published: number;
-  sync_status: 'local' | 'pending' | 'synced';
+  sync_status: 'local' | 'pending' | 'synced' | 'conflict';
   updated_at: string;
   // datos de la cosecha (pueden faltar en productos viejos)
   municipality?: string;
@@ -18,5 +18,7 @@ export type Product = {
   retired?: number;
   // pedido minimo (0 = vende cualquier cantidad). precio 0 = precio a convenir
   min_order?: number;
+  // version del servidor que conoce este celular (vacio = nunca se ha subido)
+  server_updated_at?: string | null;
   created_at?: string;
 };

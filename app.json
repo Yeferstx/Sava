@@ -68,7 +68,8 @@
             "com.google.android.googlequicksearchbox"
           ]
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "icon": "./assets/icon.png",
     "web": {
