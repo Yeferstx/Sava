@@ -44,6 +44,16 @@
           "imageWidth": 1,
           "resizeMode": "contain"
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Sava usa el micrófono para que puedas hablarle a tu asistente.",
+          "speechRecognitionPermission": "Sava convierte tu voz en texto para que tu asistente entienda lo que dices.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
       ]
     ],
     "icon": "./assets/icon.png",

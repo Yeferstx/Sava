@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Pressable, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, AppState, Easing, Pressable, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { User } from '@supabase/supabase-js';
 import ChatScreen from '../features/chat/ChatScreen';
@@ -57,6 +57,13 @@ function describeError(error: unknown) {
     try { return JSON.stringify(error); } catch { return 'Error desconocido'; }
   }
   return error instanceof Error ? error.message : 'Error desconocido';
+}
+
+// cada pantalla entra con un desvanecido corto al cambiar de seccion
+function PantallaAnimada({ children }: { children: React.ReactNode }) {
+  const valor = useRef(new Animated.Value(0)).current;
+  useEffect(() => { Animated.timing(valor, { toValue: 1, duration: 200, easing: Easing.out(Easing.quad), useNativeDriver: true }).start(); }, []);
+  return <Animated.View style={{ flex: 1, opacity: valor }}>{children}</Animated.View>;
 }
 
 export default function AppNavigator() {
@@ -293,7 +300,7 @@ export default function AppNavigator() {
   // solo se respeta el borde de arriba: abajo la barra de pestanas pinta hasta el final
   return <SafeAreaView edges={conBarra ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']} style={[styles.safe, enVideos && styles.oscuro]}>
     <StatusBar barStyle={enVideos ? 'light-content' : 'dark-content'} />
-    {pantalla}
+    <PantallaAnimada key={activeTab + (selectedProduct ? '-p' + selectedProduct.product.id : '') + (selectedBusiness ? '-n' + selectedBusiness.id : '')}>{pantalla}</PantallaAnimada>
     {verMaria && <MariaFlotante abajo={alturaMaria} onPress={openChat} />}
     {esAgricultor && <SeguimientoModal visible={verSeguimiento} pendientes={seguimientos} leerEnVoz={chat.leerEnVoz} onListo={seguimientoListo} onCerrar={() => setVerSeguimiento(false)} />}
     {!isTransient && !selectedBusiness && !selectedProduct && <TabBar active={activeTab} onChange={(tab) => {

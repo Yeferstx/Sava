@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Image, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Image, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bookmark, House, Play, Plus, Sprout, Store, UserRound } from 'lucide-react-native';
@@ -15,6 +15,14 @@ const PROPORCION = 1600 / 385;
 // y nunca menos de lo que necesitan los botones mas el borde de abajo del celular
 export function alturaBarra(ancho: number, bordeAbajo: number) {
   return Math.max(Math.round(ancho / PROPORCION), 80 + Math.max(bordeAbajo, 8));
+}
+
+// fondo del boton elegido: aparece y desaparece suave al cambiar de seccion
+function FondoActivo({ visible, oscuro }: { visible: boolean; oscuro: boolean }) {
+  const valor = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  useEffect(() => { Animated.timing(valor, { toValue: visible ? 1 : 0, duration: 200, easing: Easing.out(Easing.quad), useNativeDriver: true }).start(); }, [visible]);
+  const escala = valor.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
+  return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, oscuro ? styles.selectedOscuro : styles.selected, { borderRadius: 16, opacity: valor, transform: [{ scale: escala }] }]} />;
 }
 
 type Props = { active: AppTab; onChange: (tab: AppTab) => void; guest?: boolean; tienda?: boolean; oscuro?: boolean };
@@ -57,7 +65,18 @@ export default function TabBar({ active, onChange, guest = false, tienda = false
 
   return (
     <View style={[styles.bar, { height: alto }, oscuro && styles.barOscura]}>
-      {!oscuro && <Image source={paisaje} style={[styles.paisaje, { width, height: altoPaisaje }]} resizeMode="stretch" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />}
+      {/* el contenido que pasa por encima se desvanece hacia la barra, sin una linea dura */}
+      <Svg pointerEvents="none" width={width} height={26} style={styles.fundido}>
+        <Defs>
+          <LinearGradient id="fundido" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={oscuro ? colors.grafito : colors.crema} stopOpacity={0} />
+            <Stop offset="1" stopColor={oscuro ? colors.grafito : colors.crema} stopOpacity={0.95} />
+          </LinearGradient>
+        </Defs>
+        <Rect x={0} y={0} width={width} height={26} fill="url(#fundido)" />
+      </Svg>
+      {/* en videos el paisaje se ve tenue para no distraer del video */}
+      <Image source={paisaje} style={[styles.paisaje, { width, height: altoPaisaje }, oscuro && styles.paisajeTenue]} resizeMode="stretch" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
       {/* desvanecido suave: el borde de arriba del paisaje se funde con el crema */}
       {!oscuro && <Svg pointerEvents="none" width={width} height={28} style={[styles.desvanecido, { top: alto - altoPaisaje }]}>
         <Defs>
@@ -87,9 +106,13 @@ export default function TabBar({ active, onChange, guest = false, tienda = false
           return (
             <Pressable accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={label} key={name} onPress={() => onChange(name)} style={styles.item}>
               {/* capa crema suave detras de cada boton: se lee bien sin tapar el paisaje */}
-              <View style={[styles.boton, oscuro && styles.botonOscuro, selected && (oscuro ? styles.selectedOscuro : styles.selected)]}>
-                <Icon size={24} color={color} strokeWidth={selected ? 2.6 : 2.2} />
-                <Text style={[styles.label, selected && styles.activeText, oscuro && styles.labelOscuro]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
+              <View style={[styles.boton, oscuro && styles.botonOscuro]}>
+                <FondoActivo visible={selected} oscuro={oscuro} />
+                {/* el icono y el nombre siempre quedan encima del fondo */}
+                <View style={styles.contenido}>
+                  <Icon size={24} color={color} strokeWidth={selected ? 2.6 : 2.2} />
+                  <Text style={[styles.label, selected && styles.activeText, oscuro && styles.labelOscuro]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
+                </View>
               </View>
             </Pressable>
           );
@@ -104,6 +127,9 @@ const styles = StyleSheet.create({
   barOscura: { backgroundColor: colors.grafito },
   // el paisaje va pegado abajo y ocupa todo el ancho con su proporcion original
   paisaje: { position: 'absolute', left: 0, bottom: 0 },
+  paisajeTenue: { opacity: 0.16 },
+  contenido: { position: 'relative', alignItems: 'center' },
+  fundido: { position: 'absolute', left: 0, top: -26 },
   desvanecido: { position: 'absolute', left: 0 },
   fila: { position: 'absolute', left: 0, right: 0, top: 8, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-start', paddingHorizontal: 0 },
   item: { flex: 1, alignItems: 'center' },

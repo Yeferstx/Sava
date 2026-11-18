@@ -70,7 +70,7 @@ export default function SalesScreen({ onBack }: { onBack: () => void }) {
       </View>}
     </View>)}
     <Text style={[styles.section, styles.recentTitle]}>Movimientos recientes</Text>
-    {sales.slice(0, 10).map((sale) => <View key={sale.id} style={styles.sale}><View style={styles.saleDot}><CircleCheck size={17} color="#174B3F" /></View><View style={styles.saleCopy}><Text style={styles.productName}>{sale.product_name} · {mostrarCantidad(sale.quantity)} {textoUnidad(sale.quantity, sale.unit)}</Text><Text style={styles.productMeta}>{new Date(sale.sold_at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}</Text></View><Text style={styles.saleAmount}>{money(sale.total_cop)}</Text></View>)}
+    {sales.slice(0, 10).map((sale) => <View key={sale.id} style={styles.sale}><View style={styles.saleDot}><CircleCheck size={17} color="#064229" /></View><View style={styles.saleCopy}><Text style={styles.productName}>{sale.product_name} · {mostrarCantidad(sale.quantity)} {textoUnidad(sale.quantity, sale.unit)}</Text><Text style={styles.productMeta}>{new Date(sale.sold_at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}</Text></View><Text style={styles.saleAmount}>{money(sale.total_cop)}</Text></View>)}
     {!loading && sales.length === 0 && <Text style={styles.empty}>Las ventas que registres aparecerán aquí.</Text>}
     <Text style={styles.note}>Sin conexión también puedes registrar ventas. El inventario se descuenta en el celular.</Text>
   </ScrollView>;

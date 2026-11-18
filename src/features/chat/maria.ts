@@ -14,6 +14,8 @@ export type Intencion =
   | { tipo: 'buscar'; producto: string; municipio: string; cantidad: number; unidad: string; soloPrecio: boolean }
   | { tipo: 'precio'; precio: number }
   | { tipo: 'ayuda' }
+  | { tipo: 'compradores' }
+  | { tipo: 'pedirVenta' }
   | { tipo: 'saludo' }
   | { tipo: 'gracias' }
   | { tipo: 'nada' };
@@ -143,6 +145,8 @@ export function entender(mensaje: string): Intencion {
 
   if (/^(gracias|muchas gracias|listo gracias|ok gracias|dios le pague)/.test(t)) return { tipo: 'gracias' };
   if (/\b(ayuda|ayudame|que (puedes|sabes) hacer|como (funciona|te uso)|que haces)\b/.test(t)) return { tipo: 'ayuda' };
+  // como encontrar compradores o como vender en sava
+  if (/(encontrar|encuentro|conseguir|consigo|buscar|busco) compradores|quien me compr|como (vendo|vender|vendemos)/.test(t)) return { tipo: 'compradores' };
 
   // resumen de ventas
   if (/\b(cuanto (he |hemos )?vend|resumen|mis ventas|como (me )?(fue|va|van|ha ido)|cuanta plata|cuanto (he )?ganado|cuanto (me )?entro)/.test(t)) {
@@ -163,11 +167,13 @@ export function entender(mensaje: string): Intencion {
       if (precio.esTotal) { total = precio.precio; unitario = Math.round(precio.precio / datos.cantidad); }
       return { tipo: 'venta', producto: datos.producto, cantidad: datos.cantidad, unidad: datos.unidad, precio: unitario, total };
     }
+    // quiere anotar una venta pero no dijo que ni cuanto
+    if (/\b(registrar|anotar|apuntar) (una )?venta\b/.test(t)) return { tipo: 'pedirVenta' };
   }
 
   // inventario: "cuanta papaya me queda", "que tengo", "inventario"
   if (/\b(cuant[oa]s?|que)\b.*\b(me queda|me quedan|queda|quedan|tengo|hay)\b/.test(t) || /\b(inventario|existencias)\b/.test(t)) {
-    let producto = t.replace(/\b(cuant[oa]s?|que|me|quedan?|tengo|hay|de|del|inventario|existencias|todavia|aun|ahora|en|mi|el|la|los|las|kilos?|bultos?|racimos?|cajas?)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    let producto = t.replace(/\b(cuant[oa]s?|que|me|quedan?|tengo|hay|de|del|inventario|existencias|todavia|aun|ahora|en|mi|mis|el|la|los|las|kilos?|bultos?|racimos?|cajas?|productos?|cosechas?|cosas|publicad[oa]s?)\b/g, ' ').replace(/\s+/g, ' ').trim();
     return { tipo: 'inventario', producto };
   }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Alert, Animated, Easing, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Easing, LayoutAnimation, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ChevronDown, ChevronRight, ChevronUp, LocateFixed, MapPin, MessageCircle, Mic, MoonStar, Search, ShoppingBasket, Sprout, Sun, WifiOff } from 'lucide-react-native';
 import CategoriaIcono from './components/CategoriaIcono';
 import AsistenteOrbe from '../chat/components/AsistenteOrbe';
@@ -56,6 +56,11 @@ const rapidas: Record<Seccion, Array<{ corto: string; categoria: string }>> = {
 };
 
 const vacio: Mercado = { products: [], negocios: [] };
+
+// abrir o cerrar secciones (municipios, mas categorias) con una transicion suave
+function suavizar() {
+  LayoutAnimation.configureNext(LayoutAnimation.create(220, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity));
+}
 const BLOQUES = 7;
 
 // inicio: el mercado de cosechas e insumos de casanare.
@@ -77,6 +82,8 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   // aparicion suave y escalonada de cada bloque de la pantalla
   const entrada = useRef(Array.from({ length: BLOQUES }, () => new Animated.Value(0))).current;
   const cambioSeccion = useRef(new Animated.Value(1)).current;
+  // el buscador responde al tocarlo: borde verde y sombra un poco mayor
+  const foco = useRef(new Animated.Value(0)).current;
   const reducir = useRef(false);
 
   useEffect(() => {
@@ -143,6 +150,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   }
 
   function elegirMunicipio(item: string) {
+    suavizar();
     setMunicipio(item);
     setVerMunicipios(false);
     void guardarMunicipio(item).catch(() => undefined);
@@ -219,13 +227,17 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refreshFeed()} tintColor={colors.brown} />}>
       {/* encabezado: logo y municipio */}
+      {/* logo centrado; el municipio a la derecha sin empujar el logo */}
       <Animated.View style={[styles.header, aparecer(0)]}>
-        <SavaLogo size="encabezado" />
-        <Pressable accessibilityRole="button" accessibilityLabel={'Buscando en ' + nombreMunicipio + '. Toca para cambiar el municipio'} onPress={() => setVerMunicipios(!verMunicipios)} style={({ pressed }) => [styles.location, pressed && styles.presionado]}>
-          <MapPin size={18} color={colors.verde} />
-          <Text style={styles.locationText} numberOfLines={1}>{buscandoUbicacion ? 'Buscando…' : nombreMunicipio}</Text>
-          {verMunicipios ? <ChevronUp size={18} color={colors.verde} /> : <ChevronDown size={18} color={colors.verde} />}
-        </Pressable>
+        <View style={styles.headerLado} />
+        <SavaLogo size="centro" centrado />
+        <View style={[styles.headerLado, styles.headerDerecha]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={'Buscando en ' + nombreMunicipio + '. Toca para cambiar el municipio'} onPress={() => { suavizar(); setVerMunicipios(!verMunicipios); }} style={({ pressed }) => [styles.location, pressed && styles.presionado]}>
+            <MapPin size={16} color={colors.verde} />
+            <Text style={styles.locationText} numberOfLines={1}>{buscandoUbicacion ? 'Buscando…' : municipio === '' ? 'Casanare' : municipio}</Text>
+            {verMunicipios ? <ChevronUp size={16} color={colors.verde} /> : <ChevronDown size={16} color={colors.verde} />}
+          </Pressable>
+        </View>
       </Animated.View>
       {verMunicipios && <View style={styles.municipiosCaja}>
         <Pressable accessibilityRole="button" onPress={() => void usarUbicacion(true)} style={styles.miUbicacion}>
@@ -262,11 +274,11 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
 
       {/* buscador con microfono */}
       <Animated.View style={aparecer(3)}>
-        <View style={styles.search}>
+        <Animated.View style={[styles.search, { borderColor: foco.interpolate({ inputRange: [0, 1], outputRange: [colors.line, colors.verde] }), shadowOpacity: foco.interpolate({ inputRange: [0, 1], outputRange: [0.08, 0.16] }) }]}>
           <Search size={22} color={colors.verde} />
-          <TextInput ref={buscador} accessibilityLabel="Buscar" value={query} onChangeText={setQuery} placeholder={seccion === 'insumos' ? 'Busca abono, semillas…' : 'Busca piña, yuca, plátano…'} placeholderTextColor={colors.muted} style={styles.searchInput} returnKeyType="search" maxLength={60} onBlur={() => setAyudaVoz(false)} />
+          <TextInput ref={buscador} accessibilityLabel="Buscar" value={query} onChangeText={setQuery} placeholder={seccion === 'insumos' ? 'Busca abono, semillas…' : 'Busca piña, yuca, plátano…'} placeholderTextColor={colors.muted} style={styles.searchInput} returnKeyType="search" maxLength={60} onFocus={() => Animated.timing(foco, { toValue: 1, duration: 180, useNativeDriver: false }).start()} onBlur={() => { setAyudaVoz(false); Animated.timing(foco, { toValue: 0, duration: 220, useNativeDriver: false }).start(); }} />
           <Pressable accessibilityRole="button" accessibilityLabel="Buscar hablando" onPress={usarMicrofono} style={({ pressed }) => [styles.micBoton, pressed && styles.presionado]}><Mic size={22} color={colors.verde} /></Pressable>
-        </View>
+        </Animated.View>
         {ayudaVoz && <Text style={styles.ayudaVoz}>Toca el micrófono de tu teclado y di lo que buscas.</Text>}
       </Animated.View>
 
@@ -275,7 +287,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
         <View style={styles.rapidas}>
           {rapidas[seccion].map((item, i) => <CategoriaIcono key={item.categoria} nombre={item.categoria} etiqueta={item.corto} posicion={i} elegida={categoria === item.categoria} enGrilla onPress={() => elegirCategoria(item.categoria)} />)}
         </View>
-        <Pressable accessibilityRole="button" onPress={() => setVerTodas(!verTodas)} style={styles.verMas}>
+        <Pressable accessibilityRole="button" onPress={() => { suavizar(); setVerTodas(!verTodas); }} style={styles.verMas}>
           <Text style={styles.verMasTexto}>{verTodas ? 'Ver menos' : 'Ver más productos'}</Text>
           {verTodas ? <ChevronUp size={18} color={colors.verde} /> : <ChevronRight size={18} color={colors.verde} />}
         </Pressable>
@@ -340,9 +352,11 @@ const sombraSuave = { shadowColor: '#26332F', shadowOpacity: 0.08, shadowRadius:
 
 const styles = StyleSheet.create({
   flex: { flex: 1 }, content: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 28 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  location: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '58%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 24, backgroundColor: colors.salvia, ...sombraSuave },
-  locationText: { color: colors.verde, fontWeight: '900', fontSize: 16, flexShrink: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  headerLado: { flex: 1 },
+  headerDerecha: { alignItems: 'flex-end' },
+  location: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.salvia, ...sombraSuave },
+  locationText: { color: colors.verde, fontWeight: '900', fontSize: 14, flexShrink: 1 },
   municipiosCaja: { backgroundColor: colors.white, borderRadius: 18, borderWidth: 1, borderColor: colors.line, padding: 12, marginBottom: 16 },
   miUbicacion: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, borderRadius: 25, backgroundColor: colors.verde },
   miUbicacionTexto: { color: colors.white, fontSize: 15, fontWeight: '900' },

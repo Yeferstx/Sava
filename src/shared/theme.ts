@@ -5,11 +5,11 @@ export const colors = {
   paper: '#F0E9DF', // beige crema, fondo de la app
   ink: '#26332F', // grafito, texto principal
   muted: '#636A64', // grafito suavizado con crema, texto secundario
-  brown: '#174B3F', // verde profundo, botones y acentos (se deja el nombre para no cambiar todas las pantallas)
+  brown: '#064229', // verde bosque, botones y acentos (se deja el nombre para no cambiar todas las pantallas)
   gold: '#C98770', // arcilla suave, detalles
   line: '#DCD7CD', // bordes
   white: '#FFFFFF',
-  verde: '#174B3F',
+  verde: '#064229',
   crema: '#F0E9DF',
   arcilla: '#C98770',
   verdeClaro: '#E8F2EE',

@@ -1,4 +1,5 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MapPin, Sprout, UserRound } from 'lucide-react-native';
 import type { Product } from '../../inventory/types';
 import { colors } from '../../../shared/theme';
@@ -16,6 +17,10 @@ function categoriaCorta(categoria: string) {
 
 // tarjeta de una publicacion: foto real, nombre, precio, cantidad, municipio y vendedor
 export default function ProductCard({ product, municipio, vendedor = '', conCategoria = false, enGrilla = false, onPress }: Props) {
+  // entrada suave al aparecer
+  const aparecer = useRef(new Animated.Value(0)).current;
+  useEffect(() => { Animated.timing(aparecer, { toValue: 1, duration: 280, easing: Easing.out(Easing.quad), useNativeDriver: true }).start(); }, []);
+  const subir = aparecer.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
   const imageUri = getProductImageUri(product.photo_uri);
   let lugar = product.municipality;
   if (!lugar) lugar = municipio;
@@ -26,7 +31,8 @@ export default function ProductCard({ product, municipio, vendedor = '', conCate
   let cantidad = 'Agotado';
   if (product.stock > 0) cantidad = mostrarCantidad(product.stock) + ' ' + textoUnidad(product.stock, product.unit) + ' disponibles';
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={'Ver ' + product.name} onPress={onPress} style={({ pressed }) => [styles.card, enGrilla && styles.grilla, pressed && styles.presionada]}>
+    <Animated.View style={[enGrilla ? styles.grilla : styles.fila, { opacity: aparecer, transform: [{ translateY: subir }] }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={'Ver ' + product.name} onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.presionada]}>
       <View style={styles.image}>
         {imageUri ? <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" /> : <Sprout size={36} color={colors.brown} strokeWidth={1.5} />}
         <View style={styles.etiquetas}>
@@ -40,11 +46,13 @@ export default function ProductCard({ product, municipio, vendedor = '', conCate
       {!!lugar && <View style={styles.place}><MapPin size={12} color={colors.muted} /><Text numberOfLines={1} style={styles.placeText}>{lugar}</Text></View>}
       {vendedor !== '' && <View style={styles.place}><UserRound size={12} color={colors.muted} /><Text numberOfLines={1} style={styles.placeText}>{vendedor}</Text></View>}
     </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { width: 156, backgroundColor: colors.white, borderRadius: 20, padding: 8, borderWidth: 1, borderColor: colors.line, shadowColor: '#26332F', shadowOpacity: 0.07, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  fila: { width: 156 },
+  card: { backgroundColor: colors.white, borderRadius: 20, padding: 8, borderWidth: 1, borderColor: colors.line, shadowColor: '#26332F', shadowOpacity: 0.07, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
   grilla: { width: '48.5%' },
   presionada: { transform: [{ scale: 0.97 }] },
   image: { height: 124, backgroundColor: colors.salvia, borderRadius: 14, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },

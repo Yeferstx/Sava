@@ -18,24 +18,30 @@ const ojos = [
 // color del visor alrededor de los ojos (sale de la misma imagen)
 const VISOR = '#034D2C';
 const LOMA = '#6FAE7E';
+// barras de sonido: verde salvia mas profundo (para que se vea sobre el crema) y terracota
+const SALVIA_ONDA = '#8DBF9C';
+// alto base de cada barra (de afuera hacia el personaje): formas variadas, no todas iguales
+const ALTOS = [0.32, 0.55, 0.78, 1, 0.82, 0.6, 0.4];
 const BRILLO_OJO = '#FFE9B8';
 
 // estados reales del asistente. cada uno se activa solo cuando de verdad pasa
 export type EstadoAsistente = 'reposo' | 'escuchando' | 'pensando' | 'hablando';
 
-type Props = { estado: EstadoAsistente; tamano?: number; quieto?: boolean };
+// volumen: nivel real del microfono entre 0 y 1 (solo cuando escucha)
+type Props = { estado: EstadoAsistente; tamano?: number; quieto?: boolean; volumen?: number };
 
-export default function AsistenteOrbe({ estado, tamano = 150, quieto = false }: Props) {
+export default function AsistenteOrbe({ estado, tamano = 150, quieto = false, volumen = 0 }: Props) {
   const flotar = useRef(new Animated.Value(0)).current;
   const parpadeo = useRef(new Animated.Value(0)).current;
   const respirar = useRef(new Animated.Value(0)).current;
   const pulso = useRef(new Animated.Value(0)).current;
   const giro = useRef(new Animated.Value(0)).current;
   const brilloOjos = useRef(new Animated.Value(0)).current;
-  const ondas = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
-  const barras = useRef([0, 1, 2, 3, 4].map(() => new Animated.Value(0.3))).current;
+  // 7 barras por lado, cada una con su propio movimiento
+  const barras = useRef(Array.from({ length: 14 }, () => new Animated.Value(0.2))).current;
+  const conOndas = estado === 'escuchando' || estado === 'hablando';
   // opacidad de cada capa de efectos (para pasar de un estado a otro con suavidad)
-  const capas = useRef({ escuchando: new Animated.Value(estado === 'escuchando' ? 1 : 0), pensando: new Animated.Value(estado === 'pensando' ? 1 : 0), hablando: new Animated.Value(estado === 'hablando' ? 1 : 0) }).current;
+  const capas = useRef({ ondas: new Animated.Value(conOndas ? 1 : 0), pensando: new Animated.Value(estado === 'pensando' ? 1 : 0) }).current;
   const [reducir, setReducir] = useState(false);
 
   useEffect(() => { void pedirReducirMovimiento().then(setReducir); }, []);
@@ -65,10 +71,8 @@ export default function AsistenteOrbe({ estado, tamano = 150, quieto = false }: 
 
   // solo se ve la capa del estado actual; los ojos brillan un poco mas al escuchar
   useEffect(() => {
-    const claves: Array<'escuchando' | 'pensando' | 'hablando'> = ['escuchando', 'pensando', 'hablando'];
-    for (const clave of claves) {
-      Animated.timing(capas[clave], { toValue: estado === clave ? 1 : 0, duration: 300, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
-    }
+    Animated.timing(capas.ondas, { toValue: conOndas ? 1 : 0, duration: conOndas ? 260 : 450, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+    Animated.timing(capas.pensando, { toValue: estado === 'pensando' ? 1 : 0, duration: 300, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
     let brillo = 0;
     if (estado === 'escuchando') brillo = 0.85;
     if (estado === 'hablando') brillo = 0.45;
@@ -107,28 +111,35 @@ export default function AsistenteOrbe({ estado, tamano = 150, quieto = false }: 
     return () => vuelta.stop();
   }, [estado, reducir]);
 
-  // escuchando: ondas verdes que salen de los dos lados
+  // escuchando: cada barra sigue el volumen real del microfono (con un poco de variacion
+  // propia para que no suban todas iguales). en silencio quedan pequenas
   useEffect(() => {
-    if (estado !== 'escuchando' || reducir) return;
-    const animaciones = ondas.map((onda, i) => Animated.loop(Animated.sequence([
-      Animated.delay(i * 380),
-      Animated.timing(onda, { toValue: 1, duration: 1150, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(onda, { toValue: 0, duration: 0, useNativeDriver: true }),
-    ])));
-    for (const animacion of animaciones) animacion.start();
-    return () => { for (const animacion of animaciones) animacion.stop(); };
-  }, [estado, reducir]);
+    if (estado !== 'escuchando') return;
+    for (let i = 0; i < barras.length; i++) {
+      const variacion = 0.7 + ((i * 37) % 10) / 16;
+      let destino = 0.16 + volumen * 0.9 * variacion;
+      if (destino > 1) destino = 1;
+      Animated.timing(barras[i], { toValue: reducir ? 0.5 : destino, duration: 120, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+    }
+  }, [estado, volumen, reducir]);
 
-  // hablando: barras de sonido que suben y bajan a distinto ritmo
+  // hablando: cada barra va a una altura distinta y a su propio ritmo (nunca todas a la vez)
   useEffect(() => {
     if (estado !== 'hablando' || reducir) return;
-    const animaciones = barras.map((barra, i) => Animated.loop(Animated.sequence([
-      Animated.timing(barra, { toValue: 1, duration: 240 + i * 70, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      Animated.timing(barra, { toValue: 0.3, duration: 280 + i * 55, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-    ])));
-    for (const animacion of animaciones) animacion.start();
-    return () => { for (const animacion of animaciones) animacion.stop(); };
+    let activo = true;
+    function mover(i: number) {
+      if (!activo) return;
+      Animated.timing(barras[i], { toValue: 0.25 + Math.random() * 0.75, duration: 170 + Math.random() * 260, easing: Easing.inOut(Easing.quad), useNativeDriver: true }).start(() => mover(i));
+    }
+    for (let i = 0; i < barras.length; i++) mover(i);
+    return () => { activo = false; };
   }, [estado, reducir]);
+
+  // al dejar de escuchar o de hablar, las barras bajan despacio
+  useEffect(() => {
+    if (conOndas) return;
+    for (const barra of barras) Animated.timing(barra, { toValue: 0.2, duration: 400, useNativeDriver: true }).start();
+  }, [conOndas]);
 
   const anchoOrbe = tamano;
   const altoOrbe = tamano / PROPORCION;
@@ -143,28 +154,17 @@ export default function AsistenteOrbe({ estado, tamano = 150, quieto = false }: 
 
   return (
     <View pointerEvents="none" accessible accessibilityLabel={'Asistente de Sava, ' + textoEstado(estado)} style={{ width: ancho, height: altoTotal, alignItems: 'center', justifyContent: 'center' }}>
-      {/* escuchando: ondas verdes a los dos lados */}
-      <Animated.View style={[StyleSheet.absoluteFill, styles.centro, { opacity: capas.escuchando }]}>
-        {ondas.map((onda, i) => {
-          const escala = onda.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.25] });
-          const opacidad = onda.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0.8, 0] });
-          return <Animated.View key={i} style={[styles.capa, { opacity: reducir ? 0.5 : opacidad, transform: [{ scale: reducir ? 1.05 + i * 0.08 : escala }] }]}>
-            <Svg width={ancho} height={altoOrbe} viewBox="0 0 360 200">
-              <Path d="M74 52 Q44 100 74 148" stroke={LOMA} strokeOpacity={0.75} strokeWidth={6} strokeLinecap="round" fill="none" />
-              <Path d="M286 52 Q316 100 286 148" stroke={LOMA} strokeOpacity={0.75} strokeWidth={6} strokeLinecap="round" fill="none" />
-            </Svg>
-          </Animated.View>;
-        })}
-      </Animated.View>
-
-      {/* hablando: ondas de sonido verdes y terracota */}
-      <Animated.View style={[StyleSheet.absoluteFill, styles.barras, { opacity: capas.hablando }]}>
-        {[0, 1].map((lado) => <View key={lado} style={[styles.grupoBarras, { gap: tamano * 0.035 }]}>
-          {barras.map((barra, i) => {
-            const orden = lado === 0 ? barras.length - 1 - i : i;
-            let color: string = LOMA;
-            if (orden % 2 === 1) color = colors.arcilla;
-            return <Animated.View key={i} style={{ width: Math.max(2, tamano * 0.03), height: tamano * (0.16 + (orden % 3) * 0.07), borderRadius: tamano, backgroundColor: color, transform: [{ scaleY: reducir ? 0.7 : barras[orden] }] }} />;
+      {/* ondas de sonido: escuchando (con el volumen real) y hablando (con la voz) */}
+      <Animated.View style={[StyleSheet.absoluteFill, styles.barras, { opacity: capas.ondas }]}>
+        {[0, 1].map((lado) => <View key={lado} style={[styles.grupoBarras, { gap: tamano * 0.028 }]}>
+          {ALTOS.map((alto, i) => {
+            // del lado izquierdo el orden va al reves para que las mas altas queden cerca del personaje
+            let pos = i;
+            if (lado === 0) pos = ALTOS.length - 1 - i;
+            const indice = lado * ALTOS.length + i;
+            let color = SALVIA_ONDA;
+            if (pos % 3 === 1) color = colors.arcilla;
+            return <Animated.View key={i} style={[styles.barra, { width: Math.max(3, tamano * 0.026), height: tamano * 0.34 * ALTOS[pos], backgroundColor: color, shadowColor: color, transform: [{ scaleY: barras[indice] }] }]} />;
           })}
         </View>)}
       </Animated.View>
@@ -226,7 +226,7 @@ export default function AsistenteOrbe({ estado, tamano = 150, quieto = false }: 
 
 export function textoEstado(estado: EstadoAsistente) {
   if (estado === 'escuchando') return 'Te estoy escuchando';
-  if (estado === 'pensando') return 'Buscando la mejor respuesta';
+  if (estado === 'pensando') return 'Estoy pensando';
   if (estado === 'hablando') return 'Aquí tienes mi respuesta';
   return '¿En qué te ayudo?';
 }
@@ -234,6 +234,8 @@ export function textoEstado(estado: EstadoAsistente) {
 const styles = StyleSheet.create({
   centro: { alignItems: 'center', justifyContent: 'center' },
   capa: { position: 'absolute' },
-  barras: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: '2%' },
+  barras: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: '1%' },
+  // resplandor muy discreto alrededor de cada barra
+  barra: { borderRadius: 99, shadowOpacity: 0.45, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
   grupoBarras: { flexDirection: 'row', alignItems: 'center' },
 });

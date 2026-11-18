@@ -14,11 +14,17 @@ import { preguntarAMaria, type AccionIA } from '../mariaIA';
 // tipoVendedor: 'agricultor' o 'tienda' si la persona vende, '' si solo compra
 type TipoVendedor = 'agricultor' | 'tienda' | '';
 
-function bienvenida(tipo: TipoVendedor): ChatMessage {
-  let texto = '¡Hola! Soy María. Dime qué necesitas comprar y te digo quién lo tiene. Por ejemplo: «necesito 50 kilos de piña» o «busco abono en Aguazul».';
-  if (tipo === 'agricultor') texto = '¡Hola! Soy María. Puedes decirme: «tengo 200 kilos de piña a 2.500», «vendí 10 kilos de yuca», «¿cuánta papaya me queda?» o «¿cuánto vendí esta semana?».';
-  if (tipo === 'tienda') texto = '¡Hola! Soy María. Puedes decirme: «tengo 20 bultos de abono a 95 mil», «vendí 2 litros de herbicida», «¿cuánto abono me queda?» o «¿cuánto vendí hoy?».';
-  return { id: 'bienvenida', author: 'assistant', text: texto };
+// saludo corto. el nombre del asistente todavia no esta definido
+function bienvenida(): ChatMessage {
+  return { id: 'bienvenida', author: 'assistant', text: '¡Hola! Soy tu asistente de Sava. ¿En qué te ayudo hoy?' };
+}
+
+// ejemplos de lo que entiende, segun quien usa la app
+function textoAyuda(tipo: TipoVendedor) {
+  let texto = 'Dime qué necesitas comprar y te digo quién lo tiene. Por ejemplo: «necesito 50 kilos de piña» o «busco abono en Aguazul».';
+  if (tipo === 'agricultor') texto = 'Puedes decirme: «tengo 200 kilos de piña a 2.500», «vendí 10 kilos de yuca», «¿cuánta papaya me queda?» o «¿cuánto vendí esta semana?».';
+  if (tipo === 'tienda') texto = 'Puedes decirme: «tengo 20 bultos de abono a 95 mil», «vendí 2 litros de herbicida», «¿cuánto abono me queda?» o «¿cuánto vendí hoy?».';
+  return texto;
 }
 
 // recupera el nombre con tildes tal como lo escribio la persona ("pina" -> "piña")
@@ -41,7 +47,7 @@ function desdeCuando(periodo: Periodo) {
 }
 
 export function useAssistantChat(tipo: TipoVendedor) {
-  const [messages, setMessages] = useState<ChatMessage[]>([bienvenida(tipo)]);
+  const [messages, setMessages] = useState<ChatMessage[]>([bienvenida()]);
   const [draft, setDraft] = useState<ProductDraft | null>(null);
   const [venta, setVenta] = useState<VentaPropuesta | null>(null);
   const [pensando, setPensando] = useState(false);
@@ -116,9 +122,19 @@ export function useAssistantChat(tipo: TipoVendedor) {
       pendiente.current = null;
     }
 
-    if (intencion.tipo === 'saludo') { responder(bienvenida(tipo).text); return; }
+    if (intencion.tipo === 'saludo') { responder('¡Hola! ' + textoAyuda(tipo)); return; }
     if (intencion.tipo === 'gracias') { responder('¡Con gusto! Aquí estoy cuando me necesites.'); return; }
-    if (intencion.tipo === 'ayuda') { responder(bienvenida(tipo).text + ' También puedes hablarme: toca el micrófono de tu teclado.'); return; }
+    if (intencion.tipo === 'ayuda') { responder(textoAyuda(tipo) + ' También puedes hablarme con el micrófono.'); return; }
+    if (intencion.tipo === 'compradores') {
+      if (vende) responder('Para encontrar compradores: publica tu producto con una foto real y buen precio, compártelo por WhatsApp desde «Mis cosechas» y responde rápido las consultas. Los compradores de Casanare te ven en el Inicio.');
+      else responder('Si tienes algo para vender, toca «Vender» abajo, registra tu finca o tienda y publica tu producto. Así los compradores de Casanare te encuentran.');
+      return;
+    }
+    if (intencion.tipo === 'pedirVenta') {
+      if (vende) responder('Claro. Dime qué vendiste y cuánto, por ejemplo: «vendí 10 kilos de yuca a 2.000».');
+      else responder('Eso es para quien vende en Sava. Si tienes cosecha o una tienda del campo, toca «Vender» abajo para registrarte.');
+      return;
+    }
 
     if (intencion.tipo === 'buscar') { await buscar(nombreOriginal(valor, intencion.producto).toLocaleLowerCase('es-CO'), intencion.municipio, intencion.cantidad, intencion.soloPrecio); return; }
 
@@ -337,7 +353,7 @@ export function useAssistantChat(tipo: TipoVendedor) {
   }
 
   function resetChat() {
-    setMessages([bienvenida(tipo)]);
+    setMessages([bienvenida()]);
     setDraft(null);
     setVenta(null);
     pendiente.current = null;
