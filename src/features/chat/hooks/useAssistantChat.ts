@@ -12,6 +12,10 @@ import { getDatabase } from '../../../infrastructure/database/database';
 import { preguntarAMaria, type AccionIA } from '../mariaIA';
 import { escucharSenal, guardarPendiente, hayInternet, listarPendientes, quitarPendiente } from '../pendientes';
 import { borrarAudio, prepararSinInternet, transcribirAudio } from '../../../shared/escucha';
+import { guiaVacia, pasoACorregir, preguntar, quiereCancelar, responder as leerPaso, resumen, siguientePaso, type DatosGuia } from '../publicacionGuiada';
+import { municipios } from '../../../shared/validaciones';
+import { unidades, unidadesInsumo } from '../../../shared/agro';
+import { getBusinessProfile } from '../../business/data/businessRepository';
 
 // tipoVendedor: 'agricultor' o 'tienda' si la persona vende, '' si solo compra
 type TipoVendedor = 'agricultor' | 'tienda' | '';
@@ -65,8 +69,11 @@ export function useAssistantChat(tipo: TipoVendedor) {
   const [enEspera, setEnEspera] = useState(0);
   const ocupado = useRef(false);
   // valores actuales para las funciones que corren cuando vuelve la senal
-  const actual = useRef({ messages, leerEnVoz });
-  actual.current = { messages, leerEnVoz };
+  const actual = useRef({ messages, leerEnVoz, draft });
+  actual.current = { messages, leerEnVoz, draft };
+  // publicacion guiada en curso (null = no hay) y los datos del ultimo borrador para poder corregirlo
+  const guia = useRef<DatosGuia | null>(null);
+  const ultimaGuia = useRef<DatosGuia | null>(null);
   const revisarCola = useRef<() => Promise<void>>(async () => undefined);
   revisarCola.current = responderPendientes;
 
@@ -94,8 +101,8 @@ export function useAssistantChat(tipo: TipoVendedor) {
     return Date.now() + '-' + contador.current;
   }
 
-  function responder(texto: string, recomendaciones?: Recomendacion[]) {
-    setMessages((lista) => [...lista, { id: nuevoId(), author: 'assistant', text: texto, recomendaciones }]);
+  function responder(texto: string, recomendaciones?: Recomendacion[], opciones?: string[]) {
+    setMessages((lista) => [...lista, { id: nuevoId(), author: 'assistant', text: texto, recomendaciones, opciones }]);
     if (actual.current.leerEnVoz) void hablar(texto);
   }
 
@@ -131,6 +138,9 @@ export function useAssistantChat(tipo: TipoVendedor) {
   // devuelve false si hace falta internet y no hay (el mensaje queda en espera)
   async function resolver(valor: string) {
     const intencion = entender(valor);
+    // durante la publicacion guiada todo lo responde el celular (sin internet ni ia)
+    const enTarea = !!guia.current || (!!actual.current.draft && pasoACorregir(valor) !== null);
+    if (enTarea) { setConIA(false); await procesar(valor); return true; }
     const necesitaInternet = !pendiente.current && (intencion.tipo === 'nada' || intencion.tipo === 'buscar');
     if (necesitaInternet && !(await hayInternet())) return false;
     let resuelto = false;
@@ -185,6 +195,32 @@ export function useAssistantChat(tipo: TipoVendedor) {
     let unidadNormal = 'kg';
     if (tipo === 'tienda') unidadNormal = 'unidad';
 
+    // publicacion guiada: cancelar, corregir o responder la pregunta actual
+    if (guia.current) {
+      if (quiereCancelar(valor)) { guia.current = null; responder('Listo, no publiqué nada. Cuando quieras lo retomamos.'); return; }
+      const corregir = pasoACorregir(valor);
+      if (corregir) { await avanzarGuia(limpiarCampo(guia.current, corregir)); return; }
+      const paso = siguientePaso(guia.current);
+      if (paso) {
+        const leido = leerPaso(paso, valor, guia.current, municipios);
+        if ('error' in leido) { responder(leido.error, undefined, (await preguntaDe(guia.current)).opciones); return; }
+        await avanzarGuia(leido.datos);
+        return;
+      }
+    }
+    // corregir el borrador ya armado: "cambiar el precio"
+    if (actual.current.draft && ultimaGuia.current) {
+      const corregir = pasoACorregir(valor);
+      if (corregir) { setDraft(null); await avanzarGuia(limpiarCampo(ultimaGuia.current, corregir)); return; }
+    }
+
+    if (intencion.tipo === 'publicarGuiado') {
+      if (!vende) { responder('Para publicar necesitas registrarte como campesino o tienda. Toca «Vender» abajo y te ayudo.'); return; }
+      setDraft(null); setVenta(null);
+      await avanzarGuia({ ...guiaVacia });
+      return;
+    }
+
     // respuesta a una pregunta de maria (falta cantidad o precio)
     if (pendiente.current) {
       const espera = pendiente.current;
@@ -226,17 +262,11 @@ export function useAssistantChat(tipo: TipoVendedor) {
       if (!vende) { responder('Eso es para quien vende en Sava. Si tienes cosecha o una tienda del campo, toca «Vender» abajo para registrarte.'); return; }
     }
 
+    // "tengo 500 kilos de pina": se empieza la guia con lo que ya dijo
     if (intencion.tipo === 'publicar') {
-      let unidad = intencion.unidad;
-      if (unidad === '') unidad = unidadNormal;
-      const nombre = nombreOriginal(valor, intencion.producto);
-      let categoria = categoriaVisible(categoriaDeProducto(nombre));
-      // en una tienda todo lo que no se reconoce va a otros insumos
-      if (tipo === 'tienda' && !esInsumo(categoria)) categoria = 'Otros insumos';
-      const borrador: ProductDraft = { name: nombre, category: categoria, description: '', price_cop: intencion.precio, stock: intencion.cantidad, unit: unidad };
-      if (borrador.stock <= 0) { pendiente.current = { draft: borrador, falta: 'cantidad' }; responder('¿Cuántos ' + textoUnidad(2, unidad) + ' de ' + nombre.toLowerCase() + ' tienes?'); return; }
-      if (borrador.price_cop <= 0) { pendiente.current = { draft: borrador, falta: 'precio' }; responder('¿A cómo vendes cada ' + unidad + ' de ' + nombre.toLowerCase() + '?'); return; }
-      mostrarBorrador(borrador);
+      const nombreDicho = nombreOriginal(valor, intencion.producto);
+      setDraft(null); setVenta(null);
+      await avanzarGuia({ ...guiaVacia, nombre: nombreDicho, cantidad: intencion.cantidad > 0 ? intencion.cantidad : null, unidad: intencion.unidad !== '' ? intencion.unidad : null, precio: intencion.precio > 0 ? intencion.precio : null }, intencion.cantidad > 0 ? '¡Perfecto! Vamos a mostrar tu cosecha de ' + nombreDicho.toLocaleLowerCase('es-CO') + '. ' : '');
       return;
     }
 
@@ -291,6 +321,57 @@ export function useAssistantChat(tipo: TipoVendedor) {
     let mensaje = texto;
     if (mensaje === '') mensaje = 'Preparé esta publicación: ' + borrador.name + ', ' + mostrarCantidad(borrador.stock) + ' ' + textoUnidad(borrador.stock, borrador.unit) + ' a ' + dinero(borrador.price_cop) + ' cada ' + borrador.unit + '. Revísala y toca «Confirmar».';
     responder(mensaje);
+  }
+
+  function limpiarCampo(datos: DatosGuia, paso: ReturnType<typeof pasoACorregir>): DatosGuia {
+    const nuevo = { ...datos };
+    if (paso === 'producto') nuevo.nombre = null;
+    if (paso === 'cantidad') nuevo.cantidad = null;
+    if (paso === 'unidad') nuevo.unidad = null;
+    if (paso === 'municipio') nuevo.municipio = null;
+    if (paso === 'minimo') nuevo.minimo = null;
+    if (paso === 'fecha') nuevo.fecha = null;
+    if (paso === 'precio') nuevo.precio = null;
+    if (paso === 'descripcion') nuevo.descripcion = null;
+    return nuevo;
+  }
+
+  async function preguntaDe(datos: DatosGuia) {
+    const paso = siguientePaso(datos);
+    // el municipio de la finca va primero en los botones
+    let sugeridos = ['Yopal', 'Aguazul', 'Villanueva', 'Tauramena', 'Monterrey', 'Paz de Ariporo'];
+    try {
+      const finca = await getBusinessProfile();
+      if (finca && municipios.includes(finca.city)) sugeridos = [finca.city].concat(sugeridos.filter((m) => m !== finca.city)).slice(0, 6);
+    } catch { /* se usan los de siempre */ }
+    let medidas = ['kg', 'tonelada', 'bulto', 'canastilla', 'racimo', 'unidad'];
+    if (tipo === 'tienda') medidas = unidadesInsumo;
+    if (!paso) return { texto: '', opciones: [] as string[] };
+    return preguntar(paso, datos, sugeridos, medidas.filter((m) => unidades.includes(m) || unidadesInsumo.includes(m)));
+  }
+
+  // hace la siguiente pregunta o, si ya esta todo, arma el borrador para confirmar
+  async function avanzarGuia(datos: DatosGuia, antes = '') {
+    // la tienda vende insumos por unidad si no dijo otra cosa
+    const paso = siguientePaso(datos);
+    if (paso) {
+      guia.current = datos;
+      const pregunta = await preguntaDe(datos);
+      responder(antes + pregunta.texto, undefined, pregunta.opciones);
+      return;
+    }
+    guia.current = null;
+    ultimaGuia.current = datos;
+    const nombre = datos.nombre ?? '';
+    let categoria = categoriaVisible(categoriaDeProducto(nombre));
+    if (tipo === 'tienda' && !esInsumo(categoria)) categoria = 'Otros insumos';
+    const borrador: ProductDraft = {
+      name: nombre, category: categoria, description: datos.descripcion ?? '', price_cop: Math.round(datos.precio ?? 0), stock: datos.cantidad ?? 0, unit: datos.unidad ?? 'kg',
+      municipality: datos.municipio ?? undefined, min_order: datos.minimo ?? 0, available_from: datos.fecha ?? undefined,
+    };
+    setDraft(borrador);
+    setVenta(null);
+    responder('Listo. Así quedaría: ' + resumen(datos) + '. Revísala y toca «Confirmar», o dime qué cambiar.', undefined, ['Cambiar precio', 'Cambiar cantidad', 'Cambiar municipio']);
   }
 
   function mostrarBorrador(borrador: ProductDraft) {
@@ -439,6 +520,8 @@ export function useAssistantChat(tipo: TipoVendedor) {
   }
 
   function resetChat() {
+    guia.current = null;
+    ultimaGuia.current = null;
     // las notas de voz ya respondidas se borran del celular
     for (const mensaje of actual.current.messages) { if (mensaje.audio && !mensaje.pendiente) borrarAudio(mensaje.audio); }
     setMessages([bienvenida()]);

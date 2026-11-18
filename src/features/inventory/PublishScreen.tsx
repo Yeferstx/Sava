@@ -42,13 +42,13 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
   const [price, setPrice] = useState(base && base.price_cop ? String(base.price_cop) : '');
   const [stock, setStock] = useState(base && base.stock ? String(base.stock) : '');
   const [unit, setUnit] = useState(base ? base.unit : listaUnidades[0]);
-  const [municipio, setMunicipio] = useState(producto && producto.municipality ? producto.municipality : '');
-  const [disponible, setDisponible] = useState(producto && producto.available_from ? producto.available_from : fechaDesdeHoy(0));
+  const [municipio, setMunicipio] = useState(producto && producto.municipality ? producto.municipality : initialDraft && initialDraft.municipality ? initialDraft.municipality : '');
+  const [disponible, setDisponible] = useState(producto && producto.available_from ? producto.available_from : initialDraft && initialDraft.available_from ? initialDraft.available_from : fechaDesdeHoy(0));
   const [entrega, setEntrega] = useState(entregaInicial.forma);
   const [detalleEntrega, setDetalleEntrega] = useState(entregaInicial.detalle);
   // precio a convenir: el productor prefiere negociarlo con cada comprador
-  const [aConvenir, setAConvenir] = useState(!!producto && producto.price_cop === 0);
-  const [minimo, setMinimo] = useState(producto && producto.min_order ? String(producto.min_order) : '');
+  const [aConvenir, setAConvenir] = useState((!!producto && producto.price_cop === 0) || (!!initialDraft && initialDraft.price_cop === 0));
+  const [minimo, setMinimo] = useState(producto && producto.min_order ? String(producto.min_order) : initialDraft && initialDraft.min_order ? String(initialDraft.min_order) : '');
   const [photoUri, setPhotoUri] = useState<string | null>(producto ? producto.photo_uri : null);
   const [saving, setSaving] = useState(false);
 

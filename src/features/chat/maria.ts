@@ -14,6 +14,7 @@ export type Intencion =
   | { tipo: 'buscar'; producto: string; municipio: string; cantidad: number; unidad: string; soloPrecio: boolean }
   | { tipo: 'precio'; precio: number }
   | { tipo: 'ayuda' }
+  | { tipo: 'publicarGuiado' }
   | { tipo: 'compradores' }
   | { tipo: 'pedirVenta' }
   | { tipo: 'saludo' }
@@ -36,6 +37,8 @@ const numerosEnLetras: Record<string, number> = {
 const unidadesHabladas: Array<{ palabras: string[]; unidad: string }> = [
   { palabras: ['kilo', 'kilos', 'kg', 'kilogramo', 'kilogramos'], unidad: 'kg' },
   { palabras: ['bulto', 'bultos'], unidad: 'bulto' },
+  { palabras: ['tonelada', 'toneladas'], unidad: 'tonelada' },
+  { palabras: ['canastilla', 'canastillas', 'canasta', 'canastas'], unidad: 'canastilla' },
   { palabras: ['caja', 'cajas'], unidad: 'caja' },
   { palabras: ['racimo', 'racimos'], unidad: 'racimo' },
   { palabras: ['libra', 'libras'], unidad: 'libra' },
@@ -44,14 +47,14 @@ const unidadesHabladas: Array<{ palabras: string[]; unidad: string }> = [
   { palabras: ['unidad', 'unidades', 'docena'], unidad: 'unidad' },
 ];
 
-function unidadDe(palabra: string) {
+export function unidadDe(palabra: string) {
   for (const grupo of unidadesHabladas) {
     if (grupo.palabras.includes(palabra)) return grupo.unidad;
   }
   return '';
 }
 
-function leerNumero(palabra: string) {
+export function leerNumero(palabra: string) {
   if (/^\d+([.,]\d+)?$/.test(palabra)) {
     // 2.500 son dos mil quinientos, pero 2,5 o 1.5 son decimales
     if (/^\d{1,3}(\.\d{3})+$/.test(palabra)) return Number(palabra.split('.').join(''));
@@ -66,7 +69,7 @@ const cortes = ['a', 'al', 'por', 'en', 'para', 'regist', 'anot', 'hoy', 'ayer',
 const relleno = ['de', 'del', 'la', 'el', 'los', 'las', 'unos', 'unas', 'mi', 'mis', 'kilo', 'kilos'];
 
 // busca "<numero> <unidad> de <producto>" y devuelve lo que encuentre
-function extraerCantidad(t: string) {
+export function extraerCantidad(t: string) {
   const palabras = t.split(' ');
   for (let i = 0; i < palabras.length; i++) {
     const numero = leerNumero(palabras[i]);
@@ -92,7 +95,7 @@ function extraerCantidad(t: string) {
 }
 
 // "a 2.500", "a 25 mil", "por 125.000" (por = total)
-function extraerPrecio(t: string) {
+export function extraerPrecio(t: string) {
   const encontrado = t.match(/(?:^|\s)(a|por|en)\s+\$?\s*(\d[\d.,]*)\s*(mil|millon|millones)?/);
   if (!encontrado) return { precio: 0, esTotal: false };
   let valor = 0;
@@ -106,7 +109,7 @@ function extraerPrecio(t: string) {
 }
 
 // solo un precio, para cuando maria pregunta "¿a como lo vendes?"
-function soloPrecio(t: string) {
+export function soloPrecio(t: string) {
   const limpio = t.replace(/^(a|en|por|lo vendo a|lo doy a|vale|cuesta)\s+/, '').replace(/\s*(pesos|el kilo|el bulto|cada uno|la unidad|c\/u)\s*$/g, '').trim();
   const encontrado = limpio.match(/^\$?\s*(\d[\d.,]*)\s*(mil)?$/);
   if (!encontrado) return 0;
@@ -115,7 +118,7 @@ function soloPrecio(t: string) {
   return valor;
 }
 
-function municipioEn(t: string) {
+export function municipioEn(t: string) {
   for (const municipio of municipios) {
     if (t.includes(normalizar(municipio))) return municipio;
   }
@@ -144,6 +147,8 @@ export function entender(mensaje: string): Intencion {
   if (t === '') return { tipo: 'saludo' };
 
   if (/^(gracias|muchas gracias|listo gracias|ok gracias|dios le pague)/.test(t)) return { tipo: 'gracias' };
+  // "ayudame a publicar una cosecha": empieza la publicacion guiada (va antes que la ayuda general)
+  if (!/\d/.test(t) && (/\b(publicar|publica|publiquemos|subir|mostrar|montar)\b.*\b(cosecha|cosechas|producto|productos|algo|publicacion)\b/.test(t) || /^(quiero |ayudame a |vamos a )?publicar$/.test(t))) return { tipo: 'publicarGuiado' };
   if (/\b(ayuda|ayudame|que (puedes|sabes) hacer|como (funciona|te uso)|que haces)\b/.test(t)) return { tipo: 'ayuda' };
   // como encontrar compradores o como vender en sava
   if (/(encontrar|encuentro|conseguir|consigo|buscar|busco) compradores|quien me compr|como (vendo|vender|vendemos)/.test(t)) return { tipo: 'compradores' };

@@ -292,6 +292,10 @@ export default function ChatScreen(props: Props) {
                     {!(mensaje.audio && mensaje.text === 'Nota de voz') && <Text style={[styles.bubbleText, !deMaria && styles.userText]}>{mensaje.text}</Text>}
                     {deMaria && <Pressable accessibilityRole="button" accessibilityLabel="Escuchar este mensaje" hitSlop={8} onPress={() => void hablar(mensaje.text)} style={styles.oir}><Volume2 size={15} color={colors.verde} /><Text style={styles.oirTexto}>Escuchar</Text></Pressable>}
                   </View>
+                  {/* respuestas rapidas de la tarea en curso (solo en el ultimo mensaje) */}
+                  {deMaria && !!mensaje.opciones && mensaje.opciones.length > 0 && mensaje.id === messages[messages.length - 1].id && !pensando && <View style={styles.opciones}>
+                    {mensaje.opciones.map((opcion) => <Pressable key={opcion} accessibilityRole="button" onPress={() => enviar(opcion)} style={({ pressed }) => [styles.opcion, pressed && styles.presionado]}><Text style={styles.opcionTexto}>{opcion}</Text></Pressable>)}
+                  </View>}
                   {mensaje.pendiente && <View style={styles.enEspera}><Clock size={13} color={colors.muted} /><Text style={styles.enEsperaTexto}>Esperando señal para responder</Text></View>}
                   {mensaje.recomendaciones && mensaje.recomendaciones.map((item) => <TarjetaRecomendada key={item.product.id} item={item} onOpen={() => props.onOpenProduct(item.product, item.business)} />)}
                 </View></Aparecer>;
@@ -302,6 +306,8 @@ export default function ChatScreen(props: Props) {
                 <Text style={styles.cardEyebrow}>PUBLICACIÓN LISTA PARA REVISAR</Text>
                 <Text style={styles.cardTitle}>{draft.name}</Text>
                 <Text style={styles.cardDato}>{mostrarCantidad(draft.stock)} {textoUnidad(draft.stock, draft.unit)} · {textoPrecio(draft.price_cop, draft.unit)}</Text>
+                {(!!draft.municipality || !!draft.min_order) && <Text style={styles.cardDato}>{draft.municipality ? draft.municipality : ''}{draft.min_order ? ' · desde ' + mostrarCantidad(draft.min_order) + ' ' + textoUnidad(draft.min_order, draft.unit) : ' · cualquier cantidad'}</Text>}
+                {!!draft.description && <Text style={styles.cardHint}>{draft.description}</Text>}
                 <Text style={styles.cardHint}>Categoría: {draft.category}. Nada se publica hasta que toques «Confirmar».</Text>
                 <View style={styles.cardBotones}>
                   <Pressable accessibilityRole="button" onPress={props.onEditDraft} style={({ pressed }) => [styles.botonSuave, pressed && styles.presionado]}><Text style={styles.botonSuaveTexto}>Corregir</Text></Pressable>
@@ -384,6 +390,9 @@ const styles = StyleSheet.create({
   vozSecundario: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.salvia },
   vozSecundarioTexto: { color: colors.verde, fontSize: 15, fontWeight: '800' },
   notaVoz: { marginBottom: 6, minWidth: 190 },
+  opciones: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginLeft: 4 },
+  opcion: { borderRadius: 18, paddingHorizontal: 13, paddingVertical: 8, backgroundColor: colors.salvia, borderWidth: 1, borderColor: '#C9DDD0' },
+  opcionTexto: { color: colors.verde, fontSize: 14, fontWeight: '800' },
   enEspera: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end', marginTop: -2 },
   enEsperaTexto: { color: colors.muted, fontSize: 12, fontWeight: '700' },
   senal: { flexDirection: 'row', alignItems: 'center', gap: 7, marginHorizontal: 12, marginBottom: 4, padding: 10, borderRadius: 14, backgroundColor: '#F5E7E2' },
