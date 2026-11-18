@@ -1,37 +1,69 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Apple, Banana, Bean, Carrot, Cherry, Citrus, FlaskConical, Grape, Hammer, Leaf, Package, PawPrint, Salad, Sprout, Wheat } from 'lucide-react-native';
+import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
+import { Apple, Banana, Bean, Carrot, Cherry, FlaskConical, Grape, Hammer, Leaf, Package, PawPrint, Salad, Sprout, Wheat } from 'lucide-react-native';
 import { colors } from '../../../shared/theme';
 
+type Icono = (props: { size: number; color: string; strokeWidth?: number }) => React.ReactNode;
+
+// piña dibujada a mano en el mismo estilo de linea de los demas iconos
+function Pina({ size, color, strokeWidth = 1.8 }: { size: number; color: string; strokeWidth?: number }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M12 8 L12 2.5 M12 8 L9.5 3.5 M12 8 L14.5 3.5 M12 8 L7.5 5.5 M12 8 L16.5 5.5" />
+    <Ellipse cx={12} cy={15} rx={5.2} ry={6.6} />
+    <Path d="M8.5 11.5 L15.5 18.5 M15.5 11.5 L8.5 18.5 M7.2 15 L12 10 M16.8 15 L12 10 M7.2 15 L12 20 M16.8 15 L12 20" strokeWidth={strokeWidth * 0.7} />
+  </Svg>;
+}
+
+// papaya abierta con sus semillas
+function Papaya({ size, color, strokeWidth = 1.8 }: { size: number; color: string; strokeWidth?: number }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <Ellipse cx={12} cy={12} rx={9.5} ry={6.5} transform="rotate(-30 12 12)" />
+    <Ellipse cx={12} cy={12} rx={5.2} ry={3} transform="rotate(-30 12 12)" />
+    <Circle cx={10.5} cy={12.6} r={0.6} fill={color} />
+    <Circle cx={12.4} cy={11.4} r={0.6} fill={color} />
+    <Circle cx={13.6} cy={12.6} r={0.6} fill={color} />
+    <Circle cx={11.6} cy={13.4} r={0.6} fill={color} />
+  </Svg>;
+}
+
 // dibujo para cada categoria, asi se reconoce sin tener que leer
-const iconos: Record<string, typeof Sprout> = {
-  'Plátano y banano': Banana, 'Yuca y tubérculos': Carrot, 'Piña': Citrus, 'Papaya': Apple, 'Patilla': Cherry,
+const iconos: Record<string, Icono> = {
+  'Plátano y banano': Banana, 'Yuca y tubérculos': Carrot, 'Piña': Pina, 'Papaya': Papaya, 'Patilla': Cherry,
   'Ahuyama': Salad, 'Maracuyá y frutas': Grape, 'Hortalizas': Leaf, 'Otros': Sprout,
   'Semillas': Bean, 'Abonos y fertilizantes': Wheat, 'Agroquímicos': FlaskConical, 'Herramientas': Hammer,
   'Alimento para animales': PawPrint, 'Otros insumos': Package,
 };
 
-// tres fondos de la paleta que se turnan para que el mercado se vea alegre
-const fondos = [colors.verdeClaro, '#F5E7E2', colors.white];
+// fondos suaves de la paleta que se turnan
+const fondos = [colors.salvia, '#F5E7E2', colors.white, colors.salvia];
 
-export default function CategoriaIcono({ nombre, posicion, elegida, onPress }: { nombre: string; posicion: number; elegida: boolean; onPress: () => void }) {
+type Props = { nombre: string; etiqueta?: string; posicion: number; elegida: boolean; enGrilla?: boolean; onPress: () => void };
+
+export default function CategoriaIcono({ nombre, etiqueta = '', posicion, elegida, enGrilla = false, onPress }: Props) {
   let Icono = iconos[nombre];
-  if (!Icono) Icono = Sprout;
+  if (!Icono) Icono = Apple;
   const fondo = fondos[posicion % fondos.length];
+  let texto = nombre;
+  if (etiqueta !== '') texto = etiqueta;
+  const grande = enGrilla;
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ selected: elegida }} accessibilityLabel={nombre} onPress={onPress} style={({ pressed }) => [styles.tile, pressed && styles.presionado]}>
-      <View style={[styles.circulo, { backgroundColor: fondo }, elegida && styles.circuloElegido]}>
-        <Icono size={30} color={elegida ? colors.white : colors.verde} strokeWidth={1.8} />
+    <Pressable accessibilityRole="button" accessibilityState={{ selected: elegida }} accessibilityLabel={nombre} onPress={onPress} style={({ pressed }) => [grande ? styles.tileGrilla : styles.tile, pressed && styles.presionado]}>
+      <View style={[grande ? styles.circuloGrande : styles.circulo, { backgroundColor: fondo }, elegida && styles.circuloElegido]}>
+        <Icono size={grande ? 36 : 30} color={elegida ? colors.white : colors.verde} strokeWidth={1.8} />
       </View>
-      <Text numberOfLines={2} style={[styles.nombre, elegida && styles.nombreElegido]}>{nombre}</Text>
+      <Text numberOfLines={grande ? 1 : 2} adjustsFontSizeToFit={grande} minimumFontScale={0.7} style={[grande ? styles.nombreGrande : styles.nombre, elegida && styles.nombreElegido]}>{texto}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   tile: { width: 82, alignItems: 'center', paddingVertical: 4 },
-  presionado: { transform: [{ scale: 0.92 }] },
+  tileGrilla: { width: '25%', alignItems: 'center', paddingVertical: 2 },
+  presionado: { transform: [{ scale: 0.93 }] },
   circulo: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line },
+  circuloGrande: { width: 70, height: 70, borderRadius: 35, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line, shadowColor: '#26332F', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 1 },
   circuloElegido: { backgroundColor: colors.verde, borderColor: colors.verde },
   nombre: { color: colors.grafito, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 6, lineHeight: 15 },
+  nombreGrande: { color: colors.grafito, fontSize: 15, fontWeight: '800', textAlign: 'center', marginTop: 7 },
   nombreElegido: { color: colors.verde, fontWeight: '900' },
 });

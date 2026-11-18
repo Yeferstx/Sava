@@ -17,6 +17,7 @@ type Props = {
   onSend: (text: string) => void; onReset: () => void; onBack: () => void; onCambiarVoz: () => void;
   onConfirmDraft: () => void; onEditDraft: () => void; onConfirmarVenta: () => void; onCancelarVenta: () => void;
   onOpenProduct: (product: Product, business: Business | null) => void;
+  modoInicial?: 'voz' | 'texto' | '';
 };
 
 // sugerencias segun quien usa la app (todas funcionan con las reglas o con la ia)
@@ -63,6 +64,14 @@ export default function ChatScreen(props: Props) {
 
   // hablando solo cuando de verdad suena la voz de maria
   useEffect(() => escucharVoz(setHablando), []);
+  // si se abrio desde "hablar" o "escribir" se deja lista la entrada
+  useEffect(() => {
+    if (props.modoInicial === 'voz') setAyudaMicrofono(true);
+    if (props.modoInicial === 'voz' || props.modoInicial === 'texto') {
+      const espera = setTimeout(() => { if (entrada.current) entrada.current.focus(); }, 350);
+      return () => clearTimeout(espera);
+    }
+  }, []);
   useEffect(() => { setTimeout(() => { if (scroll.current) scroll.current.scrollToEnd({ animated: true }); }, 80); }, [messages.length, draft, venta, pensando]);
 
   // el estado del personaje sale de lo que esta pasando de verdad.

@@ -73,6 +73,7 @@ export default function AppNavigator() {
   const [productoEditar, setProductoEditar] = useState<Product | null>(null);
   const [volverLegal, setVolverLegal] = useState<AppTab>('Inicio');
   const [volverDeMaria, setVolverDeMaria] = useState<AppTab>('Inicio');
+  const [modoChat, setModoChat] = useState<'voz' | 'texto' | ''>('');
   // ventas que la app le pregunta al vendedor si se hicieron
   const [seguimientos, setSeguimientos] = useState<Seguimiento[]>([]);
   const [verSeguimiento, setVerSeguimiento] = useState(false);
@@ -224,8 +225,11 @@ export default function AppNavigator() {
   }
   function continueAsGuest() { setMerchantIntent(false); setActiveTab('Inicio'); setStage('guest'); }
   // maria se abre desde cualquier pantalla y al cerrar vuelve a donde estaba
-  function openChat() {
+  // modo voz: maria responde en voz alta y se abre el microfono. modo texto: se abre el teclado
+  function openChat(modo: 'voz' | 'texto' | '' = '') {
     if (activeTab !== 'María') setVolverDeMaria(activeTab);
+    setModoChat(modo);
+    if (modo === 'voz' && !chat.leerEnVoz) chat.cambiarVoz();
     setActiveTab('María');
     chat.alAbrir();
   }
@@ -259,7 +263,7 @@ export default function AppNavigator() {
 
   // cada pestana muestra una pantalla distinta segun el rol
   let pantalla;
-  if (isChat) pantalla = <ChatScreen messages={chat.messages} draft={chat.draft} venta={chat.venta} pensando={chat.pensando} leerEnVoz={chat.leerEnVoz} conIA={chat.conIA} tipo={tipoChat} onSend={(texto) => void chat.sendMessage(texto)} onReset={chat.resetChat} onBack={() => setActiveTab(volverDeMaria)} onCambiarVoz={chat.cambiarVoz} onConfirmDraft={() => void confirmProductDraft()} onEditDraft={editProductDraft} onConfirmarVenta={() => void chat.confirmarVenta()} onCancelarVenta={chat.cancelarVenta} onOpenProduct={(product, business) => { setActiveTab(volverDeMaria); abrirProducto(product, business); }} />;
+  if (isChat) pantalla = <ChatScreen key={'chat-' + modoChat} modoInicial={modoChat} messages={chat.messages} draft={chat.draft} venta={chat.venta} pensando={chat.pensando} leerEnVoz={chat.leerEnVoz} conIA={chat.conIA} tipo={tipoChat} onSend={(texto) => void chat.sendMessage(texto)} onReset={chat.resetChat} onBack={() => setActiveTab(volverDeMaria)} onCambiarVoz={chat.cambiarVoz} onConfirmDraft={() => void confirmProductDraft()} onEditDraft={editProductDraft} onConfirmarVenta={() => void chat.confirmarVenta()} onCancelarVenta={chat.cancelarVenta} onOpenProduct={(product, business) => { setActiveTab(volverDeMaria); abrirProducto(product, business); }} />;
   else if (selectedProduct) pantalla = <ProductDetailScreen product={selectedProduct.product} business={selectedProduct.business} onBack={() => setSelectedProduct(null)} onOpenBusiness={(business) => { setSelectedProduct(null); setSelectedBusiness(business); }} onConsultar={startOrder} />;
   else if (selectedBusiness) pantalla = <BusinessDetailScreen business={selectedBusiness} onBack={() => setSelectedBusiness(null)} />;
   else if (activeTab === 'Legal') pantalla = <LegalScreen onBack={() => setActiveTab(volverLegal)} />;
@@ -273,13 +277,15 @@ export default function AppNavigator() {
   else if (activeTab === 'Guardados') pantalla = <GuardadosScreen onProductPress={abrirProducto} />;
   else if (activeTab === 'Mi negocio' && user) pantalla = <OrdersScreen mode={'customer'} userId={user.id} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (activeTab === 'Mi negocio' || activeTab === 'Publicar') pantalla = <AuthScreen onContinueGuest={continueAsGuest} />;
-  else pantalla = <HomeScreen key={municipioComprador + tipoChat} municipioInicial={municipioComprador} seccionInicial={tipoChat === 'agricultor' ? 'insumos' : 'cosechas'} mostrarInvitacion={!esAgricultor} onProductPress={abrirProducto} onVender={startMerchantFlow} onOpenMaria={openChat} onOpenVideos={() => navigate('Videos')} />;
+  else pantalla = <HomeScreen key={municipioComprador + tipoChat} municipioInicial={municipioComprador} seccionInicial={tipoChat === 'agricultor' ? 'insumos' : 'cosechas'} onProductPress={abrirProducto} onVender={() => { if (esAgricultor) navigate('Publicar'); else startMerchantFlow(); }} onHablar={() => openChat('voz')} onEscribir={() => openChat('texto')} />;
 
   // el boton de maria se ve en las pantallas principales y en el detalle de un producto
   const conBarra = !isTransient && !selectedBusiness && !selectedProduct;
   // en videos maria esta en los botones de la derecha, no hace falta el flotante
   const enVideos = activeTab === 'Videos' && conBarra;
-  const verMaria = !isChat && !enVideos && (conBarra || !!selectedProduct || !!selectedBusiness);
+  // en el inicio el asistente ya esta en su tarjeta: no se pone el boton flotante encima
+  const enInicio = conBarra && (activeTab === 'Inicio' || activeTab === 'Explorar');
+  const verMaria = !isChat && !enVideos && !enInicio && (conBarra || !!selectedProduct || !!selectedBusiness);
   // la barra de abajo llega hasta el borde del celular; maria queda encima de ella
   let alturaMaria = 20 + bordes.bottom;
   if (conBarra) alturaMaria = alturaBarra(pantallaAncho, bordes.bottom) + 12;

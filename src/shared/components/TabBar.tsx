@@ -13,7 +13,7 @@ const PROPORCION = 1600 / 385;
 // alto de la barra: lo que mide el paisaje a lo ancho del celular,
 // y nunca menos de lo que necesitan los botones mas el borde de abajo del celular
 export function alturaBarra(ancho: number, bordeAbajo: number) {
-  return Math.max(Math.round(ancho / PROPORCION), 62 + Math.max(bordeAbajo, 8));
+  return Math.max(Math.round(ancho / PROPORCION), 70 + Math.max(bordeAbajo, 8));
 }
 
 type Props = { active: AppTab; onChange: (tab: AppTab) => void; guest?: boolean; tienda?: boolean; oscuro?: boolean };
@@ -51,14 +51,14 @@ export default function TabBar({ active, onChange, guest = false, tienda = false
 
   if (teclado) return null;
 
-  const abajo = Math.max(bordes.bottom, 8);
   const alto = alturaBarra(width, bordes.bottom);
   const altoPaisaje = Math.round(width / PROPORCION);
 
   return (
     <View style={[styles.bar, { height: alto }, oscuro && styles.barOscura]}>
       {!oscuro && <Image source={paisaje} style={[styles.paisaje, { width, height: altoPaisaje }]} resizeMode="stretch" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />}
-      <View style={[styles.fila, { paddingBottom: abajo }]}>
+      {/* los botones van sobre el cielo; abajo se ven los arboles y el pasto */}
+      <View style={styles.fila}>
         {tabs.map(({ name, label, Icon }) => {
           const selected = active === name;
           const add = name === 'Publicar';
@@ -69,7 +69,7 @@ export default function TabBar({ active, onChange, guest = false, tienda = false
             return (
               <Pressable accessibilityRole="button" accessibilityLabel={label} key={name} onPress={() => onChange(name)} style={styles.item}>
                 <View style={[styles.add, oscuro && styles.addOscuro]}><Icon size={30} color={colors.white} strokeWidth={2.8} /></View>
-                <View style={[styles.etiqueta, oscuro && styles.etiquetaOscura]}><Text style={[styles.label, styles.addLabel, oscuro && styles.labelOscuro]}>{label}</Text></View>
+                <Text style={[styles.label, styles.addLabel, oscuro && styles.labelOscuro]} numberOfLines={1}>{label}</Text>
               </Pressable>
             );
           }
@@ -78,7 +78,7 @@ export default function TabBar({ active, onChange, guest = false, tienda = false
               {/* capa crema suave detras de cada boton: se lee bien sin tapar el paisaje */}
               <View style={[styles.boton, oscuro && styles.botonOscuro, selected && (oscuro ? styles.selectedOscuro : styles.selected)]}>
                 <Icon size={24} color={color} strokeWidth={selected ? 2.6 : 2.2} />
-                <Text style={[styles.label, selected && styles.activeText, oscuro && styles.labelOscuro]} numberOfLines={1}>{label}</Text>
+                <Text style={[styles.label, selected && styles.activeText, oscuro && styles.labelOscuro]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
               </View>
             </Pressable>
           );
@@ -93,18 +93,17 @@ const styles = StyleSheet.create({
   barOscura: { backgroundColor: colors.grafito },
   // el paisaje va pegado abajo y ocupa todo el ancho con su proporcion original
   paisaje: { position: 'absolute', left: 0, bottom: 0 },
-  fila: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', paddingHorizontal: 4 },
-  item: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
-  boton: { alignItems: 'center', justifyContent: 'center', minWidth: 62, height: 54, paddingHorizontal: 6, borderRadius: 16, backgroundColor: 'rgba(240,233,223,0.72)' },
+  fila: { position: 'absolute', left: 0, right: 0, top: 6, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-start', paddingHorizontal: 2 },
+  item: { flex: 1, alignItems: 'center' },
+  // solo el boton elegido lleva fondo; los demas se ven directo sobre el paisaje
+  boton: { alignItems: 'center', justifyContent: 'center', width: '96%', maxWidth: 82, height: 56, borderRadius: 18 },
   botonOscuro: { backgroundColor: 'transparent' },
-  selected: { backgroundColor: 'rgba(255,255,255,0.94)' },
+  selected: { backgroundColor: 'rgba(255,255,255,0.88)', shadowColor: '#26332F', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   selectedOscuro: { backgroundColor: 'rgba(255,255,255,0.18)' },
-  add: { width: 58, height: 58, borderRadius: 29, backgroundColor: colors.verde, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: colors.crema, marginBottom: 2, shadowColor: colors.grafito, shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 5 },
+  add: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.verde, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: colors.crema, marginTop: -20, shadowColor: colors.grafito, shadowOpacity: 0.28, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
   addOscuro: { borderColor: colors.grafito },
-  etiqueta: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 1, backgroundColor: 'rgba(240,233,223,0.72)' },
-  etiquetaOscura: { backgroundColor: 'transparent' },
-  addLabel: { color: colors.verde, fontWeight: '900', marginTop: 0 },
-  label: { fontSize: 12, marginTop: 3, color: colors.grafito, fontWeight: '800' },
+  addLabel: { color: colors.verde, fontWeight: '900', marginTop: 2 },
+  label: { fontSize: 13, marginTop: 4, color: colors.grafito, fontWeight: '800', textShadowColor: 'rgba(240,233,223,0.9)', textShadowRadius: 5 },
   activeText: { color: colors.verde, fontWeight: '900' },
-  labelOscuro: { color: colors.white },
+  labelOscuro: { color: colors.white, textShadowColor: 'transparent' },
 });
