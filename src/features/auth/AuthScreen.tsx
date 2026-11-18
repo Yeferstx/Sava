@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { ActivityIndicator, Animated, Easing, Image, Keyboard, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { ArrowRight, CircleCheck, LockKeyhole, Mail, UserRound } from 'lucide-react-native';
 import AsistenteOrbe from '../chat/components/AsistenteOrbe';
@@ -50,6 +49,11 @@ function BotonPrincipal({ texto, cargando, listo, onPress }: { texto: string; ca
 // paisaje original de los llanos (guardado en la app, se ve sin internet)
 const paisaje = require('../../../assets/marca/llanos-acceso.jpg');
 const PROPORCION_PAISAJE = 1400 / 788;
+// escala de espacios: todo el formulario usa estos valores
+const E = { xs: 4, s: 8, m: 12, l: 16, xl: 24 };
+// el boton de aru va centrado sobre el borde de la tarjeta
+const ALTO_ARU = 56;
+const MONTA_TARJETA = 22;
 
 export default function AuthScreen({ onContinueGuest, purpose = 'general', modoInicial = 'signIn', onAru }: { onContinueGuest?: () => void; purpose?: AuthPurpose; modoInicial?: Modo; onAru?: () => void }) {
   const [mode, setMode] = useState<Modo>(modoInicial);
@@ -174,11 +178,23 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
   }
 
   const teclaEspacio = useEspacioTeclado();
-  const bordes = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  // celulares bajitos: logo y paisaje un poco mas pequenos para que el formulario quepa
+  // el alto de cada parte sale del alto real de la pantalla (no de un celular en particular).
+  // al crear cuenta el encabezado se achica para dar espacio a los campos
   const compacto = height < 720;
-  const altoPaisaje = Math.round(Math.min(width / PROPORCION_PAISAJE, height * (compacto ? 0.26 : 0.3)));
+  const registro = mode === 'signUp';
+  let proporcionPaisaje = 0.22;
+  if (compacto) proporcionPaisaje = 0.18;
+  if (registro) proporcionPaisaje = compacto ? 0.13 : 0.16;
+  const altoPaisaje = Math.round(Math.min(width / PROPORCION_PAISAJE, height * proporcionPaisaje));
+  // la foto conserva su proporcion. se sube lo necesario para que los campesinos y el ganado
+  // (entre el 62 % y el 75 % de la foto) queden siempre por encima del boton de aru
+  const altoFoto = width / PROPORCION_PAISAJE;
+  const altoCaja = altoPaisaje + MONTA_TARJETA;
+  const subirFoto = Math.min(0, Math.max(altoCaja - altoFoto, altoCaja - MONTA_TARJETA - ALTO_ARU / 2 - E.s - altoFoto * 0.75));
+  let logo: 'small' | 'regular' | 'encabezado' = 'encabezado';
+  if (compacto || registro) logo = 'regular';
+  if (compacto && registro) logo = 'small';
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const posiciones = useRef<Record<string, number>>({});
   // posicion real de la tarjeta y del formulario dentro de la pantalla (se mide al dibujar)
@@ -211,15 +227,15 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
     <View ref={teclaEspacio.ref} onLayout={teclaEspacio.medir} style={[styles.screen, { paddingBottom: teclaEspacio.espacio }]}>
       <ScrollView ref={scroll} style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} bounces={false}>
         {/* parte de arriba: crema con el logo y la bienvenida, y el paisaje original abajo */}
-        <View onLayout={(e) => setAltoArriba(e.nativeEvent.layout.height)} style={{ paddingTop: bordes.top + (compacto ? 6 : 16) }}>
+        <View onLayout={(e) => setAltoArriba(e.nativeEvent.layout.height)} style={{ paddingTop: compacto ? E.xs : E.s }}>
           <Animated.View style={[styles.encabezado, aparecer(0)]}>
-            <SavaLogo size={compacto ? 'regular' : 'medio'} centrado />
-            <Text style={[styles.titulo, compacto && styles.tituloCompacto]}>{titulo}</Text>
-            <Text style={styles.subtitulo}>{subtitulo}</Text>
+            <SavaLogo size={logo} centrado />
+            <Text style={[styles.titulo, (compacto || registro) && styles.tituloCompacto]}>{titulo}</Text>
+            {!(registro && compacto) && <Text style={styles.subtitulo}>{subtitulo}</Text>}
           </Animated.View>
-          <View style={{ width, height: altoPaisaje, marginTop: compacto ? -6 : -14 }}>
+          <View style={{ width, height: altoPaisaje + MONTA_TARJETA, marginTop: E.s, overflow: 'hidden' }}>
             {/* la foto completa a lo ancho: no se recorta a los campesinos ni a las vacas */}
-            <Image source={paisaje} style={{ width, height: altoPaisaje }} resizeMode="cover" accessibilityLabel="Atardecer en los llanos con palmas, campesinos y ganado" />
+            <Image source={paisaje} style={{ position: 'absolute', left: 0, top: subirFoto, width, height: altoFoto }} resizeMode="cover" accessibilityLabel="Atardecer en los llanos con palmas, campesinos y ganado" />
             {/* el crema se funde con el cielo, sin corte */}
             <Svg pointerEvents="none" width={width} height={altoPaisaje * 0.42} style={styles.fundido}>
               <Defs><LinearGradient id="cielo" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={colors.crema} stopOpacity={1} /><Stop offset="1" stopColor={colors.crema} stopOpacity={0} /></LinearGradient></Defs>
@@ -229,7 +245,7 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
         </View>
 
         {/* tarjeta blanca con el formulario: sube desde abajo */}
-        <Animated.View onLayout={(e) => { tarjetaY.current = e.nativeEvent.layout.y; }} style={[styles.tarjeta, { opacity: entrada[2], transform: [{ translateY: subirTarjeta }] }]}>
+        <Animated.View onLayout={(e) => { tarjetaY.current = e.nativeEvent.layout.y; }} style={[styles.tarjeta, !onAru && { paddingTop: E.xl }, { opacity: entrada[2], transform: [{ translateY: subirTarjeta }] }]}>
           <View accessibilityRole="tablist" style={styles.tabs} onLayout={(e) => setAnchoTabs(e.nativeEvent.layout.width)}>
             {anchoTabs > 0 && <Animated.View style={[styles.indicador, { width: anchoPastilla, transform: [{ translateX: moverIndicador }] }]} />}
             <Pressable accessibilityRole="tab" accessibilityState={{ selected: mode === 'signIn' }} onPress={() => cambiarModo('signIn')} style={styles.tab}><Text style={[styles.tabTexto, mode === 'signIn' && styles.tabActiva]}>Iniciar sesión</Text></Pressable>
@@ -238,12 +254,12 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
 
           <Animated.View onLayout={(e) => { formularioY.current = e.nativeEvent.layout.y; }} style={{ opacity: formulario, transform: [{ translateY: moverFormulario }] }}>
             {mode === 'signUp' && <View style={styles.rolBloque}>
-              <View style={styles.rolTitulo}><Text style={styles.rolPregunta}>¿Qué eres?</Text><BotonEscuchar etiqueta="" texto="¿Qué eres? Toca campesino si vendes tu cosecha, tienda si vendes cosas para el campo, o comprador si quieres comprar." /></View>
+              <View style={styles.rolTitulo}><Text style={styles.rolPregunta}>¿Qué eres?</Text><BotonEscuchar etiqueta="Escuchar" texto="¿Qué eres? Toca campesino si vendes tu cosecha, tienda si vendes cosas para el campo, o comprador si quieres comprar." /></View>
               <View accessibilityRole="radiogroup" style={styles.roles}>
                 {roles.map((item) => {
                   const elegido = rol === item.rol;
                   return <Pressable key={item.rol} accessibilityRole="radio" accessibilityState={{ checked: elegido }} accessibilityLabel={item.titulo + '. ' + item.texto} onPress={() => { setRol(item.rol); if (errores.rol !== '') setErrores({ ...errores, rol: '' }); }} style={[styles.rolTarjeta, elegido && styles.rolElegido, errores.rol !== '' && styles.rolError]}>
-                    <item.Icon size={24} color={elegido ? colors.white : colors.verde} strokeWidth={1.8} />
+                    <item.Icon size={20} color={elegido ? colors.white : colors.verde} strokeWidth={1.9} />
                     <Text style={[styles.rolTexto, elegido && styles.rolTextoElegido]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{item.corto}</Text>
                   </Pressable>;
                 })}
@@ -268,12 +284,11 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
           {mode === 'signUp' ? <Text style={styles.terminos}>Al continuar, aceptas los <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>términos</Text> y la <Text style={styles.enlaceChico} onPress={() => setVerLegal(true)}>política de privacidad</Text>.</Text>
             : <Pressable hitSlop={6} onPress={() => setVerLegal(true)}><Text style={styles.terminos}>Privacidad y términos de uso</Text></Pressable>}
           <Text style={styles.pieTexto}>Hecho para el campo de Casanare</Text>
-          <View style={{ height: bordes.bottom }} />
         </Animated.View>
         {/* aru va encima de todo, en el borde entre el paisaje y el formulario */}
-        {!!onAru && <Animated.View style={[styles.aruCaja, { top: altoArriba - 46 }, aparecer(1)]}>
+        {!!onAru && altoArriba > 0 && <Animated.View style={[styles.aruCaja, { top: altoArriba - MONTA_TARJETA - ALTO_ARU / 2 }, aparecer(1)]}>
               <Pressable accessibilityRole="button" accessibilityLabel="¿Necesitas ayuda? Habla con Aru, el asistente de Sava" onPress={onAru} style={({ pressed }) => [styles.aru, pressed && styles.presionado]}>
-                <View style={styles.aruOrbe}><AsistenteOrbe estado="reposo" tamano={compacto ? 46 : 54} quieto /></View>
+                <View style={styles.aruOrbe}><AsistenteOrbe estado="reposo" tamano={44} quieto /></View>
                 <View style={styles.flex}>
                   <Text style={styles.aruPregunta}>¿Necesitas ayuda?</Text>
                   <Text style={styles.aruTitulo}>Habla con Aru</Text>
@@ -290,42 +305,42 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.crema },
   flex: { flex: 1 },
   content: { flexGrow: 1 },
-  encabezado: { alignItems: 'center', paddingHorizontal: 24, zIndex: 2 },
-  titulo: { color: colors.verde, fontSize: 28, fontWeight: '900', textAlign: 'center', marginTop: 6 },
-  tituloCompacto: { fontSize: 24, marginTop: 2 },
-  subtitulo: { color: colors.grafito, fontSize: 16, textAlign: 'center', marginTop: 2 },
+  encabezado: { alignItems: 'center', paddingHorizontal: E.xl, gap: 2 },
+  titulo: { color: colors.verde, fontSize: 26, fontWeight: '900', textAlign: 'center', marginTop: E.xs },
+  tituloCompacto: { fontSize: 22, marginTop: 0 },
+  subtitulo: { color: colors.grafito, fontSize: 15, textAlign: 'center' },
   fundido: { position: 'absolute', top: 0, left: 0 },
   // el boton queda en el borde entre el paisaje y el formulario: no tapa a los campesinos ni al ganado
   aruCaja: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  aru: { flexDirection: 'row', alignItems: 'center', gap: 10, width: '82%', maxWidth: 360, paddingVertical: 6, paddingLeft: 6, paddingRight: 18, borderRadius: 40, backgroundColor: 'rgba(250,246,239,0.94)', shadowColor: colors.grafito, shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
-  aruOrbe: { width: 60, height: 60, alignItems: 'center', justifyContent: 'center' },
-  aruPregunta: { color: colors.grafito, fontSize: 13 },
-  aruTitulo: { color: colors.verde, fontSize: 18, fontWeight: '900' },
+  aru: { flexDirection: 'row', alignItems: 'center', gap: E.s, width: '78%', maxWidth: 340, height: ALTO_ARU, paddingLeft: E.xs, paddingRight: E.l, borderRadius: ALTO_ARU / 2, backgroundColor: 'rgba(250,246,239,0.94)', shadowColor: colors.grafito, shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
+  aruOrbe: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  aruPregunta: { color: colors.grafito, fontSize: 12 },
+  aruTitulo: { color: colors.verde, fontSize: 16, fontWeight: '900' },
   presionado: { transform: [{ scale: 0.97 }] },
-  tarjeta: { flexGrow: 1, marginTop: -24, backgroundColor: '#FAF7F2', borderTopLeftRadius: 34, borderTopRightRadius: 34, paddingHorizontal: 22, paddingTop: 58, paddingBottom: 18 },
-  tabs: { flexDirection: 'row', backgroundColor: colors.salvia, borderRadius: 26, padding: 4, marginBottom: 18 },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 11 },
+  tarjeta: { flexGrow: 1, marginTop: -MONTA_TARJETA, backgroundColor: '#FAF7F2', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: E.l + E.xs, paddingTop: ALTO_ARU / 2 + E.l, paddingBottom: E.l },
+  tabs: { flexDirection: 'row', backgroundColor: colors.salvia, borderRadius: 24, padding: E.xs, marginBottom: E.l },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 10 },
   tabTexto: { color: colors.verde, fontSize: 15, fontWeight: '800' },
   tabActiva: { color: colors.white, fontWeight: '900' },
   indicador: { position: 'absolute', left: 4, top: 4, bottom: 4, borderRadius: 22, backgroundColor: colors.verde },
-  olvide: { alignSelf: 'flex-end', marginTop: -2, marginBottom: 10, paddingVertical: 4 },
+  olvide: { alignSelf: 'flex-end', marginTop: -E.xs, marginBottom: E.m, paddingVertical: E.xs },
   enlace: { color: colors.verde, fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
   enlaceChico: { color: colors.verde, fontWeight: '700', textDecorationLine: 'underline' },
   errorGeneral: { color: '#775D50', fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 12 },
   aviso: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.verdeClaro, borderRadius: 14, padding: 12, marginBottom: 14 },
   avisoTexto: { flex: 1, color: colors.verde, fontSize: 13, lineHeight: 19, fontWeight: '600' },
-  boton: { height: 54, borderRadius: 27, backgroundColor: colors.verde, alignItems: 'center', justifyContent: 'center', marginTop: 6, shadowColor: colors.grafito, shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  boton: { height: 52, borderRadius: 26, backgroundColor: colors.verde, alignItems: 'center', justifyContent: 'center', marginTop: 6, shadowColor: colors.grafito, shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   botonFila: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   botonTexto: { color: colors.white, fontSize: 18, fontWeight: '800' },
-  explorar: { alignSelf: 'center', width: '82%', alignItems: 'center', paddingVertical: 13, borderRadius: 26, backgroundColor: colors.salvia, marginTop: 12 },
+  explorar: { alignSelf: 'stretch', alignItems: 'center', paddingVertical: E.m, borderRadius: 24, backgroundColor: colors.salvia, marginTop: E.m },
   explorarTexto: { color: colors.verde, fontSize: 16, fontWeight: '800' },
-  terminos: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 12 },
-  pieTexto: { color: colors.muted, fontSize: 13, textAlign: 'center', marginTop: 8 },
-  rolBloque: { marginBottom: 12 },
-  rolTitulo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  terminos: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: E.m },
+  pieTexto: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: E.xs },
+  rolBloque: { marginBottom: E.m },
+  rolTitulo: { flexDirection: 'row', alignItems: 'center', gap: E.s, marginBottom: E.s },
   rolPregunta: { color: colors.grafito, fontSize: 14, fontWeight: '700' },
   roles: { flexDirection: 'row', gap: 8 },
-  rolTarjeta: { flex: 1, minWidth: 0, alignItems: 'center', gap: 4, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.white },
+  rolTarjeta: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 46, paddingHorizontal: E.xs, borderRadius: 14, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.white },
   rolElegido: { backgroundColor: colors.verde, borderColor: colors.verde },
   rolError: { borderColor: '#775D50' },
   rolTexto: { color: colors.grafito, fontSize: 13, fontWeight: '800', textAlign: 'center' },
