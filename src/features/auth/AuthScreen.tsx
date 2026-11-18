@@ -190,7 +190,7 @@ export default function AuthScreen({ onContinueGuest, purpose = 'general', modoI
       <PaisajeLlanero posicion="arriba" moverse={movimiento} />
       <PaisajeLlanero posicion="abajo" moverse={movimiento} />
       <View ref={teclaEspacio.ref} onLayout={teclaEspacio.medir} style={[styles.flex, { paddingBottom: teclaEspacio.espacio }]}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} automaticallyAdjustKeyboardInsets={false}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} automaticallyAdjustKeyboardInsets={false}>
           <View style={styles.columna}>
             <Animated.View style={[styles.logo, { opacity: entrada[0], transform: [{ scale: logoEscala }] }]}><SavaLogo size="medio" centrado /></Animated.View>
 

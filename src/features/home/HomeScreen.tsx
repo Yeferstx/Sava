@@ -6,6 +6,7 @@ import AsistenteOrbe from '../chat/components/AsistenteOrbe';
 import { TarjetaEsqueleto } from '../../shared/components/Esqueleto';
 import { detectarMunicipio, guardarMunicipio, leerMunicipioGuardado, municipioEsManual, permisoUbicacionDado } from '../../shared/ubicacion';
 import { pedirReducirMovimiento } from '../../shared/movimiento';
+import { useAlVolver } from '../../shared/useAlVolver';
 import type { Business } from '../business/types';
 import type { Product } from '../inventory/types';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
@@ -114,6 +115,8 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
     }
   }, []);
   useEffect(() => { void refreshFeed(); }, [refreshFeed]);
+  // sin senal se muestra lo guardado; al volver el internet se actualiza solo
+  useAlVolver(() => { void refreshFeed(); });
 
   // al abrir la app se revisa otra vez donde esta la persona.
   // si eligio el municipio a mano, se respeta y solo se sugiere el detectado
@@ -236,7 +239,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   if (hora >= 19 || hora < 5) IconoSaludo = MoonStar;
 
   return (
-    <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refreshFeed()} tintColor={colors.verde} />}>
+    <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refreshFeed()} tintColor={colors.verde} />}>
       {/* 1. logo centrado y municipio a la derecha, compacto */}
       <Animated.View style={[styles.header, aparecer(0)]}>
         <View style={styles.headerLado} />
@@ -244,7 +247,7 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
         <View style={[styles.headerLado, styles.headerDerecha]}>
           <Pressable accessibilityRole="button" accessibilityLabel={'Buscando en ' + nombreMunicipio + '. Toca para cambiar el municipio'} onPress={() => { suavizar(); setVerMunicipios(!verMunicipios); }} style={({ pressed }) => [styles.location, pressed && styles.presionado]}>
             <MapPin size={15} color={colors.verde} />
-            <Text style={styles.locationText} numberOfLines={1}>{buscandoUbicacion ? 'Buscando…' : municipio === '' ? 'Casanare' : municipio}</Text>
+            <Text style={styles.locationText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{buscandoUbicacion ? 'Buscando…' : municipio === '' ? 'Casanare' : municipio}</Text>
             {verMunicipios ? <ChevronUp size={15} color={colors.verde} /> : <ChevronDown size={15} color={colors.verde} />}
           </Pressable>
         </View>
@@ -367,7 +370,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   headerLado: { flex: 1 },
   headerDerecha: { alignItems: 'flex-end' },
-  location: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '100%', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 18, backgroundColor: colors.salvia },
+  location: { flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '100%', paddingHorizontal: 8, paddingVertical: 7, borderRadius: 18, backgroundColor: colors.salvia },
   locationText: { color: colors.verde, fontWeight: '900', fontSize: 13, flexShrink: 1 },
   municipiosCaja: { backgroundColor: colors.white, borderRadius: 18, borderWidth: 1, borderColor: colors.line, padding: 12, marginBottom: 12 },
   miUbicacion: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, borderRadius: 24, backgroundColor: colors.verde },

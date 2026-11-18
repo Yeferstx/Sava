@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 }, content: { padding: 18, paddingTop: 14, paddingBottom: 96 },
   eyebrow: { color: colors.muted, letterSpacing: 1.1, fontSize: 11, fontWeight: '800' },
   tituloFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  title: { color: colors.ink, fontSize: 27, fontWeight: '900' },
+  title: { color: colors.ink, fontSize: 24, fontWeight: '900' },
   publicar: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.verde, borderRadius: 22, paddingHorizontal: 15, paddingVertical: 10 },
   publicarTexto: { color: colors.white, fontSize: 15, fontWeight: '900' },
   escuchar: { marginTop: 10 },

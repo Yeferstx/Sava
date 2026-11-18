@@ -72,7 +72,7 @@ export default function PromocionarScreen({ product, business, tipo, onBack }: P
   const pestanas: Array<{ clave: Pestana; texto: string }> = [{ clave: 'whatsapp', texto: 'WhatsApp' }, { clave: 'facebook', texto: 'Facebook' }, { clave: 'instagram', texto: 'Instagram' }, { clave: 'video', texto: 'Guion de video' }];
 
   return (
-    <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardDismissMode="on-drag">
       <Pressable accessibilityRole="button" onPress={onBack} style={styles.volver}><ArrowLeft size={20} color={colors.verde} /><Text style={styles.volverTexto}>Volver</Text></Pressable>
       <Text style={styles.titulo}>Promocionar con Sava</Text>
       <Text style={styles.subtitulo}>Comparte tu cosecha donde tú quieras. Sava no publica nada sin ti.</Text>
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   content: { padding: 18, paddingTop: 10, paddingBottom: 40 },
   volver: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 6 },
   volverTexto: { color: colors.verde, fontSize: 15, fontWeight: '800' },
-  titulo: { color: colors.verde, fontSize: 25, fontWeight: '900', marginTop: 4 },
+  titulo: { color: colors.verde, fontSize: 24, fontWeight: '900', marginTop: 4 },
   subtitulo: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 2, marginBottom: 12 },
   tarjeta: { borderRadius: 22, overflow: 'hidden', backgroundColor: colors.verde },
   foto: { height: 230, backgroundColor: colors.salvia, alignItems: 'center', justifyContent: 'center' },

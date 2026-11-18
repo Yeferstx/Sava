@@ -5,6 +5,7 @@ import { ImagePlus, X } from 'lucide-react-native';
 import { createProduct, updateProduct } from './data/inventoryRepository';
 import { getBusinessProfile } from '../business/data/businessRepository';
 import { getProductImageUri } from '../marketplace/getProductImageUri';
+import { useEspacioTeclado } from '../../shared/useEspacioTeclado';
 import { colors } from '../../shared/theme';
 import type { ProductDraft } from '../chat/types';
 import type { Product } from './types';
@@ -51,6 +52,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
   const [minimo, setMinimo] = useState(producto && producto.min_order ? String(producto.min_order) : initialDraft && initialDraft.min_order ? String(initialDraft.min_order) : '');
   const [photoUri, setPhotoUri] = useState<string | null>(producto ? producto.photo_uri : null);
   const [saving, setSaving] = useState(false);
+  const teclaEspacio = useEspacioTeclado();
 
   // el municipio por defecto es el de la finca
   useEffect(() => {
@@ -129,7 +131,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
   if (saving) textoBoton = 'Guardando…';
 
   return (
-    <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <View ref={teclaEspacio.ref} onLayout={teclaEspacio.medir} style={[styles.flex, { paddingBottom: teclaEspacio.espacio }]}><ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <Pressable onPress={onBack}><Text style={styles.back}>‹  Volver</Text></Pressable>
       <Text style={styles.title}>{editando ? 'Editar publicación' : esTienda ? 'Publicar producto' : 'Publicar cosecha'}</Text>
       <Text style={styles.subtitle}>Cuéntales a los compradores qué tienes disponible.</Text>
@@ -187,7 +189,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
       <Pressable disabled={saving} onPress={() => void submit()} style={[styles.submit, saving && styles.disabled]}><Text style={styles.submitText}>{textoBoton}</Text></Pressable>
       {!editando && <Pressable accessibilityRole="button" disabled={saving} onPress={() => void submit(true)} style={styles.borrador}><Text style={styles.borradorTexto}>Guardar como borrador</Text></Pressable>}
       <Text style={styles.footnote}>Puedes publicar sin internet. La publicación queda pendiente y se sube cuando vuelva la conexión.</Text>
-    </ScrollView>
+    </ScrollView></View>
   );
 }
 
@@ -196,7 +198,7 @@ const styles = StyleSheet.create({
   borradorTexto: { color: colors.verde, fontSize: 15, fontWeight: '800' },
   ayuda: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 6 },
   flex: { flex: 1 }, content: { padding: 22, paddingTop: 14, paddingBottom: 40 }, back: { color: colors.brown, fontWeight: '700', fontSize: 15, marginBottom: 18 },
-  title: { color: colors.ink, fontSize: 27, fontWeight: '900' }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7, marginBottom: 8 },
+  title: { color: colors.ink, fontSize: 24, fontWeight: '900' }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7, marginBottom: 8 },
   label: { color: colors.ink, fontSize: 14, fontWeight: '800', marginTop: 18, marginBottom: 8 },
   input: { backgroundColor: colors.white, borderColor: colors.line, borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, paddingVertical: 12, color: colors.ink, fontSize: 15 },
   spaced: { marginTop: 9 },

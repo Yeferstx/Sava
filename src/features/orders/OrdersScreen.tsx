@@ -193,7 +193,7 @@ export default function OrdersScreen({ mode, userId, onBack, onSignOut, onLegal 
 const styles = StyleSheet.create({
   flex: { flex: 1 }, content: { padding: 20, paddingTop: 14, paddingBottom: 96 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 18 }, backText: { color: colors.brown, fontSize: 14, fontWeight: '700' },
-  title: { color: colors.ink, fontSize: 26, fontWeight: '900' }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5, marginBottom: 16 },
+  title: { color: colors.ink, fontSize: 24, fontWeight: '900' }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 5, marginBottom: 16 },
   empty: { alignItems: 'center', gap: 6, backgroundColor: colors.white, borderColor: colors.line, borderWidth: 1, borderRadius: 18, padding: 24 },
   emptyTitle: { color: colors.ink, fontSize: 16, fontWeight: '800', marginTop: 4 }, emptyText: { color: colors.muted, fontSize: 13, textAlign: 'center', lineHeight: 19 },
   card: { backgroundColor: colors.white, borderColor: colors.line, borderWidth: 1, borderRadius: 18, padding: 15, marginBottom: 11 },

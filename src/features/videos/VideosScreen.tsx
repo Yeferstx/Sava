@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useEvent } from 'expo';
 import { Esqueleto } from '../../shared/components/Esqueleto';
+import { useAlVolver } from '../../shared/useAlVolver';
 import { ImagePlus, MessageCircle, Play, Plus, Share2, Sparkles, Upload, Volume2, VolumeX, X } from 'lucide-react-native';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
 import { createLocalId, getActiveBusinessId } from '../../infrastructure/database/database';
@@ -32,6 +33,7 @@ export default function VideosScreen({ canPublish = false, onVender, onOpenMaria
   const [draftTitle, setDraftTitle] = useState('');
   const [draftCategory, setDraftCategory] = useState('Cosechas');
   const [saving, setSaving] = useState(false);
+  const [errorCarga, setErrorCarga] = useState(false);
 
   const refresh = useCallback(async () => {
     const supabase = getSupabaseClient();
@@ -40,11 +42,13 @@ export default function VideosScreen({ canPublish = false, onVender, onOpenMaria
       const { data, error } = await supabase.from('videos').select('id,business_id,title,category,video_path,created_at,business:businesses(name,municipality,phone)').eq('is_published', true).order('created_at', { ascending: false }).limit(40);
       if (error) throw error;
       setVideos((data ?? []) as unknown as PublicVideo[]);
-    } catch (error) {
-      Alert.alert('No pudimos cargar los videos', error instanceof Error ? error.message : 'Revisa tu conexión e intenta de nuevo.');
+      setErrorCarga(false);
+    } catch {
+      setErrorCarga(true);
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+  useAlVolver(() => { void refresh(); });
 
   // cual video se ve en pantalla: ese es el que suena
   const alCambiarVisible = useRef(({ viewableItems }: { viewableItems: Array<{ index?: number | null }> }) => {
@@ -146,7 +150,12 @@ export default function VideosScreen({ canPublish = false, onVender, onOpenMaria
       renderItem={({ item, index }) => <VideoCompleto video={item} alto={alto} activo={index === actual} silencio={silencio} onSilencio={() => setSilencio(!silencio)} onOpenMaria={onOpenMaria} />}
     />}
 
-    {!loading && visibles.length === 0 && <View style={styles.vacio}>
+    {!loading && errorCarga && videos.length === 0 && <View style={styles.vacio}>
+      <Text style={styles.vacioTitulo}>No pudimos cargar los videos</Text>
+      <Text style={styles.vacioTexto}>Revisa tu señal. Cuando vuelva el internet se cargan solos.</Text>
+      <Pressable accessibilityRole="button" onPress={() => { setLoading(true); void refresh(); }} style={styles.vacioBoton}><Text style={styles.vacioBotonTexto}>Intentar de nuevo</Text></Pressable>
+    </View>}
+    {!loading && !(errorCarga && videos.length === 0) && visibles.length === 0 && <View style={styles.vacio}>
       <View style={styles.vacioIcono}><Play size={34} color={colors.white} fill={colors.white} /></View>
       <Text style={styles.vacioTitulo}>{vacioTitulo}</Text>
       <Text style={styles.vacioTexto}>{canPublish ? 'Sube el primer video: muestra tu cosecha o tus productos.' : 'Pronto los campesinos y tiendas de Casanare mostrarán aquí su trabajo.'}</Text>

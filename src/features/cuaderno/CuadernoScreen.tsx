@@ -116,7 +116,7 @@ export default function CuadernoScreen({ onBack, onNuevaCosecha }: Props) {
 
   return (
     <View ref={teclaEspacio.ref} onLayout={teclaEspacio.medir} style={[styles.flex, { paddingBottom: teclaEspacio.espacio }]}>
-      <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Pressable accessibilityRole="button" onPress={onBack} style={styles.volver}><ArrowLeft size={20} color={colors.verde} /><Text style={styles.volverTexto}>Volver</Text></Pressable>
         <Text style={styles.titulo}>Mi cuaderno</Text>
         <Text style={styles.subtitulo}>Anota cosechas, ventas, gastos y cobros. Funciona sin internet.</Text>
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   content: { padding: 18, paddingTop: 10, paddingBottom: 40 },
   volver: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 6 },
   volverTexto: { color: colors.verde, fontSize: 15, fontWeight: '800' },
-  titulo: { color: colors.verde, fontSize: 26, fontWeight: '900', marginTop: 4 },
+  titulo: { color: colors.verde, fontSize: 24, fontWeight: '900', marginTop: 4 },
   subtitulo: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 2 },
   escuchar: { marginTop: 8, marginBottom: 10 },
   periodos: { flexDirection: 'row', gap: 6, marginTop: 4 },

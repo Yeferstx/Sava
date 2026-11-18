@@ -104,7 +104,7 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
 
 const styles = StyleSheet.create({
   flex: { flex: 1 }, content: { padding: 20, paddingTop: 14, paddingBottom: 96 },
-  eyebrow: { color: colors.muted, fontSize: 11, letterSpacing: 1.2, fontWeight: '800' }, title: { color: colors.ink, fontSize: 27, fontWeight: '900', marginTop: 4 },
+  eyebrow: { color: colors.muted, fontSize: 11, letterSpacing: 1.2, fontWeight: '800' }, title: { color: colors.ink, fontSize: 24, fontWeight: '900', marginTop: 4 },
   place: { color: colors.muted, fontSize: 13, marginTop: 2 }, motto: { color: colors.brown, fontSize: 14, fontWeight: '700', marginTop: 10 }, escuchar: { marginTop: 10 },
   metrics: { flexDirection: 'row', gap: 10, marginTop: 18 },
   confirmar: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.arcilla, borderRadius: 18, padding: 14, marginTop: 16 },

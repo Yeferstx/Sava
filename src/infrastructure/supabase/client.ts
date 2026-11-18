@@ -1,4 +1,5 @@
 import 'react-native-url-polyfill/auto';
+import { AppState } from 'react-native';
 import storage from 'expo-sqlite/kv-store';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -14,6 +15,12 @@ export function getSupabaseClient() {
   }
   client = createClient(url, publishableKey, {
     auth: { storage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false },
+  });
+  // al volver del segundo plano la sesion se revisa sola (si vencio sin senal, se renueva)
+  const conCliente = client;
+  AppState.addEventListener('change', (estado) => {
+    if (estado === 'active') conCliente.auth.startAutoRefresh();
+    else conCliente.auth.stopAutoRefresh();
   });
   return client;
 }

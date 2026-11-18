@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { Animated, Easing, Image, Keyboard, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
+import { Animated, Easing, Image, Keyboard, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, useWindowDimensions, View } from 'react-native';
 import { ArrowLeft, Clock, Keyboard as IconoTeclado, MessageCircle, Mic, RotateCcw, Send, Sprout, Square, Volume2, VolumeX, WifiOff } from 'lucide-react-native';
 import NotaVoz from '../../shared/components/NotaVoz';
 import type { ChatMessage, ProductDraft, Recomendacion, VentaPropuesta } from './types';
@@ -91,6 +91,7 @@ export default function ChatScreen(props: Props) {
   const reducir = useRef(false);
   // el campo de escribir siempre queda encima del teclado
   const teclaEspacio = useEspacioTeclado();
+  const pantallaAlto = useWindowDimensions().height;
   // charla: en modo voz, despues de que el asistente responde vuelve a escuchar solo
   const esperaTurno = useRef(false);
   const yaHablo = useRef(false);
@@ -224,7 +225,8 @@ export default function ChatScreen(props: Props) {
   let etiqueta = textoEstado(estado);
   if (modoVoz && estado === 'reposo') etiqueta = 'Toca el micrófono para hablar';
 
-  let tamanoHero = 150;
+  // en celulares bajitos el personaje es mas pequeno para que se vean las sugerencias
+  let tamanoHero = pantallaAlto < 700 ? 104 : 150;
   if (teclado) tamanoHero = 64;
 
   return (
@@ -401,6 +403,6 @@ const styles = StyleSheet.create({
   avisoTexto: { color: colors.verde, fontSize: 13, fontWeight: '700', flex: 1, lineHeight: 18 },
   composer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 6, paddingBottom: 10, gap: 8, backgroundColor: colors.crema },
   mic: { width: 50, height: 50, borderRadius: 25, backgroundColor: colors.salvia, alignItems: 'center', justifyContent: 'center' },
-  input: { flex: 1, backgroundColor: colors.white, borderRadius: 25, minHeight: 50, paddingHorizontal: 16, color: colors.grafito, fontSize: 16, borderWidth: 1, borderColor: colors.line },
+  input: { flex: 1, minWidth: 0, backgroundColor: colors.white, borderRadius: 25, minHeight: 50, paddingHorizontal: 16, color: colors.grafito, fontSize: 16, borderWidth: 1, borderColor: colors.line },
   send: { width: 50, height: 50, borderRadius: 25, backgroundColor: colors.verde, alignItems: 'center', justifyContent: 'center' },
 });

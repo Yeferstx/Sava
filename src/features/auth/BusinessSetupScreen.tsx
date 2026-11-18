@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { User } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../../infrastructure/supabase/client';
+import { useEspacioTeclado } from '../../shared/useEspacioTeclado';
 import { colors } from '../../shared/theme';
 import SavaLogo from '../../shared/components/SavaLogo';
 import { limpiarTelefono, municipios, telefonoValido } from '../../shared/validaciones';
@@ -14,6 +15,7 @@ const categories = ['Finca', 'Huerta', 'Asociación', 'Emprendimiento agrícola'
 
 // tipo: finca de un campesino o tienda del campo (agropecuaria)
 export default function BusinessSetupScreen({ user, tipo, onCreated }: { user: User; tipo: 'agricultor' | 'tienda'; onCreated: (business: RemoteBusiness) => void }) {
+  const teclaEspacio = useEspacioTeclado();
   const esTienda = tipo === 'tienda';
   const [name, setName] = useState('');
   const [category, setCategory] = useState(esTienda ? CATEGORIA_TIENDA : 'Finca');
@@ -40,7 +42,7 @@ export default function BusinessSetupScreen({ user, tipo, onCreated }: { user: U
     finally { setWorking(false); }
   }
 
-  return <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+  return <View ref={teclaEspacio.ref} onLayout={teclaEspacio.medir} style={[styles.flex, { paddingBottom: teclaEspacio.espacio }]}><ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
     <SavaLogo size="small" /><Text style={styles.title}>{esTienda ? 'Cuéntanos de tu tienda' : 'Cuéntanos de tu finca'}</Text><Text style={styles.subtitle}>Los compradores verán este nombre, tu municipio y tu teléfono en cada publicación.</Text>
     <BotonEscuchar texto={esTienda ? 'Escribe el nombre de tu tienda, tu teléfono y toca tu municipio. Después toca el botón verde.' : 'Escribe el nombre de tu finca, tu teléfono y toca tu municipio. Después toca el botón verde.'} />
     <Text style={styles.label}>{esTienda ? 'Nombre de la tienda *' : 'Nombre de la finca o emprendimiento *'}</Text><TextInput value={name} onChangeText={setName} placeholder={esTienda ? 'Ej. Agropecuaria El Llano' : 'Ej. Finca La Esperanza'} style={styles.input} maxLength={60} />
@@ -50,7 +52,7 @@ export default function BusinessSetupScreen({ user, tipo, onCreated }: { user: U
     <Text style={styles.label}>Municipio</Text><View style={styles.options}>{municipios.map((item) => <Pressable key={item} onPress={() => setMunicipality(item)} style={[styles.option, municipality === item && styles.optionSelected]}><Text style={[styles.optionText, municipality === item && styles.optionTextSelected]}>{item}</Text></Pressable>)}</View>
     <Pressable disabled={working} onPress={() => void submit()} style={[styles.submit, working && styles.disabled]}>{working ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{esTienda ? 'Crear mi tienda' : 'Crear mi finca'}</Text>}</Pressable>
     <ApoyoGobernacion />
-  </ScrollView>;
+  </ScrollView></View>;
 }
 
 const styles = StyleSheet.create({ flex: { flex: 1 }, content: { padding: 24, paddingTop: 44, paddingBottom: 40, backgroundColor: colors.paper }, mark: { width: 45, height: 45, borderRadius: 15, backgroundColor: '#E8F2EE', alignItems: 'center', justifyContent: 'center' }, markText: { color: colors.brown, fontWeight: '900', fontSize: 27 }, title: { color: colors.ink, fontSize: 25, fontWeight: '900', marginTop: 22 }, subtitle: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 5, marginBottom: 13 }, label: { color: colors.ink, fontSize: 12, fontWeight: '800', marginTop: 15, marginBottom: 6 }, input: { backgroundColor: '#fff', borderColor: colors.line, borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, paddingVertical: 12, color: colors.ink }, multiline: { height: 82 }, options: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, option: { borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: '#fff' }, optionSelected: { backgroundColor: '#E8F2EE', borderColor: colors.brown }, optionText: { color: colors.ink, fontSize: 10 }, optionTextSelected: { color: colors.brown, fontWeight: '800' }, submit: { backgroundColor: colors.brown, borderRadius: 24, alignItems: 'center', justifyContent: 'center', height: 48, marginTop: 24 }, disabled: { opacity: 0.65 }, submitText: { color: '#fff', fontWeight: '800', fontSize: 13 } });

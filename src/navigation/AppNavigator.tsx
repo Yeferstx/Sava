@@ -22,6 +22,8 @@ import { getSupabaseClient } from '../infrastructure/supabase/client';
 import { estadoSincronizacion, syncPendingChanges } from '../infrastructure/sync/syncService';
 import { borrarDatosPrivados } from '../infrastructure/database/database';
 import CuadernoScreen from '../features/cuaderno/CuadernoScreen';
+import PedirCuenta from '../shared/components/PedirCuenta';
+import AvisoConexion from '../shared/components/AvisoConexion';
 import AprendeScreen from '../features/aprende/AprendeScreen';
 import PromocionarScreen from '../features/promocion/PromocionarScreen';
 import { escucharSenal } from '../features/chat/pendientes';
@@ -93,6 +95,10 @@ export default function AppNavigator() {
   // promocionar con sava: la publicacion elegida y los datos de la finca
   const [promocion, setPromocion] = useState<{ product: Product; business: Business | null } | null>(null);
   const [volverAprende, setVolverAprende] = useState<AppTab>('Inicio');
+  // visitante: se explica por que hace falta cuenta y, al entrar, se vuelve a lo que estaba haciendo
+  const [pedirCuenta, setPedirCuenta] = useState<{ motivo: string; destino: AppTab } | null>(null);
+  const [despuesDeEntrar, setDespuesDeEntrar] = useState<AppTab | null>(null);
+  const [modoAuth, setModoAuth] = useState<'signIn' | 'signUp'>('signIn');
   const ultimaPregunta = useRef(0);
   // quien vende: campesino (finca) o tienda del campo
   const [tipoNegocio, setTipoNegocio] = useState<'agricultor' | 'tienda'>('agricultor');
@@ -277,7 +283,7 @@ export default function AppNavigator() {
   function startOrder(product: Product, business: Business) {
     setMerchantIntent(false);
     setOrderIntent({ product, business, quantity: 1 });
-    if (!user) setStage('signedOut');
+    if (!user) { setModoAuth('signIn'); setStage('signedOut'); }
   }
   function orderCreated() {
     setOrderIntent(null);
@@ -290,9 +296,25 @@ export default function AppNavigator() {
     setMerchantIntent(true);
     // un comprador que quiere vender: primero elige si es campesino o tienda
     if (user) { setStage('chooseRole'); return; }
+    setMerchantIntent(false);
+    setPedirCuenta({ motivo: 'Para guardar tu cosecha y administrarla, primero necesitamos crear tu cuenta. Es gratis y toma un minuto.', destino: 'Publicar' });
+  }
+  function irACuenta(modo: 'signIn' | 'signUp') {
+    if (!pedirCuenta) return;
+    setModoAuth(modo);
+    setDespuesDeEntrar(pedirCuenta.destino);
+    if (pedirCuenta.destino === 'Publicar') setMerchantIntent(true);
+    setPedirCuenta(null);
     setStage('signedOut');
   }
-  function continueAsGuest() { setMerchantIntent(false); setActiveTab('Inicio'); setStage('guest'); }
+  function continueAsGuest() { setMerchantIntent(false); setDespuesDeEntrar(null); setActiveTab('Inicio'); setStage('guest'); }
+
+  // despues de entrar o registrarse se vuelve a la accion que se queria hacer
+  useEffect(() => {
+    if (!despuesDeEntrar || !user) return;
+    if (stage === 'signedIn') { setActiveTab(despuesDeEntrar); setDespuesDeEntrar(null); }
+    else if (stage === 'guest') { setActiveTab(despuesDeEntrar === 'Publicar' ? 'Inicio' : despuesDeEntrar); setDespuesDeEntrar(null); }
+  }, [stage, user, despuesDeEntrar]);
   // maria se abre desde cualquier pantalla y al cerrar vuelve a donde estaba
   // modo voz: maria responde en voz alta y se abre el microfono. modo texto: se abre el teclado
   function openChat(modo: 'voz' | 'texto' | '' = '') {
@@ -342,12 +364,12 @@ export default function AppNavigator() {
 
   if (stage === 'loading' || stage === 'checkingBusiness') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><View style={styles.loading}><SavaLogo size="large" centrado /><ActivityIndicator color={colors.brown} style={styles.spinner} /><Text style={styles.loadingText}>{stage === 'checkingBusiness' ? 'Entrando a tu cuenta…' : 'Preparando tu espacio…'}</Text></View></SafeAreaView>;
   if (stage === 'chooseRole') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><RoleScreen onElegido={rolElegido} onSignOut={() => void signOut()} /></SafeAreaView>;
-  if (stage === 'signedOut') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><AuthScreen onContinueGuest={continueAsGuest} purpose={orderIntent ? 'buyer' : merchantIntent ? 'seller' : 'general'} /></SafeAreaView>;
+  if (stage === 'signedOut') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><AuthScreen key={modoAuth} modoInicial={modoAuth} onContinueGuest={continueAsGuest} purpose={orderIntent ? 'buyer' : merchantIntent ? 'seller' : 'general'} /></SafeAreaView>;
   if (stage === 'setupBusiness' && user) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><BusinessSetupScreen user={user} tipo={tipoNegocio} onCreated={(business) => { void onBusinessCreated(business).catch((error) => { setStartupError(error instanceof Error ? error.message : 'No se pudo preparar el negocio.'); setStage('error'); }); }} /></SafeAreaView>;
   if (stage === 'error') return <SafeAreaView style={styles.safe}><View style={styles.errorScreen}><SavaLogo size="large" centrado /><Text style={styles.errorTitle}>No pudimos conectar</Text><Text style={styles.loadingText}>{startupError}</Text><Pressable onPress={() => setStage(user ? 'checkingBusiness' : 'signedOut')} style={styles.retry}><Text style={styles.retryText}>Intentar de nuevo</Text></Pressable>{!!user && <Pressable onPress={() => void signOut()} style={styles.signOut}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}</View></SafeAreaView>;
 
   if (orderIntent && user && (stage === 'guest' || stage === 'signedIn')) return <SafeAreaView style={styles.safe} {...(Platform.OS === 'ios' ? gestoVolver.panHandlers : {})}><OrderCheckoutScreen product={orderIntent.product} business={orderIntent.business} quantity={orderIntent.quantity} user={user} onBack={() => setOrderIntent(null)} onCreated={orderCreated} /></SafeAreaView>;
-  const isChat = activeTab === 'María';
+  const isChat = activeTab === 'María' && !pedirCuenta;
   const isTransient = activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio' || activeTab === 'Legal' || activeTab === 'Cuaderno' || activeTab === 'Aprende' || activeTab === 'Promocionar' || productoEditar !== null;
   const esAgricultor = stage === 'signedIn';
   const municipioComprador = datoUsuario(user, 'municipio');
@@ -372,7 +394,8 @@ export default function AppNavigator() {
   else if (activeTab === 'Guardados') pantalla = <GuardadosScreen onProductPress={abrirProducto} />;
   else if (activeTab === 'Mi negocio' && user) pantalla = <OrdersScreen mode={'customer'} userId={user.id} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (activeTab === 'Mi negocio' || activeTab === 'Publicar') pantalla = <AuthScreen onContinueGuest={continueAsGuest} />;
-  else pantalla = <HomeScreen key={municipioComprador + tipoChat} municipioInicial={municipioComprador} seccionInicial={tipoChat === 'agricultor' ? 'insumos' : 'cosechas'} onProductPress={abrirProducto} onVender={() => { if (esAgricultor) navigate('Publicar'); else startMerchantFlow(); }} onHablar={() => openChat('voz')} onEscribir={() => openChat('texto')} onAprender={() => abrirAprende('Inicio')} />;
+  if (pedirCuenta) pantalla = <PedirCuenta motivo={pedirCuenta.motivo} onCrear={() => irACuenta('signUp')} onEntrar={() => irACuenta('signIn')} onAhoraNo={() => setPedirCuenta(null)} />;
+  else if (!pantalla) pantalla = <HomeScreen key={municipioComprador + tipoChat} municipioInicial={municipioComprador} seccionInicial={tipoChat === 'agricultor' ? 'insumos' : 'cosechas'} onProductPress={abrirProducto} onVender={() => { if (esAgricultor) navigate('Publicar'); else startMerchantFlow(); }} onHablar={() => openChat('voz')} onEscribir={() => openChat('texto')} onAprender={() => abrirAprende('Inicio')} />;
 
   // el boton de maria se ve en las pantallas principales y en el detalle de un producto
   const conBarra = !isTransient && !selectedBusiness && !selectedProduct;
@@ -389,6 +412,7 @@ export default function AppNavigator() {
   // solo se respeta el borde de arriba: abajo la barra de pestanas pinta hasta el final
   return <SafeAreaView edges={conBarra ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']} style={[styles.safe, enVideos && styles.oscuro]}>
     <StatusBar barStyle={enVideos ? 'light-content' : 'dark-content'} />
+    {!isChat && activeTab !== 'Cuaderno' && <AvisoConexion />}
     {/* en iphone se puede volver deslizando desde el borde izquierdo (solo si hay a donde volver) */}
     <Animated.View style={[styles.flex, { transform: [{ translateX: arrastre }] }]} {...(Platform.OS === 'ios' && hayAtras ? gestoVolver.panHandlers : {})}>
       <PantallaAnimada key={activeTab + (selectedProduct ? '-p' + selectedProduct.product.id : '') + (selectedBusiness ? '-n' + selectedBusiness.id : '')}>{pantalla}</PantallaAnimada>
@@ -397,7 +421,8 @@ export default function AppNavigator() {
     {esAgricultor && <SeguimientoModal visible={verSeguimiento} pendientes={seguimientos} leerEnVoz={chat.leerEnVoz} onListo={seguimientoListo} onCerrar={() => setVerSeguimiento(false)} />}
     {!isTransient && !selectedBusiness && !selectedProduct && <TabBar active={activeTab} onChange={(tab) => {
       if (!esAgricultor && tab === 'Publicar') { startMerchantFlow(); return; }
-      if (!esAgricultor && tab === 'Mi negocio' && !user) { setMerchantIntent(false); setStage('signedOut'); return; }
+      if (!esAgricultor && tab === 'Mi negocio' && !user) { setPedirCuenta({ motivo: 'Para ver tus consultas, tu cuaderno y tu negocio necesitas una cuenta. Así tus datos quedan guardados y solo tú los ves.', destino: 'Mi negocio' }); return; }
+      setPedirCuenta(null);
       navigate(tab);
     }} guest={!esAgricultor} tienda={tipoNegocio === 'tienda'} oscuro={enVideos} />}
   </SafeAreaView>;
