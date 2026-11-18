@@ -25,11 +25,11 @@ function FondoActivo({ visible, oscuro }: { visible: boolean; oscuro: boolean })
   return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, oscuro ? styles.selectedOscuro : styles.selected, { borderRadius: 16, opacity: valor, transform: [{ scale: escala }] }]} />;
 }
 
-type Props = { active: AppTab; onChange: (tab: AppTab) => void; guest?: boolean; tienda?: boolean; oscuro?: boolean };
+type Props = { active: AppTab; onChange: (tab: AppTab) => void; guest?: boolean; tienda?: boolean; oscuro?: boolean; insignia?: number };
 
 // barra de abajo: una sola pieza con el paisaje detras de los cinco botones.
 // oscuro: en videos la barra se pone oscura como el resto de la pantalla
-export default function TabBar({ active, onChange, guest = false, tienda = false, oscuro = false }: Props) {
+export default function TabBar({ active, onChange, guest = false, tienda = false, oscuro = false, insignia = 0 }: Props) {
   const bordes = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   // con el teclado abierto la barra se esconde para no tapar lo que se escribe
@@ -111,6 +111,7 @@ export default function TabBar({ active, onChange, guest = false, tienda = false
                 {/* el icono y el nombre siempre quedan encima del fondo */}
                 <View style={styles.contenido}>
                   <Icon size={24} color={color} strokeWidth={selected ? 2.6 : 2.2} />
+                  {name === 'Mi negocio' && insignia > 0 && <View style={styles.punto} />}
                   <Text style={[styles.label, selected && styles.activeText, oscuro && styles.labelOscuro]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
                 </View>
               </View>
@@ -129,6 +130,7 @@ const styles = StyleSheet.create({
   paisaje: { position: 'absolute', left: 0, bottom: 0 },
   paisajeTenue: { opacity: 0.16 },
   contenido: { position: 'relative', alignItems: 'center' },
+  punto: { position: 'absolute', top: -2, right: 4, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.arcilla, borderWidth: 1.5, borderColor: colors.white },
   fundido: { position: 'absolute', left: 0, top: -26 },
   desvanecido: { position: 'absolute', left: 0 },
   fila: { position: 'absolute', left: 0, right: 0, top: 8, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-start', paddingHorizontal: 0 },

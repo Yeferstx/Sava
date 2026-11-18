@@ -13,7 +13,7 @@ import { compartirCosecha, dinero, textoPrecio } from '../../shared/contacto';
 import { vendidoPorProducto, type VendidoPorProducto } from '../sales/data/salesRepository';
 import { interesPorProducto, type Interes } from './data/inventoryRepository';
 import { useAlVolver } from '../../shared/useAlVolver';
-import { alSincronizar } from '../../infrastructure/sync/syncService';
+import { alSincronizar, sincronizandoAhora } from '../../infrastructure/sync/syncService';
 
 type Props = { onAddProduct: () => void; onEdit: (product: Product) => void; onOpenSales: () => void; onPromocionar?: (product: Product) => void; tipo?: 'agricultor' | 'tienda' };
 
@@ -37,7 +37,8 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, onP
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
   // cuando termina de subir algo, los estados cambian solos (pendiente -> publicada)
-  useEffect(() => alSincronizar(() => { void refresh(); }), [refresh]);
+  const [enviando, setEnviando] = useState(false);
+  useEffect(() => alSincronizar(() => { setEnviando(sincronizandoAhora()); void refresh(); }), [refresh]);
   // consultas y contactos de cada publicacion (con internet)
   const [interes, setInteres] = useState<Interes | null>(null);
   useEffect(() => { void interesPorProducto().then(setInteres); }, []);
@@ -137,7 +138,8 @@ export default function InventoryScreen({ onAddProduct, onEdit, onOpenSales, onP
         else if (pausada) estado = 'Pausada';
         if (agotada && estado === 'Publicada') estado = 'Agotada';
         let sync = '';
-        if (product.sync_status === 'pending' && enServidor) sync = 'Cambios sin enviar';
+        if (product.sync_status === 'pending' && enServidor) sync = enviando ? 'Enviando…' : 'Cambios sin enviar';
+        if (product.sync_status === 'pending' && !enServidor && enviando) sync = 'Enviando…';
         if (product.sync_status === 'conflict') sync = 'Revisa: cambió en otro celular';
         return <View key={product.id} style={[styles.product, pausada && styles.productPausado]}>
           <View style={styles.productTop}>

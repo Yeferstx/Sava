@@ -25,6 +25,8 @@ import CuadernoScreen from '../features/cuaderno/CuadernoScreen';
 import PedirCuenta from '../shared/components/PedirCuenta';
 import AvisoConexion from '../shared/components/AvisoConexion';
 import FotoPerfil from '../shared/components/FotoPerfil';
+import NotificacionesScreen from '../features/notificaciones/NotificacionesScreen';
+import { alCambiarNotificaciones, borrarNotificaciones, contarSinLeer, contarSinLeerDe, crearNotificacion, revisarNovedades } from '../features/notificaciones/notificacionesRepository';
 import AprendeScreen from '../features/aprende/AprendeScreen';
 import PromocionarScreen from '../features/promocion/PromocionarScreen';
 import { escucharSenal } from '../features/chat/pendientes';
@@ -100,6 +102,9 @@ export default function AppNavigator() {
   const [pedirCuenta, setPedirCuenta] = useState<{ motivo: string; destino: AppTab } | null>(null);
   const [despuesDeEntrar, setDespuesDeEntrar] = useState<AppTab | null>(null);
   const [modoAuth, setModoAuth] = useState<'signIn' | 'signUp'>('signIn');
+  // notificaciones sin leer (campana y numero en la barra)
+  const [sinLeer, setSinLeer] = useState(0);
+  const [consultasNuevas, setConsultasNuevas] = useState(0);
   const ultimaPregunta = useRef(0);
   // quien vende: campesino (finca) o tienda del campo
   const [tipoNegocio, setTipoNegocio] = useState<'agricultor' | 'tienda'>('agricultor');
@@ -253,6 +258,7 @@ export default function AppNavigator() {
     }
     if (activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio' || activeTab === 'Cuaderno') { setActiveTab('Mi negocio'); return true; }
     if (activeTab === 'Aprende') { setActiveTab(volverAprende); return true; }
+    if (activeTab === 'Notificaciones') { setActiveTab('Mi negocio'); return true; }
     if (activeTab === 'Promocionar') { setActiveTab('Inventario'); return true; }
     return false;
   }
@@ -354,14 +360,36 @@ export default function AppNavigator() {
   }
   async function cerrarSesion() {
     // los datos privados no quedan en el celular para la siguiente persona
-    try { await borrarDatosPrivados(); } catch { /* se intenta cerrar igual */ }
+    try { await borrarDatosPrivados(); await borrarNotificaciones(); } catch { /* se intenta cerrar igual */ }
     chat.resetChat();
     const { error } = await supabase?.auth.signOut() ?? { error: null };
     if (error) Alert.alert('No se pudo cerrar sesión', error.message);
   }
 
-  // cuando vuelve la senal se envia lo pendiente (sin bloquear nada)
-  useEffect(() => escucharSenal((conSenal) => { if (conSenal) void syncPendingChanges().catch(() => undefined); }), []);
+  // cuando vuelve la senal se envia lo pendiente; si se envio algo guardado sin senal, se avisa una vez
+  useEffect(() => escucharSenal((conSenal) => {
+    if (!conSenal) return;
+    void syncPendingChanges().then((r) => {
+      if (r.synced > 0) void crearNotificacion({ id: 'sync-' + new Date().toISOString().slice(0, 13), tipo: 'sincronizacion', titulo: 'Tus registros se enviaron', texto: 'Se enviaron ' + r.synced + (r.synced === 1 ? ' registro guardado' : ' registros guardados') + ' sin señal. Todo está actualizado.', product_id: null }).then(contarNotificaciones);
+    }).catch(() => undefined);
+  }), []);
+
+  // novedades reales del servidor: al abrir, al volver a la app o la senal, y cada minuto mientras esta abierta
+  function contarNotificaciones() {
+    void contarSinLeer().then(setSinLeer).catch(() => undefined);
+    void contarSinLeerDe('consulta').then(setConsultasNuevas).catch(() => undefined);
+  }
+  useEffect(() => {
+    if (!user) { setSinLeer(0); setConsultasNuevas(0); return; }
+    const vendedor = stage === 'signedIn';
+    const revisar = () => { void revisarNovedades(vendedor).then(contarNotificaciones); };
+    revisar();
+    const cada = setInterval(() => { if (AppState.currentState === 'active') revisar(); }, 60000);
+    const app = AppState.addEventListener('change', (estado) => { if (estado === 'active') revisar(); });
+    const senal = escucharSenal((conSenal) => { if (conSenal) revisar(); });
+    const cambios = alCambiarNotificaciones(contarNotificaciones);
+    return () => { clearInterval(cada); app.remove(); senal(); cambios(); };
+  }, [user, stage]);
 
   if (stage === 'loading' || stage === 'checkingBusiness') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><View style={styles.loading}><SavaLogo size="large" centrado /><ActivityIndicator color={colors.brown} style={styles.spinner} /><Text style={styles.loadingText}>{stage === 'checkingBusiness' ? 'Entrando a tu cuenta…' : 'Preparando tu espacio…'}</Text></View></SafeAreaView>;
   if (stage === 'chooseRole') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><RoleScreen onElegido={rolElegido} onSignOut={() => void signOut()} /></SafeAreaView>;
@@ -371,7 +399,7 @@ export default function AppNavigator() {
 
   if (orderIntent && user && (stage === 'guest' || stage === 'signedIn')) return <SafeAreaView style={styles.safe} {...(Platform.OS === 'ios' ? gestoVolver.panHandlers : {})}><OrderCheckoutScreen product={orderIntent.product} business={orderIntent.business} quantity={orderIntent.quantity} user={user} onBack={() => setOrderIntent(null)} onCreated={orderCreated} /></SafeAreaView>;
   const isChat = activeTab === 'María' && !pedirCuenta;
-  const isTransient = activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio' || activeTab === 'Legal' || activeTab === 'Cuaderno' || activeTab === 'Aprende' || activeTab === 'Promocionar' || productoEditar !== null;
+  const isTransient = activeTab === 'Ventas' || activeTab === 'Pedidos' || activeTab === 'Editar negocio' || activeTab === 'Legal' || activeTab === 'Cuaderno' || activeTab === 'Aprende' || activeTab === 'Promocionar' || activeTab === 'Notificaciones' || productoEditar !== null;
   const esAgricultor = stage === 'signedIn';
   const municipioComprador = datoUsuario(user, 'municipio');
   const abrirProducto = (product: Product, business: Business | null) => setSelectedProduct({ product, business });
@@ -383,9 +411,15 @@ export default function AppNavigator() {
   else if (selectedBusiness) pantalla = <BusinessDetailScreen business={selectedBusiness} onBack={() => setSelectedBusiness(null)} />;
   else if (activeTab === 'Legal') pantalla = <LegalScreen onBack={() => setActiveTab(volverLegal)} />;
   else if (activeTab === 'Videos') pantalla = <VideosScreen canPublish={esAgricultor} onVender={startMerchantFlow} onOpenMaria={openChat} />;
-  else if (esAgricultor && activeTab === 'Mi negocio') pantalla = <BusinessDashboardScreen porConfirmar={seguimientos.length} onConfirmarVentas={() => setVerSeguimiento(true)} tipo={tipoNegocio} onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
+  else if (esAgricultor && activeTab === 'Mi negocio') pantalla = <BusinessDashboardScreen sinLeer={sinLeer} consultasNuevas={consultasNuevas} porConfirmar={seguimientos.length} onConfirmarVentas={() => setVerSeguimiento(true)} tipo={tipoNegocio} onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (esAgricultor && activeTab === 'Inventario') pantalla = <InventoryScreen tipo={tipoNegocio} onAddProduct={() => navigate('Publicar')} onEdit={editarCosecha} onOpenSales={() => setActiveTab('Ventas')} onPromocionar={(product) => void abrirPromocion(product)} />;
   else if (esAgricultor && activeTab === 'Publicar') pantalla = <PublishScreen key={productoEditar ? productoEditar.id : 'nueva'} tipo={tipoNegocio} producto={productoEditar} initialDraft={draftForPublish} onBack={volverDePublicar} onCreated={() => { if (draftForPublish) chat.confirmDraft(); setDraftForPublish(null); setProductoEditar(null); setActiveTab('Inventario'); }} />;
+  else if (activeTab === 'Notificaciones') pantalla = <NotificacionesScreen onBack={() => setActiveTab('Mi negocio')} onAbrir={(n) => {
+    if (n.tipo === 'consulta') { setOrdersMode('business'); setActiveTab(esAgricultor ? 'Pedidos' : 'Mi negocio'); }
+    else if (n.tipo === 'contacto') setActiveTab(esAgricultor ? 'Inventario' : 'Mi negocio');
+    else if (n.tipo === 'sincronizacion') setActiveTab(esAgricultor ? 'Cuaderno' : 'Mi negocio');
+    else setActiveTab('Mi negocio');
+  }} />;
   else if (activeTab === 'Aprende') pantalla = <AprendeScreen onBack={() => setActiveTab(volverAprende)} onPreguntar={() => openChat('texto')} />;
   else if (esAgricultor && activeTab === 'Cuaderno') pantalla = <CuadernoScreen onBack={() => setActiveTab('Mi negocio')} onNuevaCosecha={() => navigate('Publicar')} />;
   else if (esAgricultor && activeTab === 'Promocionar' && promocion) pantalla = <PromocionarScreen product={promocion.product} business={promocion.business} tipo={tipoNegocio} onBack={() => setActiveTab('Inventario')} />;
@@ -393,7 +427,7 @@ export default function AppNavigator() {
   else if (esAgricultor && activeTab === 'Pedidos') pantalla = <OrdersScreen mode={ordersMode} userId={user?.id} onBack={() => setActiveTab('Mi negocio')} />;
   else if (esAgricultor && activeTab === 'Editar negocio') pantalla = <ProfileScreen onBack={() => setActiveTab('Mi negocio')} />;
   else if (activeTab === 'Guardados') pantalla = <GuardadosScreen onProductPress={abrirProducto} />;
-  else if (activeTab === 'Mi negocio' && user) pantalla = <OrdersScreen mode={'customer'} userId={user.id} encabezado={<FotoPerfil subtitulo="Comprador en Sava" />} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
+  else if (activeTab === 'Mi negocio' && user) pantalla = <OrdersScreen mode={'customer'} userId={user.id} encabezado={<View><FotoPerfil subtitulo="Comprador en Sava" /><Pressable accessibilityRole="button" onPress={() => setActiveTab('Notificaciones')} style={styles.avisosComprador}><Text style={styles.avisosCompradorTexto}>{sinLeer > 0 ? '🔔 ' + sinLeer + (sinLeer === 1 ? ' notificación nueva' : ' notificaciones nuevas') : '🔔 Notificaciones'}</Text></Pressable></View>} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (activeTab === 'Mi negocio' || activeTab === 'Publicar') pantalla = <AuthScreen onContinueGuest={continueAsGuest} />;
   if (pedirCuenta) pantalla = <PedirCuenta motivo={pedirCuenta.motivo} onCrear={() => irACuenta('signUp')} onEntrar={() => irACuenta('signIn')} onAhoraNo={() => setPedirCuenta(null)} />;
   else if (!pantalla) pantalla = <HomeScreen key={municipioComprador + tipoChat} municipioInicial={municipioComprador} seccionInicial={tipoChat === 'agricultor' ? 'insumos' : 'cosechas'} onProductPress={abrirProducto} onVender={() => { if (esAgricultor) navigate('Publicar'); else startMerchantFlow(); }} onHablar={() => openChat('voz')} onEscribir={() => openChat('texto')} onAprender={() => abrirAprende('Inicio')} />;
@@ -409,7 +443,7 @@ export default function AppNavigator() {
   let alturaMaria = 20 + bordes.bottom;
   if (conBarra) alturaMaria = alturaBarra(pantallaAncho, bordes.bottom) + 12;
 
-  const hayAtras = !!selectedProduct || !!selectedBusiness || ['María', 'Legal', 'Publicar', 'Ventas', 'Pedidos', 'Editar negocio', 'Cuaderno', 'Aprende', 'Promocionar'].includes(activeTab);
+  const hayAtras = !!selectedProduct || !!selectedBusiness || ['María', 'Legal', 'Publicar', 'Ventas', 'Pedidos', 'Editar negocio', 'Cuaderno', 'Aprende', 'Promocionar', 'Notificaciones'].includes(activeTab);
   // solo se respeta el borde de arriba: abajo la barra de pestanas pinta hasta el final
   return <SafeAreaView edges={conBarra ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']} style={[styles.safe, enVideos && styles.oscuro]}>
     <StatusBar barStyle={enVideos ? 'light-content' : 'dark-content'} />
@@ -425,8 +459,8 @@ export default function AppNavigator() {
       if (!esAgricultor && tab === 'Mi negocio' && !user) { setPedirCuenta({ motivo: 'Para ver tus consultas, tu cuaderno y tu negocio necesitas una cuenta. Así tus datos quedan guardados y solo tú los ves.', destino: 'Mi negocio' }); return; }
       setPedirCuenta(null);
       navigate(tab);
-    }} guest={!esAgricultor} tienda={tipoNegocio === 'tienda'} oscuro={enVideos} />}
+    }} guest={!esAgricultor} tienda={tipoNegocio === 'tienda'} oscuro={enVideos} insignia={sinLeer} />}
   </SafeAreaView>;
 }
 
-const styles = StyleSheet.create({ flex: { flex: 1 }, safe: { flex: 1, backgroundColor: colors.paper }, oscuro: { backgroundColor: colors.grafito }, loading: { flex: 1, alignItems: 'center', justifyContent: 'center' }, brand: { color: colors.brown, fontSize: 35, fontWeight: '900' }, spinner: { marginTop: 22 }, loadingText: { color: colors.muted, fontSize: 12, marginTop: 12, textAlign: 'center' }, errorScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 25 }, errorTitle: { color: colors.ink, fontWeight: '900', fontSize: 21, marginTop: 26 }, retry: { backgroundColor: colors.brown, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 23, marginTop: 20 }, retryText: { color: '#fff', fontWeight: '800', fontSize: 12 }, signOut: { padding: 12, marginTop: 7 }, signOutText: { color: colors.brown, fontWeight: '700', fontSize: 11 } });
+const styles = StyleSheet.create({ flex: { flex: 1 }, avisosComprador: { padding: 12, borderRadius: 14, backgroundColor: colors.salvia, marginBottom: 12 }, avisosCompradorTexto: { color: colors.verde, fontSize: 14, fontWeight: '800' }, safe: { flex: 1, backgroundColor: colors.paper }, oscuro: { backgroundColor: colors.grafito }, loading: { flex: 1, alignItems: 'center', justifyContent: 'center' }, brand: { color: colors.brown, fontSize: 35, fontWeight: '900' }, spinner: { marginTop: 22 }, loadingText: { color: colors.muted, fontSize: 12, marginTop: 12, textAlign: 'center' }, errorScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 25 }, errorTitle: { color: colors.ink, fontWeight: '900', fontSize: 21, marginTop: 26 }, retry: { backgroundColor: colors.brown, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 23, marginTop: 20 }, retryText: { color: '#fff', fontWeight: '800', fontSize: 12 }, signOut: { padding: 12, marginTop: 7 }, signOutText: { color: colors.brown, fontWeight: '700', fontSize: 11 } });

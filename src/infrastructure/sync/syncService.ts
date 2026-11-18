@@ -20,8 +20,11 @@ function avisarOyentes() {
   for (const oyente of oyentes) { try { oyente(); } catch { /* una pantalla con error no frena a las demas */ } }
 }
 
+// true mientras se esta enviando algo (para mostrar "Enviando…")
+export function sincronizandoAhora() { return enCurso !== null; }
+
 export function syncPendingChanges() {
-  if (!enCurso) enCurso = sincronizar().finally(() => { enCurso = null; avisarOyentes(); });
+  if (!enCurso) { enCurso = sincronizar().finally(() => { enCurso = null; avisarOyentes(); }); avisarOyentes(); }
   return enCurso;
 }
 
