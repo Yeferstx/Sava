@@ -48,6 +48,26 @@ function nombreOriginal(mensaje: string, producto: string) {
   return producto.charAt(0).toUpperCase() + producto.slice(1);
 }
 
+// el nombre del producto empieza con lo buscado ("Yuca", "Yuca criolla"; no "Semillas de yuca")
+function sinConectores(texto: string) {
+  return normalizar(texto).split(' ').filter((p) => p !== '' && !['de', 'del', 'la', 'el', 'los', 'las', 'x'].includes(p)).join(' ');
+}
+
+// todas las palabras buscadas estan en el nombre ("semillas maiz" -> "Semillas de maiz", no "Maiz amarillo")
+function tieneTodas(nombre: string, buscado: string) {
+  const a = sinConectores(nombre);
+  const palabras = sinConectores(buscado).split(' ').filter((p) => p.length >= 3);
+  if (palabras.length === 0) return false;
+  return palabras.every((p) => a.includes(p.replace(/(es|s)$/, '')));
+}
+
+function nombreEmpiezaCon(nombre: string, buscado: string) {
+  const a = sinConectores(nombre);
+  const b = sinConectores(buscado).replace(/s$/, '');
+  if (b.length < 3) return false;
+  return a === b || a.startsWith(b + ' ') || a.startsWith(b + 's') || a === b + 's';
+}
+
 function desdeCuando(periodo: Periodo) {
   const fecha = new Date();
   fecha.setHours(0, 0, 0, 0);
@@ -582,11 +602,17 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
     let mercado;
     try { mercado = await cargarMercado(); }
     catch { responder('Para buscar quién vende necesito internet. Revisa tu conexión e intenta otra vez.'); return; }
+    // primero lo que se llama asi ("yuca" -> Yuca). solo si no hay nada, lo de la misma categoria.
+    // asi "maiz" no trae las "Semillas de maiz" ni otras cosas que no se pidieron
+    const exactos = mercado.products.filter((item) => item.stock > 0 && nombreEmpiezaCon(item.name, producto));
+    const conTodas = mercado.products.filter((item) => item.stock > 0 && tieneTodas(item.name, producto));
+    const parecidos = mercado.products.filter((item) => item.stock > 0 && (seParece(item.name, producto) || normalizar(item.category) === normalizar(producto)));
+    let elegidos = parecidos;
+    if (conTodas.length > 0) elegidos = conTodas;
+    if (exactos.length > 0) elegidos = exactos;
     const opciones: Recomendacion[] = [];
     const otrasZonas: Recomendacion[] = [];
-    for (const item of mercado.products) {
-      if (item.stock <= 0) continue;
-      if (!seParece(item.name, producto) && !seParece(item.category, producto)) continue;
+    for (const item of elegidos) {
       const recomendacion = { product: item, business: negocioDe(mercado, item) };
       if (municipio === '' || municipioDe(mercado, item) === municipio) opciones.push(recomendacion);
       else otrasZonas.push(recomendacion);
