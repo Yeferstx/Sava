@@ -10,6 +10,8 @@ import { mostrarCantidad, textoUnidad } from '../../../shared/validaciones';
 import { callar, hablar } from '../../../shared/voz';
 import { getDatabase } from '../../../infrastructure/database/database';
 import { preguntarAMaria, type AccionIA } from '../mariaIA';
+import { escucharSenal, guardarPendiente, hayInternet, listarPendientes, quitarPendiente } from '../pendientes';
+import { borrarAudio, prepararSinInternet, transcribirAudio } from '../../../shared/escucha';
 
 // tipoVendedor: 'agricultor' o 'tienda' si la persona vende, '' si solo compra
 type TipoVendedor = 'agricultor' | 'tienda' | '';
@@ -58,6 +60,25 @@ export function useAssistantChat(tipo: TipoVendedor) {
   // borrador al que le falta la cantidad o el precio
   const pendiente = useRef<{ draft: ProductDraft; falta: 'cantidad' | 'precio' } | null>(null);
   const contador = useRef(0);
+  // sin senal: lo que necesita internet queda guardado y se responde cuando vuelve
+  const [sinSenal, setSinSenal] = useState(false);
+  const [enEspera, setEnEspera] = useState(0);
+  const ocupado = useRef(false);
+  // valores actuales para las funciones que corren cuando vuelve la senal
+  const actual = useRef({ messages, leerEnVoz });
+  actual.current = { messages, leerEnVoz };
+  const revisarCola = useRef<() => Promise<void>>(async () => undefined);
+  revisarCola.current = responderPendientes;
+
+  // al abrir la app y cada vez que vuelve la senal se responden los mensajes guardados
+  useEffect(() => {
+    void hayInternet().then((conSenal) => { setSinSenal(!conSenal); if (conSenal) { void revisarCola.current(); void prepararSinInternet(); } });
+    void listarPendientes().then((lista) => setEnEspera(lista.length)).catch(() => undefined);
+    return escucharSenal((conSenal) => {
+      setSinSenal(!conSenal);
+      if (conSenal) setTimeout(() => void revisarCola.current(), 1500);
+    });
+  }, []);
 
   // si cambia la cuenta (entra o sale) maria vuelve a saludar
   useEffect(() => { resetChat(); }, [tipo]);
@@ -74,26 +95,88 @@ export function useAssistantChat(tipo: TipoVendedor) {
   }
 
   function responder(texto: string, recomendaciones?: Recomendacion[]) {
-    setMessages((actual) => [...actual, { id: nuevoId(), author: 'assistant', text: texto, recomendaciones }]);
-    if (leerEnVoz) void hablar(texto);
+    setMessages((lista) => [...lista, { id: nuevoId(), author: 'assistant', text: texto, recomendaciones }]);
+    if (actual.current.leerEnVoz) void hablar(texto);
   }
 
-  async function sendMessage(text: string) {
+  // audio: la nota de voz de la persona (si el celular la guardo).
+  // si no se entendio sin senal, llega solo el audio y se responde cuando vuelva el internet
+  async function sendMessage(text: string, audio = '') {
     const valor = text.trim();
-    if (!valor || pensando) return;
-    setMessages((actual) => [...actual, { id: nuevoId(), author: 'user', text: valor }]);
+    if ((!valor && !audio) || ocupado.current) return;
+    const id = nuevoId();
+    if (!valor) {
+      setMessages((lista) => [...lista, { id, author: 'user', text: 'Nota de voz', audio, pendiente: true }]);
+      await dejarEnEspera(id, '', audio);
+      responder('Sin señal no pude entender tu nota de voz. La guardé y te respondo apenas vuelva el internet.');
+      return;
+    }
+    setMessages((lista) => [...lista, { id, author: 'user', text: valor, audio: audio || undefined }]);
+    ocupado.current = true;
     setPensando(true);
-    // primero las reglas del celular (gratis y sin internet).
-    // la ia solo se usa cuando las reglas no entienden el mensaje
     try {
-      let resuelto = false;
-      const entendido = entender(valor).tipo !== 'nada';
-      if (!pendiente.current && !entendido) resuelto = await usarIA(valor);
-      setConIA(resuelto);
-      if (!resuelto) await procesar(valor);
+      const listo = await resolver(valor);
+      if (!listo) {
+        setMessages((lista) => lista.map((m) => (m.id === id ? { ...m, pendiente: true } : m)));
+        await dejarEnEspera(id, valor, audio);
+        responder('Ahora no tienes señal. Guardé tu mensaje y te respondo apenas vuelva el internet.');
+      }
     }
     catch (error) { responder('Tuve un problema: ' + (error instanceof Error ? error.message : 'intenta de nuevo.')); }
-    finally { setPensando(false); }
+    finally { ocupado.current = false; setPensando(false); }
+  }
+
+  // primero las reglas del celular (gratis y sin internet).
+  // la ia solo se usa cuando las reglas no entienden el mensaje.
+  // devuelve false si hace falta internet y no hay (el mensaje queda en espera)
+  async function resolver(valor: string) {
+    const intencion = entender(valor);
+    const necesitaInternet = !pendiente.current && (intencion.tipo === 'nada' || intencion.tipo === 'buscar');
+    if (necesitaInternet && !(await hayInternet())) return false;
+    let resuelto = false;
+    if (!pendiente.current && intencion.tipo === 'nada') resuelto = await usarIA(valor);
+    setConIA(resuelto);
+    if (!resuelto) await procesar(valor);
+    return true;
+  }
+
+  async function dejarEnEspera(id: string, texto: string, audio: string) {
+    try { await guardarPendiente(id, texto, audio); } catch { /* si falla se pierde solo este mensaje */ }
+    setEnEspera((n) => n + 1);
+  }
+
+  // vuelve la senal: se responde cada mensaje guardado, en orden
+  async function responderPendientes() {
+    if (ocupado.current) return;
+    let lista;
+    try { lista = await listarPendientes(); } catch { return; }
+    setEnEspera(lista.length);
+    if (lista.length === 0 || !(await hayInternet())) return;
+    ocupado.current = true;
+    setPensando(true);
+    try {
+      for (const item of lista) {
+        let texto = item.texto;
+        if (texto === '' && item.audio !== '') texto = await transcribirAudio(item.audio);
+        const enPantalla = actual.current.messages.some((m) => m.id === item.id);
+        if (texto === '') {
+          responder('No pude entender la nota de voz que dejaste sin señal. ¿Me la repites?');
+        } else {
+          // el mensaje sigue en el chat: se quita la marca de espera. si la app se cerro, se vuelve a mostrar
+          if (enPantalla) setMessages((mensajes) => mensajes.map((m) => (m.id === item.id ? { ...m, text: texto, pendiente: false } : m)));
+          else setMessages((mensajes) => [...mensajes, { id: item.id, author: 'user', text: texto, audio: item.audio || undefined }]);
+          responder('Ya volvió la señal. Sobre lo que me dijiste: «' + texto + '»');
+          const listo = await resolver(texto);
+          if (!listo) break;
+        }
+        await quitarPendiente(item.id);
+        setEnEspera((n) => Math.max(0, n - 1));
+        // el audio se borra si ya no esta en el chat
+        if (!enPantalla && item.audio !== '') borrarAudio(item.audio);
+      }
+    }
+    catch { /* se reintenta la proxima vez que vuelva la senal */ }
+    finally { ocupado.current = false; setPensando(false); }
   }
 
   async function procesar(valor: string) {
@@ -171,8 +254,8 @@ export function useAssistantChat(tipo: TipoVendedor) {
   // devuelve false si la ia no esta disponible (sin internet, sin cuenta o sin configurar)
   async function usarIA(valor: string) {
     const historial: Array<{ autor: 'user' | 'assistant'; texto: string }> = [];
-    for (const mensaje of messages) {
-      if (mensaje.id === 'bienvenida') continue;
+    for (const mensaje of actual.current.messages) {
+      if (mensaje.id === 'bienvenida' || mensaje.pendiente) continue;
       historial.push({ autor: mensaje.author, texto: mensaje.text });
     }
     const respuesta = await preguntarAMaria(valor, historial, tipo);
@@ -353,6 +436,8 @@ export function useAssistantChat(tipo: TipoVendedor) {
   }
 
   function resetChat() {
+    // las notas de voz ya respondidas se borran del celular
+    for (const mensaje of actual.current.messages) { if (mensaje.audio && !mensaje.pendiente) borrarAudio(mensaje.audio); }
     setMessages([bienvenida()]);
     setDraft(null);
     setVenta(null);
@@ -374,5 +459,5 @@ export function useAssistantChat(tipo: TipoVendedor) {
     if (leerEnVoz && messages.length === 1) void hablar(messages[0].text);
   }
 
-  return { messages, draft, venta, pensando, leerEnVoz, conIA, sendMessage, confirmDraft, confirmarVenta, cancelarVenta, resetChat, cambiarVoz, alAbrir };
+  return { messages, draft, venta, pensando, leerEnVoz, conIA, sinSenal, enEspera, sendMessage, confirmDraft, confirmarVenta, cancelarVenta, resetChat, cambiarVoz, alAbrir };
 }

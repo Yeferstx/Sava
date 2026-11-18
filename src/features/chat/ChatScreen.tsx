@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Animated, Easing, Image, Keyboard, KeyboardAvoidingView, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
-import { ArrowLeft, Keyboard as IconoTeclado, MessageCircle, Mic, RotateCcw, Send, Sprout, Square, Volume2, VolumeX } from 'lucide-react-native';
+import { ArrowLeft, Clock, Keyboard as IconoTeclado, MessageCircle, Mic, RotateCcw, Send, Sprout, Square, Volume2, VolumeX, WifiOff } from 'lucide-react-native';
+import NotaVoz from '../../shared/components/NotaVoz';
 import type { ChatMessage, ProductDraft, Recomendacion, VentaPropuesta } from './types';
 import type { Product } from '../inventory/types';
 import type { Business } from '../business/types';
@@ -9,7 +10,7 @@ import { dinero, escribirPorWhatsApp } from '../../shared/contacto';
 import { mostrarCantidad, textoUnidad } from '../../shared/validaciones';
 import { getProductImageUri } from '../marketplace/getProductImageUri';
 import { callar, escucharVoz, hablar } from '../../shared/voz';
-import { empezarEscucha, escuchaDisponible } from '../../shared/escucha';
+import { empezarEscucha, entiendeSinInternet, escuchaDisponible } from '../../shared/escucha';
 import { pedirReducirMovimiento } from '../../shared/movimiento';
 import AsistenteOrbe, { textoEstado, type EstadoAsistente } from './components/AsistenteOrbe';
 
@@ -18,7 +19,8 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 type Props = {
   messages: ChatMessage[]; draft: ProductDraft | null; venta: VentaPropuesta | null; pensando: boolean; leerEnVoz: boolean; conIA: boolean; tipo: 'agricultor' | 'tienda' | '';
-  onSend: (text: string) => void; onReset: () => void; onBack: () => void; onCambiarVoz: () => void;
+  sinSenal: boolean; enEspera: number;
+  onSend: (text: string, audio?: string) => void; onReset: () => void; onBack: () => void; onCambiarVoz: () => void;
   onConfirmDraft: () => void; onEditDraft: () => void; onConfirmarVenta: () => void; onCancelarVenta: () => void;
   onOpenProduct: (product: Product, business: Business | null) => void;
   modoInicial?: 'voz' | 'texto' | '';
@@ -86,6 +88,11 @@ export default function ChatScreen(props: Props) {
   const entrada = useRef<ComponentRef<typeof TextInput>>(null);
   const detener = useRef<() => void>(() => undefined);
   const reducir = useRef(false);
+  // charla: en modo voz, despues de que el asistente responde vuelve a escuchar solo
+  const esperaTurno = useRef(false);
+  const yaHablo = useRef(false);
+  const modoVozRef = useRef(false);
+  modoVozRef.current = modoVoz;
 
   useEffect(() => { void pedirReducirMovimiento().then((valor) => { reducir.current = valor; }); }, []);
 
@@ -114,6 +121,22 @@ export default function ChatScreen(props: Props) {
     setTimeout(() => { if (scroll.current) scroll.current.scrollToEnd({ animated: true }); }, 90);
   }, [messages.length, draft, venta, pensando, teclado]);
 
+  // charla continua: cuando el asistente termina de hablar, vuelve a escuchar
+  useEffect(() => {
+    if (hablando) { yaHablo.current = true; return; }
+    if (!esperaTurno.current || pensando || escuchando || !modoVozRef.current) return;
+    // si hay una publicacion o venta por confirmar, se espera a que la persona toque el boton
+    if (draft || venta) { esperaTurno.current = false; return; }
+    // ya hablo: se espera un momento y se escucha. si la voz no sono, se espera un poco mas
+    const espera = setTimeout(() => {
+      if (!esperaTurno.current || !modoVozRef.current) return;
+      esperaTurno.current = false;
+      yaHablo.current = false;
+      void iniciarVoz();
+    }, yaHablo.current ? 600 : 5000);
+    return () => clearTimeout(espera);
+  }, [hablando, pensando, escuchando, draft, venta]);
+
   // el estado del personaje sale de lo que pasa de verdad (microfono, respuesta, voz)
   let estado: EstadoAsistente = 'reposo';
   if (hablando) estado = 'hablando';
@@ -141,30 +164,43 @@ export default function ChatScreen(props: Props) {
     setModoVoz(true);
     setAviso('');
     if (!leerEnVoz) props.onCambiarVoz();
+    // sin senal se usa el espanol descargado en el celular (si lo tiene)
+    let local = false;
+    if (props.sinSenal) local = await entiendeSinInternet();
     let textoFinal = '';
+    let pico = 0;
+    let fallo = '';
     setParcial('');
     setEscuchando(true);
     detener.current = await empezarEscucha({
-      onVolumen: setVolumen,
+      onVolumen: (nivel) => { setVolumen(nivel); if (nivel > pico) pico = nivel; },
       onTexto: (dicho, final) => { setParcial(dicho); if (final) textoFinal = dicho; else if (dicho.trim() !== '') textoFinal = dicho; },
-      onFin: () => {
+      onFin: (audio) => {
         setEscuchando(false);
         setVolumen(0);
-        if (textoFinal.trim() !== '') props.onSend(textoFinal);
-        else setAviso('No te escuché. Toca el micrófono e intenta otra vez.');
+        setParcial('');
+        if (textoFinal.trim() !== '') { esperaTurno.current = true; yaHablo.current = false; props.onSend(textoFinal, audio); return; }
+        // sin senal y sin entender: si la persona si hablo, la nota de voz queda guardada para despues
+        if (audio !== '' && pico > 0.35 && (props.sinSenal || fallo === 'network')) { props.onSend('', audio); return; }
+        esperaTurno.current = false;
+        if (fallo === '') setAviso('No te escuché. Toca el micrófono para seguir hablando.');
       },
       onError: (motivo) => {
+        fallo = motivo;
         setEscuchando(false);
         setVolumen(0);
+        esperaTurno.current = false;
         if (motivo === 'sin-permiso' || motivo === 'not-allowed') setAviso('Permite el micrófono en los ajustes del celular para hablarle a tu asistente.');
-        else if (motivo === 'no-speech' || motivo === 'speech-timeout') setAviso('No te escuché. Toca el micrófono e intenta otra vez.');
+        else if (motivo === 'no-speech' || motivo === 'speech-timeout') setAviso('No te escuché. Toca el micrófono para seguir hablando.');
+        else if (motivo === 'network' || motivo === 'language-not-supported') setAviso('Sin señal este celular no entiende la voz. Si alcanzaste a hablar, guardé tu nota de voz.');
         else setAviso('No pude escucharte. Intenta otra vez o escribe tu mensaje.');
       },
-    });
+    }, local);
   }
 
   // boton detener: corta la escucha o la voz que esta sonando
   function detenerTodo() {
+    esperaTurno.current = false;
     if (escuchando) detener.current();
     if (hablando) callar();
   }
@@ -210,6 +246,10 @@ export default function ChatScreen(props: Props) {
             <View style={styles.estado}><Text style={styles.estadoTexto}>{etiqueta}</Text></View>
             {parcial !== '' && <Text style={styles.parcial} numberOfLines={3}>«{parcial}»</Text>}
             {parcial === '' && ultima !== '' && !escuchando && !pensando && <ScrollView style={styles.respuestaCaja} contentContainerStyle={styles.respuestaContenido}><Text style={styles.respuesta}>{ultima}</Text></ScrollView>}
+            {(draft || venta) && !escuchando && <View style={styles.cardBotones}>
+              <Pressable accessibilityRole="button" onPress={draft ? props.onEditDraft : props.onCancelarVenta} style={({ pressed }) => [styles.botonSuave, pressed && styles.presionado]}><Text style={styles.botonSuaveTexto}>{draft ? 'Corregir' : 'No'}</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => { esperaTurno.current = true; yaHablo.current = false; if (draft) props.onConfirmDraft(); else props.onConfirmarVenta(); }} style={({ pressed }) => [styles.botonFuerte, pressed && styles.presionado]}><Text style={styles.botonFuerteTexto}>{draft ? 'Confirmar' : 'Sí, registrar'}</Text></Pressable>
+            </View>}
             <View style={styles.vozBotones}>
               {(escuchando || hablando) ? (
                 <Pressable accessibilityRole="button" accessibilityLabel={escuchando ? 'Detener la escucha' : 'Detener la voz'} onPress={detenerTodo} style={({ pressed }) => [styles.vozPrincipal, styles.vozDetener, pressed && styles.presionado]}>
@@ -245,9 +285,11 @@ export default function ChatScreen(props: Props) {
                 const deMaria = mensaje.author === 'assistant';
                 return <Aparecer key={mensaje.id}><View style={styles.grupo}>
                   <View style={[styles.bubble, deMaria ? styles.assistantBubble : styles.userBubble]}>
-                    <Text style={[styles.bubbleText, !deMaria && styles.userText]}>{mensaje.text}</Text>
+                    {!!mensaje.audio && <View style={styles.notaVoz}><NotaVoz uri={mensaje.audio} segundos={0} /></View>}
+                    {!(mensaje.audio && mensaje.text === 'Nota de voz') && <Text style={[styles.bubbleText, !deMaria && styles.userText]}>{mensaje.text}</Text>}
                     {deMaria && <Pressable accessibilityRole="button" accessibilityLabel="Escuchar este mensaje" hitSlop={8} onPress={() => void hablar(mensaje.text)} style={styles.oir}><Volume2 size={15} color={colors.verde} /><Text style={styles.oirTexto}>Escuchar</Text></Pressable>}
                   </View>
+                  {mensaje.pendiente && <View style={styles.enEspera}><Clock size={13} color={colors.muted} /><Text style={styles.enEsperaTexto}>Esperando señal para responder</Text></View>}
                   {mensaje.recomendaciones && mensaje.recomendaciones.map((item) => <TarjetaRecomendada key={item.product.id} item={item} onOpen={() => props.onOpenProduct(item.product, item.business)} />)}
                 </View></Aparecer>;
               })}
@@ -278,6 +320,7 @@ export default function ChatScreen(props: Props) {
           </ScrollView>
         )}
 
+        {props.sinSenal && <View style={styles.senal}><WifiOff size={16} color={colors.grafito} /><Text style={styles.senalTexto}>Sin señal. Te respondo lo que pueda; lo demás, cuando vuelva el internet.{props.enEspera > 0 ? ' Mensajes guardados: ' + props.enEspera + '.' : ''}</Text></View>}
         {aviso !== '' && <View style={styles.aviso}><Mic size={16} color={colors.verde} /><Text style={styles.avisoTexto}>{aviso}</Text></View>}
         {!modoVoz && <View style={styles.composer}>
           <Pressable accessibilityRole="button" accessibilityLabel="Hablar con tu asistente" onPress={() => void iniciarVoz()} style={({ pressed }) => [styles.mic, pressed && styles.presionado]}><Mic size={22} color={colors.verde} /></Pressable>
@@ -337,6 +380,11 @@ const styles = StyleSheet.create({
   vozDetener: { backgroundColor: colors.arcilla },
   vozSecundario: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.salvia },
   vozSecundarioTexto: { color: colors.verde, fontSize: 15, fontWeight: '800' },
+  notaVoz: { marginBottom: 6, minWidth: 190 },
+  enEspera: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end', marginTop: -2 },
+  enEsperaTexto: { color: colors.muted, fontSize: 12, fontWeight: '700' },
+  senal: { flexDirection: 'row', alignItems: 'center', gap: 7, marginHorizontal: 12, marginBottom: 4, padding: 10, borderRadius: 14, backgroundColor: '#F5E7E2' },
+  senalTexto: { color: colors.grafito, fontSize: 13, fontWeight: '700', flex: 1, lineHeight: 18 },
   aviso: { flexDirection: 'row', alignItems: 'center', gap: 7, marginHorizontal: 12, marginBottom: 4, padding: 10, borderRadius: 14, backgroundColor: colors.salvia },
   avisoTexto: { color: colors.verde, fontSize: 13, fontWeight: '700', flex: 1, lineHeight: 18 },
   composer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 6, paddingBottom: 10, gap: 8, backgroundColor: colors.crema },
