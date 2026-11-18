@@ -13,7 +13,8 @@ const CLAVE_CLAUDE = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const CLAVE_GEMINI = Deno.env.get("GEMINI_API_KEY") ?? "";
 const PROVEEDOR = Deno.env.get("IA_PROVEEDOR") ?? (CLAVE_CLAUDE !== "" ? "claude" : "gemini");
 // modelo gemini del plan gratis (configurable sin cambiar codigo)
-const MODELO_GEMINI = Deno.env.get("GEMINI_MODELO") ?? "gemini-3.5-flash-lite";
+// si un modelo esta saturado (503) o no existe para la cuenta (404), se prueba el siguiente
+const MODELOS_GEMINI = [Deno.env.get("GEMINI_MODELO") ?? "gemini-3.1-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash-lite"];
 
 let anthropic: Anthropic | null = null;
 function clienteClaude() {
@@ -38,12 +39,22 @@ async function preguntarGemini(mensaje: string, historial: Peticion["historial"]
   }
   while (contenidos.length > 0 && contenidos[0].role !== "user") contenidos.shift();
   contenidos.push({ role: "user", parts: [{ text: mensaje }] });
-  const respuesta = await ai.models.generateContent({
-    model: MODELO_GEMINI,
-    contents: contenidos,
-    config: { systemInstruction: sistemaGemini, maxOutputTokens: 500, abortSignal: AbortSignal.timeout(20000) },
-  });
-  return (respuesta.text ?? "").trim();
+  let ultimoError: unknown = null;
+  for (const modelo of MODELOS_GEMINI) {
+    try {
+      const respuesta = await ai.models.generateContent({
+        model: modelo,
+        contents: contenidos,
+        config: { systemInstruction: sistemaGemini, maxOutputTokens: 500, abortSignal: AbortSignal.timeout(15000) },
+      });
+      return (respuesta.text ?? "").trim();
+    } catch (error) {
+      ultimoError = error;
+      const estado = (error as { status?: number }).status;
+      if (estado !== 503 && estado !== 404 && estado !== 500) throw error;
+    }
+  }
+  throw ultimoError;
 }
 
 // mensajes con ia que puede usar cada persona al dia
