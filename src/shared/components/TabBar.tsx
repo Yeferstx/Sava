@@ -7,7 +7,7 @@ import type { AppTab } from '../../navigation/types';
 import { colors } from '../theme';
 
 // paisaje llanero completo (arboles, sol, horizonte y pasto) de fondo de la barra
-const paisaje = require('../../../assets/marca/paisaje-barra.png');
+const paisaje = require('../../../assets/marca/paisaje-barra.jpg');
 // ancho / alto de la imagen: se respeta para no estirarla ni recortarla
 const PROPORCION = 1600 / 385;
 

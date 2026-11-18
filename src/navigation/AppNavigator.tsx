@@ -108,6 +108,8 @@ export default function AppNavigator() {
   const [faltaAutorizacion, setFaltaAutorizacion] = useState(false);
   const [despuesDeEntrar, setDespuesDeEntrar] = useState<AppTab | null>(null);
   const [modoAuth, setModoAuth] = useState<'signIn' | 'signUp'>('signIn');
+  // si alguna vez se entro con una cuenta en este celular se muestra "iniciar sesion"; si no, "crear cuenta"
+  const [yaTuvoCuenta, setYaTuvoCuenta] = useState(false);
   // notificaciones sin leer (campana y numero en la barra)
   const [sinLeer, setSinLeer] = useState(0);
   const [consultasNuevas, setConsultasNuevas] = useState(0);
@@ -127,7 +129,9 @@ export default function AppNavigator() {
     let active = true;
     void (async () => {
       try {
-        await getDatabase();
+        const db = await getDatabase();
+        const marca = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', 'ya_tuvo_cuenta').catch(() => null);
+        if (active && marca?.value === '1') setYaTuvoCuenta(true);
         if (!supabase) { if (active) setStage('demo'); return; }
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
@@ -144,6 +148,13 @@ export default function AppNavigator() {
     }).data.subscription;
     return () => { active = false; subscription?.unsubscribe(); };
   }, [supabase]);
+
+  // se recuerda que en este celular ya se uso una cuenta
+  useEffect(() => {
+    if (!user) return;
+    setYaTuvoCuenta(true);
+    void getDatabase().then((db) => db.runAsync('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', 'ya_tuvo_cuenta', '1')).catch(() => undefined);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) { setFaltaAutorizacion(false); return; }
@@ -331,7 +342,7 @@ export default function AppNavigator() {
   function startOrder(product: Product, business: Business) {
     setMerchantIntent(false);
     setOrderIntent({ product, business, quantity: 1 });
-    if (!user) { setModoAuth('signIn'); setStage('signedOut'); }
+    if (!user) { setModoAuth(yaTuvoCuenta ? 'signIn' : 'signUp'); setStage('signedOut'); }
   }
   function orderCreated() {
     setOrderIntent(null);
@@ -485,7 +496,7 @@ export default function AppNavigator() {
   else if (esAgricultor && activeTab === 'Editar negocio') pantalla = <ProfileScreen onBack={() => setActiveTab('Mi negocio')} />;
   else if (activeTab === 'Guardados') pantalla = <GuardadosScreen onProductPress={abrirProducto} />;
   else if (activeTab === 'Mi negocio' && user) pantalla = <OrdersScreen mode={'customer'} userId={user.id} encabezado={<View><FotoPerfil subtitulo="Comprador en Sava" /><Pressable accessibilityRole="button" onPress={() => setActiveTab('Notificaciones')} style={styles.avisosComprador}><Text style={styles.avisosCompradorTexto}>{sinLeer > 0 ? '🔔 ' + sinLeer + (sinLeer === 1 ? ' notificación nueva' : ' notificaciones nuevas') : '🔔 Notificaciones'}</Text></Pressable></View>} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
-  else if (activeTab === 'Mi negocio' || activeTab === 'Publicar') pantalla = <AuthScreen onContinueGuest={continueAsGuest} />;
+  else if (activeTab === 'Mi negocio' || activeTab === 'Publicar') pantalla = <AuthScreen key={yaTuvoCuenta ? 'entrar' : 'crear'} modoInicial={yaTuvoCuenta ? 'signIn' : 'signUp'} onContinueGuest={continueAsGuest} />;
   if (pedirCuenta) pantalla = <PedirCuenta motivo={pedirCuenta.motivo} onCrear={() => irACuenta('signUp')} onEntrar={() => irACuenta('signIn')} onAhoraNo={() => setPedirCuenta(null)} />;
   else if (!pantalla) pantalla = <HomeScreen key={municipioComprador + tipoChat} municipioInicial={municipioComprador} seccionInicial={tipoChat === 'agricultor' ? 'insumos' : 'cosechas'} onProductPress={abrirProducto} onVender={() => { if (esAgricultor) navigate('Publicar'); else startMerchantFlow(); }} onHablar={() => openChat('voz')} onEscribir={() => openChat('texto')} onAprender={() => abrirAprende('Inicio')} />;
 
