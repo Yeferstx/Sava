@@ -176,3 +176,30 @@ export function resumen(datos: DatosGuia) {
   partes.push(datos.precio ? 'a $' + datos.precio.toLocaleString('es-CO') + ' cada ' + unidad : 'precio a convenir');
   return partes.join(', ');
 }
+
+// de una frase larga ("tengo 500 kilos de pina en aguazul desde 100 kilos a 2.500") se sacan
+// tambien el municipio, el pedido minimo y el precio, para no volver a preguntarlos
+export function completarDesdeFrase(mensaje: string, datos: DatosGuia, municipios: string[]): DatosGuia {
+  const t = normalizar(mensaje);
+  const nuevo = { ...datos };
+  if (nuevo.municipio === null) {
+    const municipio = municipioEn(t);
+    if (municipio !== '' && municipios.includes(municipio)) nuevo.municipio = municipio;
+  }
+  if (nuevo.minimo === null) {
+    const minimo = t.match(/\b(?:desde|minimo(?: de)?|a partir de|pedido minimo(?: de)?)\s+(\d[\d.,]*|[a-z]+)\s*(?:kilos?|kg|bultos?|canastillas?|toneladas?|racimos?|unidades?|cajas?)?/);
+    if (minimo) {
+      const n = leerNumero(minimo[1]);
+      if (n > 0 && (nuevo.cantidad === null || n <= nuevo.cantidad)) nuevo.minimo = n;
+    }
+    if (/\b(cualquier cantidad|al detal|poquito)\b/.test(t)) nuevo.minimo = 0;
+  }
+  if (nuevo.precio === null) {
+    if (/\b(a convenir|negociable|negociar)\b/.test(t)) nuevo.precio = 0;
+    else {
+      const precio = extraerPrecio(t.replace(/\b(?:desde|a partir de)\s+\d[\d.,]*/g, ' '));
+      if (precio.precio >= 100 && !precio.esTotal) nuevo.precio = precio.precio;
+    }
+  }
+  return nuevo;
+}

@@ -4,9 +4,47 @@
 // la app muestra esa accion y la persona la confirma antes de guardar nada.
 
 import Anthropic from "npm:@anthropic-ai/sdk@1.9.0";
+import { GoogleGenAI } from "npm:@google/genai@3.6.0";
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 
-const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY") });
+// proveedor de ia: "claude" (con herramientas y datos del negocio) o "gemini" (solo preguntas generales).
+// si no se elige, se usa el que tenga clave guardada
+const CLAVE_CLAUDE = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+const CLAVE_GEMINI = Deno.env.get("GEMINI_API_KEY") ?? "";
+const PROVEEDOR = Deno.env.get("IA_PROVEEDOR") ?? (CLAVE_CLAUDE !== "" ? "claude" : "gemini");
+// modelo gemini del plan gratis (configurable sin cambiar codigo)
+const MODELO_GEMINI = Deno.env.get("GEMINI_MODELO") ?? "gemini-3.5-flash-lite";
+
+let anthropic: Anthropic | null = null;
+function clienteClaude() {
+  if (!anthropic) anthropic = new Anthropic({ apiKey: CLAVE_CLAUDE });
+  return anthropic;
+}
+
+// gemini sin pago: google puede usar lo enviado para mejorar sus productos y revisarlo con personas.
+// por eso aqui nunca se envian datos privados (inventario, ventas, compradores): solo la pregunta
+const sistemaGemini = `Eres el asistente de Sava, una app que conecta a campesinos y tiendas del campo de Casanare (Colombia) con compradores.
+Responde en español sencillo, cercano y corto (máximo 4 frases), para personas que tal vez no leen bien.
+Puedes: explicar cómo usar Sava, dar consejos generales para vender, promocionar cosechas, tomar fotos, calcular costos básicos y responder preguntas generales del campo.
+No tienes acceso a los datos de la persona (inventario, ventas, cuentas ni publicaciones). Si te pregunta por ellos, dile que le pregunte así a su asistente en Sava: «¿cuánto me queda?», «¿cuánto vendí?» o «¿cuánto me deben?».
+Nunca inventes productores, precios, cantidades ni publicaciones. Para plagas, químicos o suelos da solo orientación general y recomienda consultar a un agrónomo, la UMATA o el ICA.`;
+
+async function preguntarGemini(mensaje: string, historial: Peticion["historial"]) {
+  const ai = new GoogleGenAI({ apiKey: CLAVE_GEMINI });
+  const contenidos: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> = [];
+  for (const item of (historial ?? []).slice(-4)) {
+    const texto = String(item.texto ?? "").slice(0, 400);
+    if (texto !== "") contenidos.push({ role: item.autor === "assistant" ? "model" : "user", parts: [{ text: texto }] });
+  }
+  while (contenidos.length > 0 && contenidos[0].role !== "user") contenidos.shift();
+  contenidos.push({ role: "user", parts: [{ text: mensaje }] });
+  const respuesta = await ai.models.generateContent({
+    model: MODELO_GEMINI,
+    contents: contenidos,
+    config: { systemInstruction: sistemaGemini, maxOutputTokens: 500, abortSignal: AbortSignal.timeout(20000) },
+  });
+  return (respuesta.text ?? "").trim();
+}
 
 // mensajes con ia que puede usar cada persona al dia
 const LIMITE_DIARIO = 30;
@@ -134,6 +172,22 @@ Deno.serve(async (req) => {
   const mensaje = String(datos.mensaje ?? "").slice(0, 600).trim();
   if (mensaje === "") return responder({ error: "mensaje-vacio" }, 400);
 
+  // gemini: solo la pregunta y unos pocos mensajes anteriores, sin el contexto privado del negocio
+  if (PROVEEDOR === "gemini") {
+    if (CLAVE_GEMINI === "") return responder({ error: "sin-clave" }, 500);
+    try {
+      const texto = await preguntarGemini(mensaje, datos.historial);
+      return responder({ texto, accion: null });
+    } catch (error) {
+      const estado = (error as { status?: number }).status;
+      if (estado === 429) return responder({ error: "muchas-solicitudes" }, 429);
+      if (estado === 401 || estado === 403) return responder({ error: "clave-invalida" }, 500);
+      if (error instanceof DOMException && error.name === "TimeoutError") return responder({ error: "tiempo-agotado" }, 504);
+      return responder({ error: "error-ia" }, 502);
+    }
+  }
+  if (CLAVE_CLAUDE === "") return responder({ error: "sin-clave" }, 500);
+
   // ultimos mensajes de la conversacion, como texto
   const mensajes: Anthropic.MessageParam[] = [];
   for (const item of (datos.historial ?? []).slice(-10)) {
@@ -148,7 +202,7 @@ Deno.serve(async (req) => {
 
   try {
     // haiku 5.5: el modelo mas economico, suficiente para frases del campo
-    const respuesta = await anthropic.messages.create({
+    const respuesta = await clienteClaude().messages.create({
       model: "claude-haiku-5-5",
       max_tokens: 16000,
       // chat sencillo: poco esfuerzo, respuestas rapidas

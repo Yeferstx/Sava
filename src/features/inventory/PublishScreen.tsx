@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { preguntarOrigen, tomarOElegirFoto } from '../../shared/fotos';
-import { ImagePlus, X } from 'lucide-react-native';
+import { ImagePlus, Mic, X } from 'lucide-react-native';
 import { createProduct, updateProduct } from './data/inventoryRepository';
 import { getBusinessProfile } from '../business/data/businessRepository';
 import { getProductImageUri } from '../marketplace/getProductImageUri';
@@ -13,7 +13,7 @@ import { CANTIDAD_MAXIMA, errorCantidad, leerCantidad, leerPrecio, municipios, t
 import { categoriasAgricolas, categoriasInsumos, categoriaVisible, fechaDesdeHoy, formasEntrega, opcionesFecha, unidades, unidadesInsumo } from '../../shared/agro';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
 
-type Props = { onBack: () => void; onCreated: () => void; initialDraft?: ProductDraft | null; producto?: Product | null; tipo?: 'agricultor' | 'tienda' };
+type Props = { onBack: () => void; onCreated: () => void; initialDraft?: ProductDraft | null; producto?: Product | null; tipo?: 'agricultor' | 'tienda'; onUsarVoz?: () => void };
 
 // separa "Recogida en la finca · detalle" en la forma y el detalle
 function partirEntrega(texto: string | undefined) {
@@ -25,7 +25,7 @@ function partirEntrega(texto: string | undefined) {
   return { forma: 'A convenir', detalle: texto };
 }
 
-export default function PublishScreen({ onBack, onCreated, initialDraft, producto, tipo = 'agricultor' }: Props) {
+export default function PublishScreen({ onBack, onCreated, initialDraft, producto, tipo = 'agricultor', onUsarVoz }: Props) {
   const editando = !!producto;
   // la tienda del campo publica insumos, el campesino publica cosechas
   const esTienda = tipo === 'tienda';
@@ -136,6 +136,7 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
       <Text style={styles.title}>{editando ? 'Editar publicación' : esTienda ? 'Publicar producto' : 'Publicar cosecha'}</Text>
       <Text style={styles.subtitle}>Cuéntales a los compradores qué tienes disponible.</Text>
       <BotonEscuchar texto={'Llena los datos de arriba hacia abajo. Puedes hablar tocando el micrófono de tu teclado. Al final toca el botón verde.'} />
+      {!!onUsarVoz && <Pressable accessibilityRole="button" onPress={onUsarVoz} style={styles.voz}><Mic size={20} color={colors.white} /><View style={{ flex: 1 }}><Text style={styles.vozTitulo}>Decirlo con mi voz</Text><Text style={styles.vozTexto}>Cuéntale a tu asistente qué tienes y él llena los datos</Text></View></Pressable>}
 
       <Text style={styles.label}>{esTienda ? 'Foto del producto' : 'Foto de la cosecha'}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel={fotoVisible ? 'Cambiar foto' : 'Elegir foto'} onPress={() => void choosePhoto()} style={styles.photoPicker}>
@@ -201,6 +202,9 @@ export default function PublishScreen({ onBack, onCreated, initialDraft, product
 }
 
 const styles = StyleSheet.create({
+  voz: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18, backgroundColor: colors.verde, marginTop: 12 },
+  vozTitulo: { color: colors.white, fontSize: 16, fontWeight: '900' },
+  vozTexto: { color: colors.verdeClaro, fontSize: 13, marginTop: 2 },
   extras: { flexDirection: 'row', gap: 8, marginTop: 4 },
   extra: { width: 74, height: 74, borderRadius: 14, overflow: 'hidden', backgroundColor: colors.salvia },
   extraImagen: { width: '100%', height: '100%' },

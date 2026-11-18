@@ -12,7 +12,7 @@ import { getDatabase } from '../../../infrastructure/database/database';
 import { preguntarAMaria, type AccionIA } from '../mariaIA';
 import { escucharSenal, guardarPendiente, hayInternet, listarPendientes, quitarPendiente } from '../pendientes';
 import { borrarAudio, prepararSinInternet, transcribirAudio } from '../../../shared/escucha';
-import { guiaVacia, pasoACorregir, preguntar, quiereCancelar, responder as leerPaso, resumen, siguientePaso, type DatosGuia } from '../publicacionGuiada';
+import { completarDesdeFrase, guiaVacia, pasoACorregir, preguntar, quiereCancelar, responder as leerPaso, resumen, siguientePaso, type DatosGuia } from '../publicacionGuiada';
 import { municipios } from '../../../shared/validaciones';
 import { unidades, unidadesInsumo } from '../../../shared/agro';
 import { getBusinessProfile } from '../../business/data/businessRepository';
@@ -212,7 +212,7 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
       if (paso) {
         const leido = leerPaso(paso, valor, guia.current, municipios);
         if ('error' in leido) { responder(leido.error, undefined, (await preguntaDe(guia.current)).opciones); return; }
-        await avanzarGuia(leido.datos);
+        await avanzarGuia(completarDesdeFrase(valor, leido.datos, municipios));
         return;
       }
     }
@@ -356,7 +356,7 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
     if (intencion.tipo === 'publicar') {
       const nombreDicho = nombreOriginal(valor, intencion.producto);
       setDraft(null); setVenta(null);
-      await avanzarGuia({ ...guiaVacia, nombre: nombreDicho, cantidad: intencion.cantidad > 0 ? intencion.cantidad : null, unidad: intencion.unidad !== '' ? intencion.unidad : null, precio: intencion.precio > 0 ? intencion.precio : null }, intencion.cantidad > 0 ? '¡Perfecto! Vamos a mostrar tu cosecha de ' + nombreDicho.toLocaleLowerCase('es-CO') + '. ' : '');
+      await avanzarGuia(completarDesdeFrase(valor, { ...guiaVacia, nombre: nombreDicho, cantidad: intencion.cantidad > 0 ? intencion.cantidad : null, unidad: intencion.unidad !== '' ? intencion.unidad : null, precio: intencion.precio > 0 ? intencion.precio : null }, municipios), intencion.cantidad > 0 ? '¡Perfecto! Vamos a mostrar tu cosecha de ' + nombreDicho.toLocaleLowerCase('es-CO') + '. ' : '');
       return;
     }
 
@@ -627,6 +627,15 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
     pendiente.current = null;
   }
 
+  // publicar por voz: el asistente se prepara para escuchar la descripcion de la cosecha
+  function iniciarPublicacion() {
+    setDraft(null);
+    setVenta(null);
+    porConfirmar.current = null;
+    guia.current = { ...guiaVacia };
+    responder('Cuéntame qué tienes para vender. Por ejemplo: «tengo 500 kilos de piña en Aguazul y la ofrezco desde 100 kilos». Te pregunto solo lo que falte.');
+  }
+
   function cambiarVoz() {
     const nuevo = !leerEnVoz;
     setLeerEnVoz(nuevo);
@@ -642,5 +651,5 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
     if (leerEnVoz && messages.length === 1) void hablar(messages[0].text);
   }
 
-  return { messages, draft, venta, pensando, leerEnVoz, conIA, sinSenal, enEspera, sendMessage, confirmDraft, confirmarVenta, cancelarVenta, resetChat, cambiarVoz, alAbrir };
+  return { messages, draft, venta, pensando, leerEnVoz, conIA, sinSenal, enEspera, iniciarPublicacion, sendMessage, confirmDraft, confirmarVenta, cancelarVenta, resetChat, cambiarVoz, alAbrir };
 }

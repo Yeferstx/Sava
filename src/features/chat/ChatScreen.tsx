@@ -24,7 +24,8 @@ type Props = {
   onSend: (text: string, audio?: string) => void; onReset: () => void; onBack: () => void; onCambiarVoz: () => void;
   onConfirmDraft: () => void; onEditDraft: () => void; onConfirmarVenta: () => void; onCancelarVenta: () => void;
   onOpenProduct: (product: Product, business: Business | null) => void;
-  modoInicial?: 'voz' | 'texto' | '';
+  // 'publicar': el asistente hace la pregunta en voz alta y despues escucha la respuesta
+  modoInicial?: 'voz' | 'texto' | 'publicar' | '';
 };
 
 // sugerencias cortas segun quien usa la app (todas tienen respuesta)
@@ -113,6 +114,12 @@ export default function ChatScreen(props: Props) {
   // si se abrio desde "hablar" o "escribir" (tarjeta del inicio)
   useEffect(() => {
     if (props.modoInicial === 'voz') { const espera = setTimeout(() => void iniciarVoz(), 350); return () => clearTimeout(espera); }
+    if (props.modoInicial === 'publicar') {
+      // con microfono propio: modo voz y escucha cuando termine la pregunta. sin el: el teclado para dictar
+      if (escuchaDisponible()) { setModoVoz(true); esperaTurno.current = true; yaHablo.current = false; return; }
+      const espera = setTimeout(() => void iniciarVoz(), 350);
+      return () => clearTimeout(espera);
+    }
     if (props.modoInicial === 'texto') { const espera = setTimeout(() => { if (entrada.current) entrada.current.focus(); }, 350); return () => clearTimeout(espera); }
   }, []);
 

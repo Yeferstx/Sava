@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../shared/theme';
 import { escucharVoz } from '../../shared/voz';
 import AsistenteOrbe from './components/AsistenteOrbe';
@@ -8,13 +8,21 @@ import AsistenteOrbe from './components/AsistenteOrbe';
 // muestra al personaje en pequeno; cuando maria habla se ven sus barras de sonido
 export default function MariaFlotante({ onPress, abajo }: { onPress: () => void; abajo: number }) {
   const [hablando, setHablando] = useState(false);
+  // con el teclado abierto se esconde para no tapar lo que se escribe
+  const [teclado, setTeclado] = useState(false);
+  useEffect(() => {
+    const a = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setTeclado(true));
+    const b = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setTeclado(false));
+    return () => { a.remove(); b.remove(); };
+  }, []);
   useEffect(() => escucharVoz(setHablando), []);
 
+  if (teclado) return null;
   return (
     <View pointerEvents="box-none" style={[styles.contenedor, { bottom: abajo }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Hablar con María" accessibilityHint="Abre el chat con María, la asistente de Sava" onPress={onPress} style={({ pressed }) => [styles.boton, pressed && styles.presionado]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Hablar con tu asistente" accessibilityHint="Abre el chat con el asistente de Sava" onPress={onPress} style={({ pressed }) => [styles.boton, pressed && styles.presionado]}>
         <View style={styles.orbe}><AsistenteOrbe estado={hablando ? 'hablando' : 'reposo'} tamano={40} /></View>
-        <Text style={styles.texto}>María</Text>
+        <Text style={styles.texto}>Asistente</Text>
       </Pressable>
     </View>
   );

@@ -91,7 +91,7 @@ export default function AppNavigator() {
   const [productoEditar, setProductoEditar] = useState<Product | null>(null);
   const [volverLegal, setVolverLegal] = useState<AppTab>('Inicio');
   const [volverDeMaria, setVolverDeMaria] = useState<AppTab>('Inicio');
-  const [modoChat, setModoChat] = useState<'voz' | 'texto' | ''>('');
+  const [modoChat, setModoChat] = useState<'voz' | 'texto' | 'publicar' | ''>('');
   // ventas que la app le pregunta al vendedor si se hicieron
   const [seguimientos, setSeguimientos] = useState<Seguimiento[]>([]);
   const [verSeguimiento, setVerSeguimiento] = useState(false);
@@ -227,6 +227,17 @@ export default function AppNavigator() {
     setPromocion({ product, business });
     setActiveTab('Promocionar');
   }
+  function elegirComoPublicar() {
+    Alert.alert('¿Cómo quieres publicar?', 'Puedes escribir los datos o decírselos a tu asistente.', [
+      { text: 'Decirlo con mi voz', onPress: publicarConVoz },
+      { text: 'Escribir los datos', onPress: () => navigate('Publicar') },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  }
+  function publicarConVoz() {
+    chat.iniciarPublicacion();
+    openChat('publicar');
+  }
   function abrirAprende(volver: AppTab) { setVolverAprende(volver); setActiveTab('Aprende'); }
   function abrirLegal(volver: AppTab) { setVolverLegal(volver); setActiveTab('Legal'); }
   function editarCosecha(product: Product) { setProductoEditar(product); setDraftForPublish(null); setActiveTab('Publicar'); }
@@ -324,10 +335,10 @@ export default function AppNavigator() {
   }, [stage, user, despuesDeEntrar]);
   // maria se abre desde cualquier pantalla y al cerrar vuelve a donde estaba
   // modo voz: maria responde en voz alta y se abre el microfono. modo texto: se abre el teclado
-  function openChat(modo: 'voz' | 'texto' | '' = '') {
+  function openChat(modo: 'voz' | 'texto' | 'publicar' | '' = '') {
     if (activeTab !== 'María') setVolverDeMaria(activeTab);
     setModoChat(modo);
-    if (modo === 'voz' && !chat.leerEnVoz) chat.cambiarVoz();
+    if ((modo === 'voz' || modo === 'publicar') && !chat.leerEnVoz) chat.cambiarVoz();
     setActiveTab('María');
     chat.alAbrir();
   }
@@ -413,7 +424,7 @@ export default function AppNavigator() {
   else if (activeTab === 'Videos') pantalla = <VideosScreen canPublish={esAgricultor} onVender={startMerchantFlow} onOpenMaria={openChat} />;
   else if (esAgricultor && activeTab === 'Mi negocio') pantalla = <BusinessDashboardScreen sinLeer={sinLeer} consultasNuevas={consultasNuevas} porConfirmar={seguimientos.length} onConfirmarVentas={() => setVerSeguimiento(true)} tipo={tipoNegocio} onNavigate={navigate} onEditFinca={() => setActiveTab('Editar negocio')} onLegal={() => abrirLegal('Mi negocio')} onSignOut={() => void signOut()} />;
   else if (esAgricultor && activeTab === 'Inventario') pantalla = <InventoryScreen tipo={tipoNegocio} onAddProduct={() => navigate('Publicar')} onEdit={editarCosecha} onOpenSales={() => setActiveTab('Ventas')} onPromocionar={(product) => void abrirPromocion(product)} />;
-  else if (esAgricultor && activeTab === 'Publicar') pantalla = <PublishScreen key={productoEditar ? productoEditar.id : 'nueva'} tipo={tipoNegocio} producto={productoEditar} initialDraft={draftForPublish} onBack={volverDePublicar} onCreated={() => { if (draftForPublish) chat.confirmDraft(); setDraftForPublish(null); setProductoEditar(null); setActiveTab('Inventario'); }} />;
+  else if (esAgricultor && activeTab === 'Publicar') pantalla = <PublishScreen onUsarVoz={productoEditar ? undefined : publicarConVoz} key={productoEditar ? productoEditar.id : 'nueva'} tipo={tipoNegocio} producto={productoEditar} initialDraft={draftForPublish} onBack={volverDePublicar} onCreated={() => { if (draftForPublish) chat.confirmDraft(); setDraftForPublish(null); setProductoEditar(null); setActiveTab('Inventario'); }} />;
   else if (activeTab === 'Notificaciones') pantalla = <NotificacionesScreen onBack={() => setActiveTab('Mi negocio')} onAbrir={(n) => {
     if (n.tipo === 'consulta') { setOrdersMode('business'); setActiveTab(esAgricultor ? 'Pedidos' : 'Mi negocio'); }
     else if (n.tipo === 'contacto') setActiveTab(esAgricultor ? 'Inventario' : 'Mi negocio');
@@ -456,6 +467,8 @@ export default function AppNavigator() {
     {esAgricultor && <SeguimientoModal visible={verSeguimiento} pendientes={seguimientos} leerEnVoz={chat.leerEnVoz} onListo={seguimientoListo} onCerrar={() => setVerSeguimiento(false)} />}
     {!isTransient && !selectedBusiness && !selectedProduct && <TabBar active={activeTab} onChange={(tab) => {
       if (!esAgricultor && tab === 'Publicar') { startMerchantFlow(); return; }
+      // publicar: escribir los datos o decirlos con la voz (el asistente llena el formulario)
+      if (tab === 'Publicar' && activeTab !== 'Publicar') { elegirComoPublicar(); return; }
       if (!esAgricultor && tab === 'Mi negocio' && !user) { setPedirCuenta({ motivo: 'Para ver tus consultas, tu cuaderno y tu negocio necesitas una cuenta. Así tus datos quedan guardados y solo tú los ves.', destino: 'Mi negocio' }); return; }
       setPedirCuenta(null);
       navigate(tab);
