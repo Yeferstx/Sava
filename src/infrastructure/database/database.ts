@@ -158,7 +158,7 @@ export async function borrarDatosPrivados() {
     await t.runAsync('DELETE FROM sync_queue');
     await t.runAsync('DELETE FROM products');
     await t.runAsync('DELETE FROM businesses WHERE id <> ?', DEMO_BUSINESS_ID);
-    await t.runAsync("DELETE FROM app_settings WHERE key IN ('active_business_id', 'ultima_sincronizacion', 'foto_perfil_pendiente')");
+    await t.runAsync("DELETE FROM app_settings WHERE key IN ('active_business_id', 'ultima_sincronizacion', 'foto_perfil_pendiente', 'intereses_inicio', 'negocio_preferido')");
   });
   try { await db.runAsync('DELETE FROM maria_pendientes'); } catch { /* la tabla aun no existe */ }
 }

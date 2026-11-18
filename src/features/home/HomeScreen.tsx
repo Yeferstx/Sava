@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Alert, Animated, Easing, LayoutAnimation, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ChevronDown, ChevronRight, ChevronUp, GraduationCap, LocateFixed, MapPin, MessageCircle, Mic, MoonStar, Search, ShoppingBasket, Sprout, Sun, Sunrise, Sunset, WifiOff } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, GraduationCap, LocateFixed, MapPin, MessageCircle, Mic, MoonStar, Search, Sprout, Sun, Sunrise, Sunset, WifiOff } from 'lucide-react-native';
+import { ordenInicio, registrarInteres, type Interes } from '../../shared/intereses';
 import { ChipCategoria } from './components/CategoriaIcono';
 import AsistenteOrbe from '../chat/components/AsistenteOrbe';
 import { TarjetaEsqueleto } from '../../shared/components/Esqueleto';
@@ -56,10 +57,13 @@ const BLOQUES = 7;
 // inicio: el mercado de cosechas e insumos de casanare.
 // solo muestra publicaciones reales de supabase
 export default function HomeScreen({ municipioInicial = '', seccionInicial = 'cosechas', onProductPress, onVender, onHablar, onEscribir, onAprender }: Props) {
-  const [seccion, setSeccion] = useState<Seccion>(seccionInicial);
+  // inicio: las dos secciones; o «ver todas» de una de ellas
+  const [vista, setVista] = useState<'inicio' | Seccion>('inicio');
+  // orden de las secciones (cosechas primero hasta que la persona muestre otro interes)
+  const [orden, setOrden] = useState<Interes[]>(['cosechas', 'insumos']);
+  useEffect(() => { void ordenInicio().then(setOrden); }, []);
   const [query, setQuery] = useState('');
   const [categoria, setCategoria] = useState('');
-  const [verTodas, setVerTodas] = useState(false);
   const [municipio, setMunicipio] = useState(municipioInicial);
   const [buscandoUbicacion, setBuscandoUbicacion] = useState(false);
   const [verMunicipios, setVerMunicipios] = useState(false);
@@ -77,7 +81,6 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   const buscador = useRef<ComponentRef<typeof TextInput>>(null);
   // aparicion suave y escalonada de cada bloque de la pantalla
   const entrada = useRef(Array.from({ length: BLOQUES }, () => new Animated.Value(0))).current;
-  const cambioSeccion = useRef(new Animated.Value(1)).current;
   // el buscador responde al tocarlo: borde verde y sombra un poco mayor
   const foco = useRef(new Animated.Value(0)).current;
   const reducir = useRef(false);
@@ -174,66 +177,114 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
     void guardarMunicipio(item, true).catch(() => undefined);
   }
 
-  // al cambiar entre cosechas e insumos las categorias aparecen con un desvanecido corto
-  function cambiarSeccion(nueva: Seccion) {
-    if (nueva === seccion) return;
-    setSeccion(nueva);
-    setCategoria('');
-    setVerTodas(false);
-    if (reducir.current) return;
-    cambioSeccion.setValue(0);
-    Animated.timing(cambioSeccion, { toValue: 1, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
-  }
-
   function elegirCategoria(item: string) {
     if (categoria === item) setCategoria('');
     else setCategoria(item);
   }
 
-  // el microfono del buscador: abre el teclado para dictar.
-  // cuando la app tenga reconocimiento de voz propio, aqui se conecta
+  // el microfono del buscador: abre el teclado para dictar
   function usarMicrofono() {
     setAyudaVoz(true);
     if (buscador.current) buscador.current.focus();
   }
 
-  let listaCategorias = categoriasAgricolas;
-  if (seccion === 'insumos') listaCategorias = categoriasInsumos;
+  function abrirVista(nueva: 'inicio' | Seccion) {
+    suavizar();
+    setCategoria('');
+    setVista(nueva);
+    // tocar «ver todas» muestra interes en esa seccion
+    if (nueva !== 'inicio') void registrarInteres(nueva, 1);
+  }
+
+  // abrir una publicacion cuenta como interes (una sola vez no cambia el orden)
+  function abrirProducto(product: Product) {
+    void registrarInteres(esInsumo(product.category) ? 'insumos' : 'cosechas', 1);
+    onProductPress(product, negocioDe(mercado, product));
+  }
+
+  // ampliar: ver todo casanare sin cambiar el municipio guardado
+  function ampliar() { suavizar(); setMunicipio(''); }
 
   const texto = query.trim().toLowerCase();
 
-  // cerca de ti: lo del municipio elegido primero; lo demas de casanare despues
-  const cerca: Product[] = [];
-  const otros: Product[] = [];
-  for (const product of mercado.products) {
-    if (product.stock <= 0) continue;
-    if (propio !== '' && product.business_id === propio) continue;
-    const insumo = esInsumo(product.category);
-    if (seccion === 'insumos' && !insumo) continue;
-    if (seccion === 'cosechas' && insumo) continue;
-    if (categoria !== '' && categoriaVisible(product.category) !== categoria) continue;
-    if (texto !== '') {
-      const negocio = negocioDe(mercado, product);
-      const todo = (product.name + ' ' + product.category + ' ' + product.description + ' ' + (negocio ? negocio.name : '')).toLowerCase();
-      if (!todo.includes(texto)) continue;
+  // publicaciones de otros con cantidad disponible, separadas en cerca (el municipio) y otros municipios
+  function separar(seccion: Seccion | null, conCategoria: boolean) {
+    const cerca: Product[] = [];
+    const otros: Product[] = [];
+    for (const product of mercado.products) {
+      if (product.stock <= 0) continue;
+      if (propio !== '' && product.business_id === propio) continue;
+      const insumo = esInsumo(product.category);
+      if (seccion === 'insumos' && !insumo) continue;
+      if (seccion === 'cosechas' && insumo) continue;
+      if (conCategoria && categoria !== '' && categoriaVisible(product.category) !== categoria) continue;
+      if (texto !== '') {
+        const negocio = negocioDe(mercado, product);
+        const todo = (product.name + ' ' + product.category + ' ' + product.description + ' ' + (negocio ? negocio.name : '')).toLowerCase();
+        if (!todo.includes(texto)) continue;
+      }
+      if (municipio === '' || municipioDe(mercado, product) === municipio) cerca.push(product);
+      else otros.push(product);
     }
-    if (municipio === '' || municipioDe(mercado, product) === municipio) cerca.push(product);
-    else otros.push(product);
+    return { cerca, otros };
+  }
+
+  // la busqueda tambien cuenta como interes, segun lo que encontro
+  function alBuscar() {
+    const { cerca, otros } = separar(null, false);
+    const todos = cerca.concat(otros);
+    if (todos.length === 0) return;
+    let insumos = 0;
+    for (const p of todos) { if (esInsumo(p.category)) insumos += 1; }
+    void registrarInteres(insumos > todos.length / 2 ? 'insumos' : 'cosechas', 1);
   }
 
   let nombreMunicipio = 'Todo Casanare';
   if (municipio !== '') nombreMunicipio = municipio;
-  const palabra = seccion === 'insumos' ? 'insumos' : 'cosechas';
-  let tituloCerca = seccion === 'insumos' ? 'Insumos disponibles' : 'Cosechas disponibles';
-  if (municipio !== '') tituloCerca = (seccion === 'insumos' ? 'Insumos en ' : 'Cosechas en ') + municipio;
-  let mensajeVacio = 'Todavía no hay cosechas de otros productores. Cuando alguien publique, aparecerá aquí.';
-  if (seccion === 'insumos') mensajeVacio = 'Todavía no hay insumos de otras tiendas. Cuando alguien publique, aparecerá aquí.';
-  if (municipio !== '') mensajeVacio = mensajeVacio.replace('.', ' en ' + municipio + '.') + (otros.length > 0 ? ' Mira más abajo lo de otros municipios.' : '');
-  if (texto !== '' || categoria !== '') mensajeVacio = 'No encontramos nada con esa búsqueda' + (municipio !== '' ? ' en ' + municipio : '') + '.';
 
-  function tarjeta(product: Product) {
+  function tarjeta(product: Product, enGrilla: boolean) {
     const negocio = negocioDe(mercado, product);
-    return <ProductCard key={product.id} enGrilla product={product} municipio={municipioDe(mercado, product)} vendedor={negocio ? negocio.name : ''} onPress={() => onProductPress(product, negocio)} />;
+    return <ProductCard key={product.id} enGrilla={enGrilla} product={product} municipio={municipioDe(mercado, product)} vendedor={negocio ? negocio.name : ''} onPress={() => abrirProducto(product)} />;
+  }
+
+  const nombres: Record<Seccion, { titulo: string; palabra: string; publicadas: string }> = {
+    cosechas: { titulo: 'Cosechas', palabra: 'cosechas', publicadas: 'publicadas' },
+    insumos: { titulo: 'Insumos', palabra: 'insumos', publicadas: 'publicados' },
+  };
+
+  // salidas cuando no hay nada: ver todo casanare o preguntarle a aru. nunca se inventa nada
+  function sinResultados(textoVacio: string, conAmpliar: boolean) {
+    return <View style={styles.vacioCaja}>
+      <Text style={styles.vacioTexto}>{textoVacio}</Text>
+      <View style={styles.vacioBotones}>
+        {conAmpliar && <Pressable accessibilityRole="button" onPress={ampliar} style={({ pressed }) => [styles.vacioBoton, pressed && styles.presionado]}><MapPin size={16} color={colors.verde} /><Text style={styles.vacioBotonTexto}>Ver todo Casanare</Text></Pressable>}
+        <Pressable accessibilityRole="button" onPress={onEscribir} style={({ pressed }) => [styles.vacioBoton, pressed && styles.presionado]}><MessageCircle size={16} color={colors.verde} /><Text style={styles.vacioBotonTexto}>Pregúntale a Aru</Text></Pressable>
+      </View>
+    </View>;
+  }
+
+  // una seccion del inicio: lo cercano en una fila; si no hay, lo de otros municipios
+  function fila(seccion: Seccion) {
+    const n = nombres[seccion];
+    const { cerca, otros } = separar(seccion, false);
+    const hayCerca = cerca.length > 0;
+    const lista = hayCerca ? cerca : otros;
+    let titulo = n.titulo + ' cerca de ti';
+    if (municipio === '') titulo = n.titulo + ' en Casanare';
+    if (!hayCerca && otros.length > 0) titulo = n.titulo + ' en otros municipios';
+    return <View key={seccion} style={styles.fila}>
+      <View style={styles.filaTitulo}>
+        <View style={styles.flex}>
+          <Text style={styles.sectionTitle}>{titulo}</Text>
+          {hayCerca && municipio !== '' && <Text style={styles.filaSub}>En {municipio}</Text>}
+          {!hayCerca && otros.length > 0 && municipio !== '' && <Text style={styles.filaSub}>En {municipio} todavía no hay {n.palabra} {n.publicadas}.</Text>}
+        </View>
+        {lista.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel={'Ver todas las ' + n.palabra} hitSlop={8} onPress={() => abrirVista(seccion)} style={styles.verTodas}><Text style={styles.verTodasTexto}>Ver todas</Text><ChevronRight size={16} color={colors.verde} /></Pressable>}
+      </View>
+      {lista.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carrusel} contentContainerStyle={styles.carruselContenido}>
+        {lista.slice(0, 10).map((p) => tarjeta(p, false))}
+      </ScrollView> : sinResultados('Todavía no hay ' + n.palabra + ' ' + n.publicadas + (municipio !== '' ? ' en ' + municipio : ' en Casanare') + '. Cuando alguien publique, aparecerá aquí.', false)}
+    </View>;
   }
 
   const hora = new Date().getHours();
@@ -243,12 +294,52 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
   if (hora >= 17) IconoSaludo = Sunset;
   if (hora >= 19 || hora < 5) IconoSaludo = MoonStar;
 
+  // contenido segun lo que se esta viendo: busqueda, «ver todas» o las dos secciones
+  let contenido: React.ReactNode = null;
+  if (cargando) contenido = <View style={styles.fila}><View style={styles.filaTitulo}><Text style={styles.sectionTitle}>Cargando publicaciones…</Text></View><ScrollView horizontal scrollEnabled={false} contentContainerStyle={styles.carruselContenido}>{[1, 2, 3].map((n) => <View key={n} style={styles.esqueleto}><TarjetaEsqueleto /></View>)}</ScrollView></View>;
+  else if (error !== '') contenido = <View style={styles.errorBox}>
+    <WifiOff size={22} color={colors.verde} /><Text style={styles.errorText}>{error}</Text>
+    {getSupabaseClient() !== null && <Pressable onPress={() => { setCargando(true); void refreshFeed(); }} style={styles.retry}><Text style={styles.retryText}>Intentar de nuevo</Text></Pressable>}
+  </View>;
+  else if (texto !== '') {
+    const { cerca, otros } = separar(null, false);
+    contenido = <View>
+      <Text style={[styles.sectionTitle, styles.resultadosTitulo]}>Resultados para «{query.trim()}»</Text>
+      {cerca.length > 0 && <View style={styles.grid}>{cerca.map((p) => tarjeta(p, true))}</View>}
+      {otros.length > 0 && <>
+        <Text style={[styles.filaSub, styles.otrosTitulo]}>{cerca.length === 0 && municipio !== '' ? 'En ' + municipio + ' no hay. Esto es de otros municipios:' : 'En otros municipios de Casanare:'}</Text>
+        <View style={styles.grid}>{otros.map((p) => tarjeta(p, true))}</View>
+      </>}
+      {cerca.length === 0 && otros.length === 0 && sinResultados('No encontramos «' + query.trim() + '» en Sava todavía. Aru te puede ayudar a buscar algo parecido.', false)}
+    </View>;
+  } else if (vista !== 'inicio') {
+    const n = nombres[vista];
+    const lista = vista === 'insumos' ? categoriasInsumos : categoriasAgricolas;
+    const { cerca, otros } = separar(vista, true);
+    contenido = <View>
+      <Pressable accessibilityRole="button" onPress={() => abrirVista('inicio')} style={styles.volverInicio}><ArrowLeft size={18} color={colors.verde} /><Text style={styles.volverInicioTexto}>Volver al inicio</Text></Pressable>
+      <Text style={styles.sectionTitle}>{n.titulo}{municipio !== '' ? ' en ' + municipio : ' en Casanare'}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsFila} contentContainerStyle={styles.chips}>
+        <ChipCategoria nombre="" etiqueta="Todo" elegida={categoria === ''} onPress={() => setCategoria('')} />
+        {lista.map((item) => <ChipCategoria key={item} nombre={item} etiqueta={item} elegida={categoria === item} onPress={() => elegirCategoria(item)} />)}
+      </ScrollView>
+      {cerca.length > 0 && <View style={styles.grid}>{cerca.map((p) => tarjeta(p, true))}</View>}
+      {otros.length > 0 && <>
+        <Text style={[styles.filaSub, styles.otrosTitulo]}>{cerca.length === 0 ? 'En ' + municipio + ' no hay. Esto es de otros municipios:' : 'En otros municipios de Casanare:'}</Text>
+        <View style={styles.grid}>{otros.map((p) => tarjeta(p, true))}</View>
+      </>}
+      {cerca.length === 0 && otros.length === 0 && sinResultados('Todavía no hay ' + n.palabra + (categoria !== '' ? ' de «' + categoria + '»' : '') + ' ' + n.publicadas + (municipio !== '' ? ' en ' + municipio : '') + '.', municipio !== '')}
+    </View>;
+  } else contenido = <>{orden.map((seccion) => fila(seccion))}</>;
+
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refreshFeed()} tintColor={colors.verde} />}>
-      {/* 1. logo centrado y municipio a la derecha, compacto */}
+      {/* encabezado compacto: logo, municipio y saludo en poco espacio */}
       <Animated.View style={[styles.header, aparecer(0)]}>
-        <View style={styles.headerLado} />
-        <SavaLogo size="encabezado" centrado />
+        <View style={styles.headerLado}>
+          <View style={styles.saludoFila}><IconoSaludo size={16} color={colors.arcilla} strokeWidth={2} /><Text style={styles.greeting} numberOfLines={1}>{saludo()}</Text></View>
+        </View>
+        <SavaLogo size="regular" centrado />
         <View style={[styles.headerLado, styles.headerDerecha]}>
           <Pressable accessibilityRole="button" accessibilityLabel={'Buscando en ' + nombreMunicipio + '. Toca para cambiar el municipio'} onPress={() => { suavizar(); setVerMunicipios(!verMunicipios); }} style={({ pressed }) => [styles.location, pressed && styles.presionado]}>
             <MapPin size={15} color={colors.verde} />
@@ -278,90 +369,48 @@ export default function HomeScreen({ municipioInicial = '', seccionInicial = 'co
       </View>}
       {avisoUbicacion !== '' && <Text style={styles.avisoUbicacion}>{avisoUbicacion}</Text>}
 
-      {/* 2. saludo breve */}
-      <Animated.View style={[styles.saludoFila, aparecer(1)]}>
-        <IconoSaludo size={22} color={colors.arcilla} strokeWidth={1.8} />
-        <Text style={styles.greeting}>{saludo()}</Text>
-      </Animated.View>
-
-      {/* 3. buscador con microfono */}
-      <Animated.View style={aparecer(2)}>
+      {/* buscador: busca en cosechas e insumos a la vez */}
+      <Animated.View style={aparecer(1)}>
         <Animated.View style={[styles.search, { borderColor: foco.interpolate({ inputRange: [0, 1], outputRange: [colors.line, colors.verde] }), shadowOpacity: foco.interpolate({ inputRange: [0, 1], outputRange: [0.06, 0.14] }) }]}>
           <Search size={20} color={colors.verde} />
-          <TextInput ref={buscador} accessibilityLabel="Buscar" value={query} onChangeText={setQuery} placeholder={seccion === 'insumos' ? 'Busca abono, semillas…' : 'Busca piña, yuca, plátano…'} placeholderTextColor={colors.muted} style={styles.searchInput} returnKeyType="search" maxLength={60} onFocus={() => Animated.timing(foco, { toValue: 1, duration: 180, useNativeDriver: false }).start()} onBlur={() => { setAyudaVoz(false); Animated.timing(foco, { toValue: 0, duration: 220, useNativeDriver: false }).start(); }} />
+          <TextInput ref={buscador} accessibilityLabel="Buscar cosechas e insumos" value={query} onChangeText={setQuery} onSubmitEditing={alBuscar} placeholder="Busca piña, abono, semillas…" placeholderTextColor={colors.muted} style={styles.searchInput} returnKeyType="search" maxLength={60} onFocus={() => Animated.timing(foco, { toValue: 1, duration: 180, useNativeDriver: false }).start()} onBlur={() => { setAyudaVoz(false); Animated.timing(foco, { toValue: 0, duration: 220, useNativeDriver: false }).start(); }} />
           <Pressable accessibilityRole="button" accessibilityLabel="Buscar hablando" onPress={usarMicrofono} style={({ pressed }) => [styles.micBoton, pressed && styles.presionado]}><Mic size={20} color={colors.verde} /></Pressable>
         </Animated.View>
         {ayudaVoz && <Text style={styles.ayudaVoz}>Toca el micrófono de tu teclado y di lo que buscas.</Text>}
       </Animated.View>
 
-      {/* 4. cosechas o insumos */}
-      <Animated.View accessibilityRole="tablist" style={[styles.secciones, aparecer(3)]}>
-        <Pressable accessibilityRole="tab" accessibilityState={{ selected: seccion === 'cosechas' }} onPress={() => cambiarSeccion('cosechas')} style={({ pressed }) => [styles.seccion, seccion === 'cosechas' && styles.seccionActiva, pressed && styles.presionado]}>
-          <Sprout size={19} color={seccion === 'cosechas' ? colors.white : colors.verde} /><Text style={[styles.seccionTexto, seccion === 'cosechas' && styles.seccionTextoActivo]}>Cosechas</Text>
-        </Pressable>
-        <Pressable accessibilityRole="tab" accessibilityState={{ selected: seccion === 'insumos' }} onPress={() => cambiarSeccion('insumos')} style={({ pressed }) => [styles.seccion, seccion === 'insumos' && styles.seccionActiva, pressed && styles.presionado]}>
-          <ShoppingBasket size={19} color={seccion === 'insumos' ? colors.white : colors.verde} /><Text style={[styles.seccionTexto, seccion === 'insumos' && styles.seccionTextoActivo]}>Insumos</Text>
-        </Pressable>
-      </Animated.View>
-
-      {/* 5. categorias compactas en una fila */}
-      <Animated.View style={[aparecer(4), { opacity: Animated.multiply(entrada[4], cambioSeccion) }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsFila} contentContainerStyle={styles.chips}>
-          <ChipCategoria nombre="" etiqueta="Todo" elegida={categoria === ''} onPress={() => setCategoria('')} />
-          {listaCategorias.map((item) => <ChipCategoria key={item} nombre={item} etiqueta={item} elegida={categoria === item} onPress={() => elegirCategoria(item)} />)}
-        </ScrollView>
-      </Animated.View>
-
       {copiaDe !== '' && <View style={styles.copia}><WifiOff size={16} color="#775D50" /><Text style={styles.copiaTexto}>Sin internet. Ves lo que se cargó el {copiaDe}; puede haber cambiado.</Text></View>}
 
-      {/* 6. lo disponible cerca */}
-      <Animated.View style={aparecer(5)}>
-        <View style={styles.tituloFila}>
-          <Text style={styles.sectionTitle}>{tituloCerca}</Text>
-          {!cargando && error === '' && <BotonEscuchar etiqueta="" texto={'Hay ' + cerca.length + ' ' + palabra + ' disponibles' + (municipio !== '' ? ' en ' + municipio : '') + '. Toca una para conocerla y contactar al productor.'} />}
-        </View>
-        {cargando && <View style={styles.grid}>{[1, 2].map((n) => <TarjetaEsqueleto key={n} enGrilla />)}</View>}
-        {!cargando && error !== '' && <View style={styles.errorBox}>
-          <WifiOff size={22} color={colors.verde} /><Text style={styles.errorText}>{error}</Text>
-          {getSupabaseClient() !== null && <Pressable onPress={() => { setCargando(true); void refreshFeed(); }} style={styles.retry}><Text style={styles.retryText}>Intentar de nuevo</Text></Pressable>}
-        </View>}
-        {!cargando && error === '' && <>
-          <View style={styles.grid}>{cerca.slice(0, 6).map((product) => tarjeta(product))}</View>
-          {cerca.length === 0 && <Text style={styles.empty}>{mensajeVacio}</Text>}
-        </>}
-      </Animated.View>
+      {/* lo principal: las publicaciones reales */}
+      <Animated.View style={aparecer(2)}>{contenido}</Animated.View>
 
-      {/* 7. el asistente, compacto */}
-      <Animated.View style={[styles.asistente, aparecer(6)]}>
-        <View style={styles.asistenteOrbe}><AsistenteOrbe estado="reposo" tamano={60} /></View>
-        <View style={styles.flex}>
-          <Text style={styles.asistenteTitulo}>¿No lo encuentras?</Text>
-          <Text style={styles.asistenteTexto}>Aru te ayuda a buscar o a publicar.</Text>
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Hablar con tu asistente" onPress={onHablar} style={({ pressed }) => [styles.asistenteBoton, pressed && styles.presionado]}><Mic size={19} color={colors.white} /></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Escribirle a tu asistente" onPress={onEscribir} style={({ pressed }) => [styles.asistenteBoton, styles.asistenteBotonSuave, pressed && styles.presionado]}><MessageCircle size={19} color={colors.verde} /></Pressable>
-      </Animated.View>
+      {vista === 'inicio' && texto === '' && <>
+        {/* aru, compacto */}
+        <Animated.View style={[styles.asistente, aparecer(3)]}>
+          <View style={styles.asistenteOrbe}><AsistenteOrbe estado="reposo" tamano={56} /></View>
+          <View style={styles.flex}>
+            <Text style={styles.asistenteTitulo}>¿No lo encuentras?</Text>
+            <Text style={styles.asistenteTexto}>Aru te ayuda a buscar o a publicar.</Text>
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Hablar con Aru" onPress={onHablar} style={({ pressed }) => [styles.asistenteBoton, pressed && styles.presionado]}><Mic size={19} color={colors.white} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Escribirle a Aru" onPress={onEscribir} style={({ pressed }) => [styles.asistenteBoton, styles.asistenteBotonSuave, pressed && styles.presionado]}><MessageCircle size={19} color={colors.verde} /></Pressable>
+        </Animated.View>
 
-      {/* 8. mas publicaciones y productores */}
-      {!cargando && error === '' && (cerca.length > 6 || otros.length > 0) && <>
-        <Text style={[styles.sectionTitle, styles.masTitulo]}>{municipio !== '' ? 'Más ' + palabra + ' en Casanare' : 'Más ' + palabra}</Text>
-        <View style={styles.grid}>{cerca.slice(6).concat(otros).map((product) => tarjeta(product))}</View>
+        <View style={styles.vender}>
+          <Sprout size={26} color={colors.crema} strokeWidth={1.8} />
+          <View style={styles.flex}>
+            <Text style={styles.venderTitulo}>¿Tienes cosecha para mostrar?</Text>
+            <Text style={styles.venderTexto}>Publícala gratis y encuentra compradores.</Text>
+          </View>
+          <Pressable accessibilityRole="button" onPress={onVender} style={({ pressed }) => [styles.venderBoton, pressed && styles.presionado]}><Text style={styles.venderBotonTexto}>Publicar</Text></Pressable>
+        </View>
+
+        {!!onAprender && <Pressable accessibilityRole="button" onPress={onAprender} style={({ pressed }) => [styles.aprende, pressed && styles.presionado]}>
+          <GraduationCap size={22} color={colors.verde} />
+          <View style={styles.flex}><Text style={styles.aprendeTitulo}>Aprende con Sava</Text><Text style={styles.aprendeTexto}>Fotos, descripciones, costos y cuentas</Text></View>
+          <ChevronRight size={20} color={colors.verde} />
+        </Pressable>}
       </>}
-
-      <View style={styles.vender}>
-        <Sprout size={26} color={colors.crema} strokeWidth={1.8} />
-        <View style={styles.flex}>
-          <Text style={styles.venderTitulo}>¿Tienes cosecha para mostrar?</Text>
-          <Text style={styles.venderTexto}>Publícala gratis y encuentra compradores.</Text>
-        </View>
-        <Pressable accessibilityRole="button" onPress={onVender} style={({ pressed }) => [styles.venderBoton, pressed && styles.presionado]}><Text style={styles.venderBotonTexto}>Publicar</Text></Pressable>
-      </View>
-
-      {!!onAprender && <Pressable accessibilityRole="button" onPress={onAprender} style={({ pressed }) => [styles.aprende, pressed && styles.presionado]}>
-        <GraduationCap size={22} color={colors.verde} />
-        <View style={styles.flex}><Text style={styles.aprendeTitulo}>Aprende con Sava</Text><Text style={styles.aprendeTexto}>Fotos, descripciones, costos y cuentas</Text></View>
-        <ChevronRight size={20} color={colors.verde} />
-      </Pressable>}
 
       <View style={styles.apoyo}><ApoyoGobernacion /></View>
     </ScrollView>
@@ -372,7 +421,7 @@ const sombraSuave = { shadowColor: '#26332F', shadowOpacity: 0.08, shadowRadius:
 
 const styles = StyleSheet.create({
   flex: { flex: 1 }, content: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 28 },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   headerLado: { flex: 1 },
   headerDerecha: { alignItems: 'flex-end' },
   location: { flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '100%', paddingHorizontal: 8, paddingVertical: 7, borderRadius: 18, backgroundColor: colors.salvia },
@@ -388,8 +437,8 @@ const styles = StyleSheet.create({
   sugerenciaSiTexto: { color: colors.white, fontWeight: '900', fontSize: 13 },
   sugerenciaNo: { color: colors.verde, fontWeight: '800', fontSize: 13 },
   avisoUbicacion: { color: colors.muted, fontSize: 12, marginBottom: 6 },
-  saludoFila: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  greeting: { color: colors.verde, fontSize: 22, fontWeight: '900', flexShrink: 1 },
+  saludoFila: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  greeting: { color: colors.verde, fontSize: 14, fontWeight: '900', flexShrink: 1 },
   presionado: { transform: [{ scale: 0.97 }] },
   search: { minHeight: 50, backgroundColor: colors.white, borderRadius: 25, paddingLeft: 16, paddingRight: 5, alignItems: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: colors.line, ...sombraSuave },
   searchInput: { flex: 1, fontSize: 15, color: colors.ink, paddingVertical: 8 },
@@ -399,7 +448,7 @@ const styles = StyleSheet.create({
   seccion: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, borderRadius: 22, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line },
   seccionActiva: { backgroundColor: colors.verde, borderColor: colors.verde },
   seccionTexto: { color: colors.verde, fontSize: 15, fontWeight: '900' }, seccionTextoActivo: { color: colors.white },
-  chipsFila: { marginTop: 10, marginHorizontal: -16 },
+  chipsFila: { marginTop: 8, marginBottom: 12, marginHorizontal: -16 },
   chips: { gap: 7, paddingHorizontal: 16 },
   tituloFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, marginBottom: 8 },
   sectionTitle: { color: colors.grafito, fontSize: 19, fontWeight: '900', flexShrink: 1 },
@@ -428,6 +477,23 @@ const styles = StyleSheet.create({
   retry: { backgroundColor: colors.verde, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 11 },
   retryText: { color: colors.white, fontWeight: '800', fontSize: 13 },
   apoyo: { marginTop: 18 },
+  fila: { marginTop: 14 },
+  filaTitulo: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 8 },
+  filaSub: { color: colors.muted, fontSize: 13, marginTop: 1 },
+  verTodas: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 4 },
+  verTodasTexto: { color: colors.verde, fontSize: 14, fontWeight: '900' },
+  carrusel: { marginHorizontal: -16 },
+  carruselContenido: { gap: 10, paddingHorizontal: 16, paddingBottom: 4 },
+  esqueleto: { width: 164 },
+  vacioCaja: { padding: 14, borderRadius: 18, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, gap: 10 },
+  vacioTexto: { color: colors.grafito, fontSize: 14, lineHeight: 20 },
+  vacioBotones: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  vacioBoton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, backgroundColor: colors.salvia },
+  vacioBotonTexto: { color: colors.verde, fontSize: 13, fontWeight: '800' },
+  resultadosTitulo: { marginTop: 14, marginBottom: 10 },
+  otrosTitulo: { marginTop: 14, marginBottom: 8 },
+  volverInicio: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 8, marginTop: 6 },
+  volverInicioTexto: { color: colors.verde, fontSize: 14, fontWeight: '800' },
   aprende: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.white, borderRadius: 18, borderWidth: 1, borderColor: colors.line, padding: 14, marginTop: 12 },
   aprendeTitulo: { color: colors.grafito, fontSize: 15, fontWeight: '900' },
   aprendeTexto: { color: colors.muted, fontSize: 13, marginTop: 1 },

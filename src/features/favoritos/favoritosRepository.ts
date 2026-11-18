@@ -1,6 +1,8 @@
 import { getDatabase } from '../../infrastructure/database/database';
 import type { Product } from '../inventory/types';
 import type { Business } from '../business/types';
+import { registrarInteres } from '../../shared/intereses';
+import { esInsumo } from '../../shared/agro';
 
 // los guardados viven solo en este celular (no se suben a internet)
 export type Favorito = { product: Product; business: Business | null };
@@ -27,6 +29,8 @@ export async function esFavorito(productId: string) {
 }
 
 export async function guardarFavorito(product: Product, business: Business | null) {
+  // guardar algo muestra mas interes que solo verlo
+  void registrarInteres(esInsumo(product.category) ? 'insumos' : 'cosechas', 2);
   const db = await getDatabase();
   let negocio = null;
   if (business) negocio = JSON.stringify(business);

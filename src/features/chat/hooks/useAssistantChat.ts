@@ -19,6 +19,7 @@ import { getBusinessProfile } from '../../business/data/businessRepository';
 import type { Product } from '../../inventory/types';
 import { registrarCompra, registrarCosecha, registrarGasto, registrarPerdida, resumenCuentas, ventasPorCobrar } from '../../cuaderno/cuadernoRepository';
 import { guiaPara } from '../../aprende/guias';
+import { registrarInteres } from '../../../shared/intereses';
 
 // tipoVendedor: 'agricultor' o 'tienda' si la persona vende, '' si solo compra
 type TipoVendedor = 'agricultor' | 'tienda' | '';
@@ -590,6 +591,9 @@ export function useAssistantChat(tipo: TipoVendedor, acciones: Acciones = {}) {
       if (municipio === '' || municipioDe(mercado, item) === municipio) opciones.push(recomendacion);
       else otrasZonas.push(recomendacion);
     }
+    // lo que se le pide a aru tambien cuenta como interes (solo cosechas o insumos, no la conversacion)
+    const primero = opciones[0] ?? otrasZonas[0];
+    void registrarInteres(esInsumo(primero ? primero.product.category : categoriaVisible(categoriaDeProducto(producto))) ? 'insumos' : 'cosechas', 1);
     let lugar = '';
     if (municipio !== '') lugar = ' en ' + municipio;
     // pregunta de precio: se responde con el rango real de lo publicado en sava
