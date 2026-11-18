@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Animated, Easing, Image, Keyboard, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, useWindowDimensions, View } from 'react-native';
-import { ArrowLeft, Clock, Keyboard as IconoTeclado, MessageCircle, Mic, RotateCcw, Send, Sprout, Square, Volume2, VolumeX, WifiOff } from 'lucide-react-native';
+import { ArrowLeft, AudioLines, Clock, Keyboard as IconoTeclado, MessageCircle, Mic, RotateCcw, Send, Sprout, Square, Volume2, VolumeX, WifiOff } from 'lucide-react-native';
 import NotaVoz from '../../shared/components/NotaVoz';
+import ElegirVoz from './components/ElegirVoz';
 import type { ChatMessage, ProductDraft, Recomendacion, VentaPropuesta } from './types';
 import type { Product } from '../inventory/types';
 import type { Business } from '../business/types';
@@ -86,6 +87,7 @@ export default function ChatScreen(props: Props) {
   const [volumen, setVolumen] = useState(0);
   const [parcial, setParcial] = useState('');
   const [aviso, setAviso] = useState('');
+  const [verVoces, setVerVoces] = useState(false);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const entrada = useRef<ComponentRef<typeof TextInput>>(null);
   const detener = useRef<() => void>(() => undefined);
@@ -248,6 +250,7 @@ export default function ChatScreen(props: Props) {
           <Pressable accessibilityRole="button" accessibilityLabel={leerEnVoz ? 'Dejar de hablar en voz alta' : 'Hablar en voz alta'} hitSlop={10} onPress={props.onCambiarVoz} style={[styles.headerBoton, leerEnVoz && styles.vozActiva]}>
             {leerEnVoz ? <Volume2 size={21} color={colors.verde} /> : <VolumeX size={21} color={colors.verde} />}
           </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Elegir la voz de Aru" hitSlop={10} onPress={() => { detenerTodo(); setVerVoces(true); }} style={styles.headerBoton}><AudioLines size={20} color={colors.verde} /></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Empezar de nuevo" hitSlop={10} onPress={() => { salirVoz(); props.onReset(); }} style={styles.headerBoton}><RotateCcw size={20} color={colors.verde} /></Pressable>
         </View>
 
@@ -340,6 +343,7 @@ export default function ChatScreen(props: Props) {
 
         {props.sinSenal && <View style={styles.senal}><WifiOff size={16} color={colors.grafito} /><Text style={styles.senalTexto}>Sin señal. Te respondo lo que pueda; lo demás, cuando vuelva el internet.{props.enEspera > 0 ? ' Mensajes guardados: ' + props.enEspera + '.' : ''}</Text></View>}
         {aviso !== '' && <View style={styles.aviso}><Mic size={16} color={colors.verde} /><Text style={styles.avisoTexto}>{aviso}</Text></View>}
+        <ElegirVoz visible={verVoces} onCerrar={() => setVerVoces(false)} />
         {!modoVoz && <View style={styles.composer}>
           <Pressable accessibilityRole="button" accessibilityLabel="Hablar con tu asistente" onPress={() => void iniciarVoz()} style={({ pressed }) => [styles.mic, pressed && styles.presionado]}><Mic size={22} color={colors.verde} /></Pressable>
           <TextInput ref={entrada} accessibilityLabel="Mensaje para tu asistente" value={texto} onChangeText={setTexto} placeholder="Escribe tu mensaje…" placeholderTextColor={colors.muted} style={styles.input} onSubmitEditing={() => enviar()} returnKeyType="send" maxLength={300} />
