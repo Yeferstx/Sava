@@ -12,7 +12,7 @@ CORREOS = ['demo.esperanza@example.com', 'demo.morichal@example.com', 'demo.tien
 
 def pedir(metodo, ruta, cuerpo=None):
     req = urllib.request.Request(URL + ruta, data=json.dumps(cuerpo).encode() if cuerpo is not None else None, method=metodo,
-                                 headers={'apikey': CLAVE, 'Authorization': 'Bearer ' + CLAVE, 'Content-Type': 'application/json'})
+                                 headers=dict({'apikey': CLAVE, 'Content-Type': 'application/json'}, **({} if CLAVE.startswith('sb_') else {'Authorization': 'Bearer ' + CLAVE})))
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
             t = r.read().decode()

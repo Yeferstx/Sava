@@ -27,7 +27,10 @@ def hace(dias, horas=0):
 
 
 def pedir(metodo, ruta, cuerpo=None, extra=None, tipo='application/json', datos=None):
-    cab = {'apikey': CLAVE, 'Authorization': 'Bearer ' + CLAVE, 'Content-Type': tipo}
+    # las claves nuevas (sb_secret_...) solo van en apikey; las antiguas (jwt) tambien en authorization
+    cab = {'apikey': CLAVE, 'Content-Type': tipo}
+    if not CLAVE.startswith('sb_'):
+        cab['Authorization'] = 'Bearer ' + CLAVE
     if extra:
         cab.update(extra)
     data = datos if datos is not None else (json.dumps(cuerpo).encode() if cuerpo is not None else None)
