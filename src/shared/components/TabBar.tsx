@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  Image,
+  Keyboard,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bookmark, House, Play, Plus, Sprout, Store, UserRound } from 'lucide-react-native';
@@ -20,24 +31,61 @@ export function alturaBarra(ancho: number, bordeAbajo: number) {
 // fondo del boton elegido: aparece y desaparece suave al cambiar de seccion
 function FondoActivo({ visible, oscuro }: { visible: boolean; oscuro: boolean }) {
   const valor = useRef(new Animated.Value(visible ? 1 : 0)).current;
-  useEffect(() => { Animated.timing(valor, { toValue: visible ? 1 : 0, duration: 200, easing: Easing.out(Easing.quad), useNativeDriver: true }).start(); }, [visible]);
+  useEffect(() => {
+    Animated.timing(valor, {
+      toValue: visible ? 1 : 0,
+      duration: 200,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [visible]);
   const escala = valor.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
-  return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, oscuro ? styles.selectedOscuro : styles.selected, { borderRadius: 16, opacity: valor, transform: [{ scale: escala }] }]} />;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        StyleSheet.absoluteFill,
+        oscuro ? styles.selectedOscuro : styles.selected,
+        { borderRadius: 16, opacity: valor, transform: [{ scale: escala }] },
+      ]}
+    />
+  );
 }
 
-type Props = { active: AppTab; onChange: (tab: AppTab) => void; guest?: boolean; tienda?: boolean; oscuro?: boolean; insignia?: number };
+type Props = {
+  active: AppTab;
+  onChange: (tab: AppTab) => void;
+  guest?: boolean;
+  tienda?: boolean;
+  oscuro?: boolean;
+  insignia?: number;
+};
 
 // barra de abajo: una sola pieza con el paisaje detras de los cinco botones.
 // oscuro: en videos la barra se pone oscura como el resto de la pantalla
-export default function TabBar({ active, onChange, guest = false, tienda = false, oscuro = false, insignia = 0 }: Props) {
+export default function TabBar({
+  active,
+  onChange,
+  guest = false,
+  tienda = false,
+  oscuro = false,
+  insignia = 0,
+}: Props) {
   const bordes = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   // con el teclado abierto la barra se esconde para no tapar lo que se escribe
   const [teclado, setTeclado] = useState(false);
   useEffect(() => {
-    const mostrar = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setTeclado(true));
-    const ocultar = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setTeclado(false));
-    return () => { mostrar.remove(); ocultar.remove(); };
+    const mostrar = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () =>
+      setTeclado(true),
+    );
+    const ocultar = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () =>
+      setTeclado(false),
+    );
+    return () => {
+      mostrar.remove();
+      ocultar.remove();
+    };
   }, []);
 
   // inicio siempre es el mercado. maria esta en el boton flotante de todas las pantallas
@@ -76,17 +124,30 @@ export default function TabBar({ active, onChange, guest = false, tienda = false
         <Rect x={0} y={0} width={width} height={26} fill="url(#fundido)" />
       </Svg>
       {/* en videos el paisaje se ve tenue para no distraer del video */}
-      <Image source={paisaje} style={[styles.paisaje, { width, height: altoPaisaje }, oscuro && styles.paisajeTenue]} resizeMode="stretch" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+      <Image
+        source={paisaje}
+        style={[styles.paisaje, { width, height: altoPaisaje }, oscuro && styles.paisajeTenue]}
+        resizeMode="stretch"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      />
       {/* desvanecido suave: el borde de arriba del paisaje se funde con el crema */}
-      {!oscuro && <Svg pointerEvents="none" width={width} height={28} style={[styles.desvanecido, { top: alto - altoPaisaje }]}>
-        <Defs>
-          <LinearGradient id="desvanecer" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={colors.crema} stopOpacity={1} />
-            <Stop offset="1" stopColor={colors.crema} stopOpacity={0} />
-          </LinearGradient>
-        </Defs>
-        <Rect x={0} y={0} width={width} height={28} fill="url(#desvanecer)" />
-      </Svg>}
+      {!oscuro && (
+        <Svg
+          pointerEvents="none"
+          width={width}
+          height={28}
+          style={[styles.desvanecido, { top: alto - altoPaisaje }]}
+        >
+          <Defs>
+            <LinearGradient id="desvanecer" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={colors.crema} stopOpacity={1} />
+              <Stop offset="1" stopColor={colors.crema} stopOpacity={0} />
+            </LinearGradient>
+          </Defs>
+          <Rect x={0} y={0} width={width} height={28} fill="url(#desvanecer)" />
+        </Svg>
+      )}
       {/* los botones van sobre el cielo; abajo se ven los arboles y el pasto */}
       <View style={styles.fila}>
         {tabs.map(({ name, label, Icon }) => {
@@ -97,14 +158,31 @@ export default function TabBar({ active, onChange, guest = false, tienda = false
           if (oscuro) color = colors.white;
           if (add) {
             return (
-              <Pressable accessibilityRole="button" accessibilityLabel={label} key={name} onPress={() => onChange(name)} style={styles.item}>
-                <View style={[styles.add, oscuro && styles.addOscuro]}><Icon size={28} color={colors.white} strokeWidth={2.8} /></View>
-                <Text style={[styles.label, styles.addLabel, oscuro && styles.labelOscuro]} numberOfLines={1}>{label}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={label}
+                key={name}
+                onPress={() => onChange(name)}
+                style={styles.item}
+              >
+                <View style={[styles.add, oscuro && styles.addOscuro]}>
+                  <Icon size={28} color={colors.white} strokeWidth={2.8} />
+                </View>
+                <Text style={[styles.label, styles.addLabel, oscuro && styles.labelOscuro]} numberOfLines={1}>
+                  {label}
+                </Text>
               </Pressable>
             );
           }
           return (
-            <Pressable accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={label} key={name} onPress={() => onChange(name)} style={styles.item}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={label}
+              key={name}
+              onPress={() => onChange(name)}
+              style={styles.item}
+            >
               {/* capa crema suave detras de cada boton: se lee bien sin tapar el paisaje */}
               <View style={[styles.boton, oscuro && styles.botonOscuro]}>
                 <FondoActivo visible={selected} oscuro={oscuro} />
@@ -112,7 +190,14 @@ export default function TabBar({ active, onChange, guest = false, tienda = false
                 <View style={styles.contenido}>
                   <Icon size={24} color={color} strokeWidth={selected ? 2.6 : 2.2} />
                   {name === 'Mi negocio' && insignia > 0 && <View style={styles.punto} />}
-                  <Text style={[styles.label, selected && styles.activeText, oscuro && styles.labelOscuro]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{label}</Text>
+                  <Text
+                    style={[styles.label, selected && styles.activeText, oscuro && styles.labelOscuro]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    {label}
+                  </Text>
                 </View>
               </View>
             </Pressable>
@@ -130,20 +215,75 @@ const styles = StyleSheet.create({
   paisaje: { position: 'absolute', left: 0, bottom: 0 },
   paisajeTenue: { opacity: 0.16 },
   contenido: { position: 'relative', alignItems: 'center' },
-  punto: { position: 'absolute', top: -2, right: 4, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.arcilla, borderWidth: 1.5, borderColor: colors.white },
+  punto: {
+    position: 'absolute',
+    top: -2,
+    right: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.arcilla,
+    borderWidth: 1.5,
+    borderColor: colors.white,
+  },
   fundido: { position: 'absolute', left: 0, top: -26 },
   desvanecido: { position: 'absolute', left: 0 },
-  fila: { position: 'absolute', left: 0, right: 0, top: 8, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-start', paddingHorizontal: 0 },
+  fila: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'flex-start',
+    paddingHorizontal: 0,
+  },
   item: { flex: 1, alignItems: 'center' },
   // solo el boton elegido lleva fondo; los demas se ven directo sobre el paisaje
-  boton: { alignItems: 'center', justifyContent: 'center', minWidth: 56, height: 52, paddingHorizontal: 5, borderRadius: 16 },
+  boton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 56,
+    height: 52,
+    paddingHorizontal: 5,
+    borderRadius: 16,
+  },
   botonOscuro: { backgroundColor: 'transparent' },
-  selected: { backgroundColor: 'rgba(255,255,255,0.82)', shadowColor: '#26332F', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  selected: {
+    backgroundColor: 'rgba(255,255,255,0.82)',
+    shadowColor: '#26332F',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
   selectedOscuro: { backgroundColor: 'rgba(255,255,255,0.18)' },
-  add: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.verde, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: colors.crema, marginTop: -6, shadowColor: colors.grafito, shadowOpacity: 0.28, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  add: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: colors.verde,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: colors.crema,
+    marginTop: -6,
+    shadowColor: colors.grafito,
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
   addOscuro: { borderColor: colors.grafito },
   addLabel: { color: colors.verde, fontWeight: '900', marginTop: 2 },
-  label: { fontSize: 12, marginTop: 4, color: colors.grafito, fontWeight: '800', textShadowColor: 'rgba(240,233,223,0.9)', textShadowRadius: 5 },
+  label: {
+    fontSize: 12,
+    marginTop: 4,
+    color: colors.grafito,
+    fontWeight: '800',
+    textShadowColor: 'rgba(240,233,223,0.9)',
+    textShadowRadius: 5,
+  },
   activeText: { color: colors.verde, fontWeight: '900' },
   labelOscuro: { color: colors.white, textShadowColor: 'transparent' },
 });

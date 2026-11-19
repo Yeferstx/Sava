@@ -11,7 +11,9 @@ type Fila = { product_id: string; producto: string; negocio: string | null };
 
 export async function listarFavoritos() {
   const db = await getDatabase();
-  const filas = await db.getAllAsync<Fila>('SELECT product_id, producto, negocio FROM favoritos ORDER BY guardado_en DESC');
+  const filas = await db.getAllAsync<Fila>(
+    'SELECT product_id, producto, negocio FROM favoritos ORDER BY guardado_en DESC',
+  );
   const lista: Favorito[] = [];
   for (const fila of filas) {
     let negocio: Business | null = null;
@@ -23,7 +25,10 @@ export async function listarFavoritos() {
 
 export async function esFavorito(productId: string) {
   const db = await getDatabase();
-  const fila = await db.getFirstAsync<{ product_id: string }>('SELECT product_id FROM favoritos WHERE product_id = ?', productId);
+  const fila = await db.getFirstAsync<{ product_id: string }>(
+    'SELECT product_id FROM favoritos WHERE product_id = ?',
+    productId,
+  );
   if (fila) return true;
   return false;
 }
@@ -34,7 +39,13 @@ export async function guardarFavorito(product: Product, business: Business | nul
   const db = await getDatabase();
   let negocio = null;
   if (business) negocio = JSON.stringify(business);
-  await db.runAsync('INSERT OR REPLACE INTO favoritos (product_id, producto, negocio, guardado_en) VALUES (?, ?, ?, ?)', product.id, JSON.stringify(product), negocio, new Date().toISOString());
+  await db.runAsync(
+    'INSERT OR REPLACE INTO favoritos (product_id, producto, negocio, guardado_en) VALUES (?, ?, ?, ?)',
+    product.id,
+    JSON.stringify(product),
+    negocio,
+    new Date().toISOString(),
+  );
 }
 
 export async function quitarFavorito(productId: string) {

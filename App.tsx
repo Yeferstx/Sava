@@ -15,5 +15,10 @@ void Asset.loadAsync([
 export default function App() {
   // la animacion solo sale cuando la app abre desde cero, no al cambiar de pantalla
   const [verSplash, setVerSplash] = useState(true);
-  return <SafeAreaProvider><AppNavigator />{verSplash && <SplashAnimado onTerminar={() => setVerSplash(false)} />}</SafeAreaProvider>;
+  return (
+    <SafeAreaProvider>
+      <AppNavigator />
+      {verSplash && <SplashAnimado onTerminar={() => setVerSplash(false)} />}
+    </SafeAreaProvider>
+  );
 }

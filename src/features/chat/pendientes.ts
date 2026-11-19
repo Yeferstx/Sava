@@ -7,13 +7,21 @@ export type Pendiente = { id: string; texto: string; audio: string; creado: stri
 
 async function tabla() {
   const db = await getDatabase();
-  await db.execAsync('CREATE TABLE IF NOT EXISTS maria_pendientes (id TEXT PRIMARY KEY NOT NULL, texto TEXT NOT NULL, audio TEXT NOT NULL, creado TEXT NOT NULL)');
+  await db.execAsync(
+    'CREATE TABLE IF NOT EXISTS maria_pendientes (id TEXT PRIMARY KEY NOT NULL, texto TEXT NOT NULL, audio TEXT NOT NULL, creado TEXT NOT NULL)',
+  );
   return db;
 }
 
 export async function guardarPendiente(id: string, texto: string, audio: string) {
   const db = await tabla();
-  await db.runAsync('INSERT OR REPLACE INTO maria_pendientes (id, texto, audio, creado) VALUES (?, ?, ?, ?)', id, texto, audio, new Date().toISOString());
+  await db.runAsync(
+    'INSERT OR REPLACE INTO maria_pendientes (id, texto, audio, creado) VALUES (?, ?, ?, ?)',
+    id,
+    texto,
+    audio,
+    new Date().toISOString(),
+  );
 }
 
 export async function listarPendientes() {
@@ -32,7 +40,9 @@ export async function hayInternet() {
     const estado = await Network.getNetworkStateAsync();
     if (estado.isInternetReachable === false) return false;
     return estado.isConnected === true;
-  } catch { return true; }
+  } catch {
+    return true;
+  }
 }
 
 // avisa cada vez que cambia la senal

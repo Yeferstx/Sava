@@ -1,11 +1,20 @@
 // guias cortas de "Aprende con Sava". el asistente las usa para explicar paso a paso.
 // son orientaciones generales; lo tecnico (plagas, quimicos, suelos) siempre remite a un profesional
 
-export type Guia = { id: string; titulo: string; resumen: string; pasos: string[]; claves: string[]; tecnica?: boolean };
+export type Guia = {
+  id: string;
+  titulo: string;
+  resumen: string;
+  pasos: string[];
+  claves: string[];
+  tecnica?: boolean;
+};
 
 export const guias: Guia[] = [
   {
-    id: 'publicar', titulo: 'Cómo publicar tu cosecha', resumen: 'En pocos pasos tu cosecha queda visible para compradores de Casanare.',
+    id: 'publicar',
+    titulo: 'Cómo publicar tu cosecha',
+    resumen: 'En pocos pasos tu cosecha queda visible para compradores de Casanare.',
     claves: ['publicar', 'publico', 'subir', 'montar'],
     pasos: [
       'Toca «Vender» abajo, o dile a tu asistente «ayúdame a publicar una cosecha».',
@@ -17,7 +26,9 @@ export const guias: Guia[] = [
     ],
   },
   {
-    id: 'fotos', titulo: 'Cómo tomar buenas fotos', resumen: 'Una foto clara y real vende más que cualquier texto.',
+    id: 'fotos',
+    titulo: 'Cómo tomar buenas fotos',
+    resumen: 'Una foto clara y real vende más que cualquier texto.',
     claves: ['foto', 'fotos', 'fotografia', 'fotografiar', 'imagen'],
     pasos: [
       'Toma la foto con luz de día, sin sol fuerte directo. La mañana o la tarde son buenas horas.',
@@ -29,7 +40,9 @@ export const guias: Guia[] = [
     ],
   },
   {
-    id: 'descripcion', titulo: 'Cómo escribir una buena descripción', resumen: 'Pocas palabras, claras y verdaderas.',
+    id: 'descripcion',
+    titulo: 'Cómo escribir una buena descripción',
+    resumen: 'Pocas palabras, claras y verdaderas.',
     claves: ['descripcion', 'describir', 'escribir', 'texto'],
     pasos: [
       'Di la variedad: por ejemplo «piña oro miel» o «plátano hartón».',
@@ -40,7 +53,9 @@ export const guias: Guia[] = [
     ],
   },
   {
-    id: 'cantidades', titulo: 'Cómo mostrar cantidades', resumen: 'El comprador necesita saber cuánto hay y desde cuánto vendes.',
+    id: 'cantidades',
+    titulo: 'Cómo mostrar cantidades',
+    resumen: 'El comprador necesita saber cuánto hay y desde cuánto vendes.',
     claves: ['cantidad', 'cantidades', 'minimo', 'lote', 'lotes', 'por mayor'],
     pasos: [
       'Pon la cantidad total disponible, por ejemplo 800 kilos.',
@@ -50,8 +65,20 @@ export const guias: Guia[] = [
     ],
   },
   {
-    id: 'promocionar', titulo: 'Cómo promocionar tu finca', resumen: 'Dar a conocer tu cosecha más allá de Sava.',
-    claves: ['promocionar', 'promocion', 'dar a conocer', 'publicidad', 'anunciar', 'redes', 'facebook', 'instagram', 'whatsapp'],
+    id: 'promocionar',
+    titulo: 'Cómo promocionar tu finca',
+    resumen: 'Dar a conocer tu cosecha más allá de Sava.',
+    claves: [
+      'promocionar',
+      'promocion',
+      'dar a conocer',
+      'publicidad',
+      'anunciar',
+      'redes',
+      'facebook',
+      'instagram',
+      'whatsapp',
+    ],
     pasos: [
       'Abre tu publicación y toca «Promocionar con Sava».',
       'Comparte la imagen que arma Sava en tus estados de WhatsApp y en grupos de compradores.',
@@ -61,7 +88,9 @@ export const guias: Guia[] = [
     ],
   },
   {
-    id: 'compradores', titulo: 'Cómo responder a compradores', resumen: 'Responder rápido y claro cierra más ventas.',
+    id: 'compradores',
+    titulo: 'Cómo responder a compradores',
+    resumen: 'Responder rápido y claro cierra más ventas.',
     claves: ['responder', 'comprador', 'compradores', 'cliente', 'clientes', 'negociar'],
     pasos: [
       'Responde lo más pronto que puedas, aunque sea para decir «ya le confirmo».',
@@ -72,7 +101,9 @@ export const guias: Guia[] = [
     ],
   },
   {
-    id: 'costos', titulo: 'Cómo calcular tus costos básicos', resumen: 'Saber cuánto te cuesta producir te ayuda a poner precio.',
+    id: 'costos',
+    titulo: 'Cómo calcular tus costos básicos',
+    resumen: 'Saber cuánto te cuesta producir te ayuda a poner precio.',
     claves: ['costo', 'costos', 'calcular', 'precio', 'cuanto cobrar', 'ganancia'],
     pasos: [
       'Anota cada gasto en tu cuaderno: abono, semillas, jornales, transporte, empaques.',
@@ -83,7 +114,9 @@ export const guias: Guia[] = [
     ],
   },
   {
-    id: 'cuentas', titulo: 'Cómo llevar tus cuentas en Sava', resumen: 'Tu cuaderno del campo, aunque no tengas señal.',
+    id: 'cuentas',
+    titulo: 'Cómo llevar tus cuentas en Sava',
+    resumen: 'Tu cuaderno del campo, aunque no tengas señal.',
     claves: ['cuentas', 'cuaderno', 'registrar', 'anotar', 'gastos', 'ventas', 'cobro', 'fiado'],
     pasos: [
       'Entra a «Mi negocio» y toca «Mi cuaderno».',
@@ -94,8 +127,22 @@ export const guias: Guia[] = [
     ],
   },
   {
-    id: 'tecnico', titulo: 'Plagas, abonos y químicos', resumen: 'Orientación general. Para tu caso, consulta a un profesional.', tecnica: true,
-    claves: ['plaga', 'plagas', 'enfermedad', 'hongo', 'abonar', 'fertilizar', 'veneno', 'fumigar', 'quimico', 'suelo'],
+    id: 'tecnico',
+    titulo: 'Plagas, abonos y químicos',
+    resumen: 'Orientación general. Para tu caso, consulta a un profesional.',
+    tecnica: true,
+    claves: [
+      'plaga',
+      'plagas',
+      'enfermedad',
+      'hongo',
+      'abonar',
+      'fertilizar',
+      'veneno',
+      'fumigar',
+      'quimico',
+      'suelo',
+    ],
     pasos: [
       'Esto es solo orientación general: cada cultivo y cada suelo son distintos.',
       'Antes de aplicar un químico, consulta a un agrónomo, a la UMATA o a la secretaría de agricultura de tu municipio.',
@@ -117,8 +164,13 @@ export function guiaPara(pregunta: string): Guia | null {
   let puntos = 0;
   for (const guia of guias) {
     let suma = 0;
-    for (const clave of guia.claves) { if (t.includes(clave)) suma += clave.length; }
-    if (suma > puntos) { puntos = suma; mejor = guia; }
+    for (const clave of guia.claves) {
+      if (t.includes(clave)) suma += clave.length;
+    }
+    if (suma > puntos) {
+      puntos = suma;
+      mejor = guia;
+    }
   }
   return mejor;
 }

@@ -23,7 +23,12 @@ export function textoMinimo(minimo: number | undefined, unidad: string) {
 // texto corto de la cosecha para whatsapp o para compartir
 export function textoCosecha(product: Product, business: Business | null) {
   let texto = product.name + ' · ' + textoPrecio(product.price_cop, product.unit);
-  texto = texto + '\nDisponible: ' + mostrarCantidad(product.stock) + ' ' + textoUnidad(product.stock, product.unit);
+  texto =
+    texto +
+    '\nDisponible: ' +
+    mostrarCantidad(product.stock) +
+    ' ' +
+    textoUnidad(product.stock, product.unit);
   const minimo = textoMinimo(product.min_order, product.unit);
   if (minimo) texto = texto + ' (' + minimo.toLowerCase() + ')';
   let municipio = product.municipality;
@@ -38,16 +43,25 @@ export async function escribirPorWhatsApp(product: Product, business: Business |
     Alert.alert('Contacto no disponible', 'Este productor todavía no agregó un número de contacto.');
     return;
   }
-  const mensaje = 'Hola, vi tu publicación en Sava y me interesa:\n' + textoCosecha(product, null) + '\n¿Sigue disponible?';
+  const mensaje =
+    'Hola, vi tu publicación en Sava y me interesa:\n' + textoCosecha(product, null) + '\n¿Sigue disponible?';
   // se anota para que despues la app le pregunte al vendedor si vendio
   registrarContacto(product.id);
-  try { await Linking.openURL('https://wa.me/57' + limpiarTelefono(business.phone) + '?text=' + encodeURIComponent(mensaje)); }
-  catch { Alert.alert('No se pudo abrir WhatsApp', 'Revisa que WhatsApp esté instalado e intenta de nuevo.'); }
+  try {
+    await Linking.openURL(
+      'https://wa.me/57' + limpiarTelefono(business.phone) + '?text=' + encodeURIComponent(mensaje),
+    );
+  } catch {
+    Alert.alert('No se pudo abrir WhatsApp', 'Revisa que WhatsApp esté instalado e intenta de nuevo.');
+  }
 }
 
 // abre el menu del celular para compartir (whatsapp, mensajes, etc.)
 export async function compartirCosecha(product: Product, business: Business | null) {
   const mensaje = textoCosecha(product, business) + '\n\nVisto en Sava, del campo casanareño al comprador.';
-  try { await Share.share({ message: mensaje }); }
-  catch { Alert.alert('No se pudo compartir', 'Intenta de nuevo.'); }
+  try {
+    await Share.share({ message: mensaje });
+  } catch {
+    Alert.alert('No se pudo compartir', 'Intenta de nuevo.');
+  }
 }

@@ -105,22 +105,31 @@ async function agregarColumnasCosecha(db: SQLite.SQLiteDatabase) {
   const columnas = await db.getAllAsync<{ name: string }>('PRAGMA table_info(products)');
   const nombres: string[] = [];
   for (const columna of columnas) nombres.push(columna.name);
-  if (!nombres.includes('municipality')) await db.execAsync("ALTER TABLE products ADD COLUMN municipality TEXT NOT NULL DEFAULT 'Yopal'");
-  if (!nombres.includes('available_from')) await db.execAsync("ALTER TABLE products ADD COLUMN available_from TEXT");
-  if (!nombres.includes('delivery')) await db.execAsync("ALTER TABLE products ADD COLUMN delivery TEXT NOT NULL DEFAULT 'A convenir'");
-  if (!nombres.includes('retired')) await db.execAsync('ALTER TABLE products ADD COLUMN retired INTEGER NOT NULL DEFAULT 0');
+  if (!nombres.includes('municipality'))
+    await db.execAsync("ALTER TABLE products ADD COLUMN municipality TEXT NOT NULL DEFAULT 'Yopal'");
+  if (!nombres.includes('available_from'))
+    await db.execAsync('ALTER TABLE products ADD COLUMN available_from TEXT');
+  if (!nombres.includes('delivery'))
+    await db.execAsync("ALTER TABLE products ADD COLUMN delivery TEXT NOT NULL DEFAULT 'A convenir'");
+  if (!nombres.includes('retired'))
+    await db.execAsync('ALTER TABLE products ADD COLUMN retired INTEGER NOT NULL DEFAULT 0');
   if (!nombres.includes('created_at')) await db.execAsync('ALTER TABLE products ADD COLUMN created_at TEXT');
-  if (!nombres.includes('min_order')) await db.execAsync('ALTER TABLE products ADD COLUMN min_order REAL NOT NULL DEFAULT 0');
+  if (!nombres.includes('min_order'))
+    await db.execAsync('ALTER TABLE products ADD COLUMN min_order REAL NOT NULL DEFAULT 0');
   // version del servidor sobre la que se hizo el cambio (para detectar cambios desde otro celular)
   // fotos adicionales de la publicacion (lista en json)
-  if (!nombres.includes('extra_photos')) await db.execAsync("ALTER TABLE products ADD COLUMN extra_photos TEXT NOT NULL DEFAULT '[]'");
-  if (!nombres.includes('server_updated_at')) await db.execAsync('ALTER TABLE products ADD COLUMN server_updated_at TEXT');
+  if (!nombres.includes('extra_photos'))
+    await db.execAsync("ALTER TABLE products ADD COLUMN extra_photos TEXT NOT NULL DEFAULT '[]'");
+  if (!nombres.includes('server_updated_at'))
+    await db.execAsync('ALTER TABLE products ADD COLUMN server_updated_at TEXT');
   const cola = await db.getAllAsync<{ name: string }>('PRAGMA table_info(sync_queue)');
   const columnasCola: string[] = [];
   for (const columna of cola) columnasCola.push(columna.name);
   // estado de cada envio: pending, syncing, error o conflict
-  if (!columnasCola.includes('status')) await db.execAsync("ALTER TABLE sync_queue ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'");
-  if (!columnasCola.includes('last_error')) await db.execAsync("ALTER TABLE sync_queue ADD COLUMN last_error TEXT NOT NULL DEFAULT ''");
+  if (!columnasCola.includes('status'))
+    await db.execAsync("ALTER TABLE sync_queue ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'");
+  if (!columnasCola.includes('last_error'))
+    await db.execAsync("ALTER TABLE sync_queue ADD COLUMN last_error TEXT NOT NULL DEFAULT ''");
 }
 
 // el negocio de prueba solo existe para que la app funcione sin supabase.
@@ -131,11 +140,27 @@ async function seedDemoData(db: SQLite.SQLiteDatabase) {
     await db.runAsync('DELETE FROM sale_items WHERE product_id = ?', id);
     await db.runAsync('DELETE FROM products WHERE id = ?', id);
   }
-  await db.runAsync('DELETE FROM sales WHERE business_id = ? AND id NOT IN (SELECT sale_id FROM sale_items)', DEMO_BUSINESS_ID);
-  const business = await db.getFirstAsync<{ id: string }>('SELECT id FROM businesses WHERE id = ?', DEMO_BUSINESS_ID);
+  await db.runAsync(
+    'DELETE FROM sales WHERE business_id = ? AND id NOT IN (SELECT sale_id FROM sale_items)',
+    DEMO_BUSINESS_ID,
+  );
+  const business = await db.getFirstAsync<{ id: string }>(
+    'SELECT id FROM businesses WHERE id = ?',
+    DEMO_BUSINESS_ID,
+  );
   if (business) return;
   const now = new Date().toISOString();
-  await db.runAsync('INSERT INTO businesses (id, name, category, description, phone, city, sync_status, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', DEMO_BUSINESS_ID, 'Finca de prueba', 'Finca', 'Espacio de prueba sin conexión al servidor.', '', 'Yopal', 'local', now);
+  await db.runAsync(
+    'INSERT INTO businesses (id, name, category, description, phone, city, sync_status, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    DEMO_BUSINESS_ID,
+    'Finca de prueba',
+    'Finca',
+    'Espacio de prueba sin conexión al servidor.',
+    '',
+    'Yopal',
+    'local',
+    now,
+  );
 }
 
 export const demoBusinessId = DEMO_BUSINESS_ID;
@@ -158,22 +183,47 @@ export async function borrarDatosPrivados() {
     await t.runAsync('DELETE FROM sync_queue');
     await t.runAsync('DELETE FROM products');
     await t.runAsync('DELETE FROM businesses WHERE id <> ?', DEMO_BUSINESS_ID);
-    await t.runAsync("DELETE FROM app_settings WHERE key IN ('active_business_id', 'ultima_sincronizacion', 'foto_perfil_pendiente', 'intereses_inicio', 'negocio_preferido')");
+    await t.runAsync(
+      "DELETE FROM app_settings WHERE key IN ('active_business_id', 'ultima_sincronizacion', 'foto_perfil_pendiente', 'intereses_inicio', 'negocio_preferido')",
+    );
   });
-  try { await db.runAsync('DELETE FROM maria_pendientes'); } catch { /* la tabla aun no existe */ }
+  try {
+    await db.runAsync('DELETE FROM maria_pendientes');
+  } catch {
+    /* la tabla aun no existe */
+  }
 }
 
 export async function getActiveBusinessId() {
   const db = await getDatabase();
-  const setting = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', 'active_business_id');
+  const setting = await db.getFirstAsync<{ value: string }>(
+    'SELECT value FROM app_settings WHERE key = ?',
+    'active_business_id',
+  );
   return setting?.value ?? DEMO_BUSINESS_ID;
 }
 
 export async function setActiveBusinessId(businessId: string) {
   const db = await getDatabase();
-  await db.runAsync('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', 'active_business_id', businessId);
+  await db.runAsync(
+    'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    'active_business_id',
+    businessId,
+  );
 }
 
-export async function enqueueSync(db: SQLite.SQLiteDatabase, entity: string, operation: string, payload: unknown) {
-  await db.runAsync('INSERT INTO sync_queue (id, entity, operation, payload, created_at) VALUES (?, ?, ?, ?, ?)', createLocalId('sync'), entity, operation, JSON.stringify(payload), new Date().toISOString());
+export async function enqueueSync(
+  db: SQLite.SQLiteDatabase,
+  entity: string,
+  operation: string,
+  payload: unknown,
+) {
+  await db.runAsync(
+    'INSERT INTO sync_queue (id, entity, operation, payload, created_at) VALUES (?, ?, ?, ?, ?)',
+    createLocalId('sync'),
+    entity,
+    operation,
+    JSON.stringify(payload),
+    new Date().toISOString(),
+  );
 }

@@ -28,9 +28,14 @@ const centros: Array<{ municipio: string; lat: number; lng: number }> = [
 // distancia en kilometros entre dos puntos (formula del haversine)
 function distanciaKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const radio = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
   return radio * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -39,7 +44,10 @@ export function municipioCercano(lat: number, lng: number) {
   let menor = 999999;
   for (const centro of centros) {
     const km = distanciaKm(lat, lng, centro.lat, centro.lng);
-    if (km < menor) { menor = km; mejor = centro.municipio; }
+    if (km < menor) {
+      menor = km;
+      mejor = centro.municipio;
+    }
   }
   // a mas de 70 km del municipio mas cercano ya no se esta en casanare
   if (menor > 70) return '';
@@ -54,7 +62,8 @@ export async function detectarMunicipio(): Promise<ResultadoUbicacion> {
     const permiso = await Location.requestForegroundPermissionsAsync();
     if (!permiso.granted) return { municipio: '', motivo: 'sin-permiso' };
     let posicion = await Location.getLastKnownPositionAsync({ maxAge: 30 * 60 * 1000 });
-    if (!posicion) posicion = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    if (!posicion)
+      posicion = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
     const municipio = municipioCercano(posicion.coords.latitude, posicion.coords.longitude);
     if (municipio === '') return { municipio: '', motivo: 'fuera' };
     return { municipio, motivo: 'ok' };
@@ -67,7 +76,10 @@ export async function detectarMunicipio(): Promise<ResultadoUbicacion> {
 // ('' = todo casanare, null = nunca se ha elegido)
 export async function leerMunicipioGuardado() {
   const db = await getDatabase();
-  const fila = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', 'municipio_busqueda');
+  const fila = await db.getFirstAsync<{ value: string }>(
+    'SELECT value FROM app_settings WHERE key = ?',
+    'municipio_busqueda',
+  );
   if (!fila) return null;
   return fila.value;
 }
@@ -75,17 +87,33 @@ export async function leerMunicipioGuardado() {
 // manual: la persona lo eligio de la lista (no se cambia solo al abrir la app)
 export async function guardarMunicipio(municipio: string, manual = false) {
   const db = await getDatabase();
-  await db.runAsync('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', 'municipio_busqueda', municipio);
-  await db.runAsync('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', 'municipio_manual', manual ? 'si' : 'no');
+  await db.runAsync(
+    'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    'municipio_busqueda',
+    municipio,
+  );
+  await db.runAsync(
+    'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    'municipio_manual',
+    manual ? 'si' : 'no',
+  );
 }
 
 export async function municipioEsManual() {
   const db = await getDatabase();
-  const fila = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', 'municipio_manual');
+  const fila = await db.getFirstAsync<{ value: string }>(
+    'SELECT value FROM app_settings WHERE key = ?',
+    'municipio_manual',
+  );
   return !!fila && fila.value === 'si';
 }
 
 // ya dio permiso de ubicacion (sin volver a preguntarle)
 export async function permisoUbicacionDado() {
-  try { const permiso = await Location.getForegroundPermissionsAsync(); return permiso.granted; } catch { return false; }
+  try {
+    const permiso = await Location.getForegroundPermissionsAsync();
+    return permiso.granted;
+  } catch {
+    return false;
+  }
 }

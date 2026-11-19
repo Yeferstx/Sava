@@ -8,7 +8,11 @@ const mapa = require('../../../assets/marca/mapa-casanare.png');
 export default function ApoyoGobernacion({ conMapa = false }: { conMapa?: boolean }) {
   return (
     <View accessible accessibilityLabel="Hecho en Casanare" style={styles.fila}>
-      {conMapa ? <Image source={mapa} style={styles.mapa} resizeMode="contain" /> : <Sprout size={16} color={colors.verde} />}
+      {conMapa ? (
+        <Image source={mapa} style={styles.mapa} resizeMode="contain" />
+      ) : (
+        <Sprout size={16} color={colors.verde} />
+      )}
       <Text style={styles.nombre}>Hecho en Casanare</Text>
     </View>
   );

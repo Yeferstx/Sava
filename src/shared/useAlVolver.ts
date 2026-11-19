@@ -27,6 +27,9 @@ export function useAlVolver(alVolver: () => void) {
       if (estado !== 'active' && nuevo === 'active') avisar();
       estado = nuevo;
     });
-    return () => { quitarSenal(); app.remove(); };
+    return () => {
+      quitarSenal();
+      app.remove();
+    };
   }, []);
 }

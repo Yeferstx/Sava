@@ -9,21 +9,25 @@ export const POLITICA_FECHA = '18 de noviembre de 2026';
 export const AUTORIZACIONES = {
   tratamiento_datos: {
     version: 'datos-1.0',
-    texto: 'Autorizo de manera previa, expresa e informada el tratamiento de mis datos personales para las finalidades indicadas en el aviso y la Política de Tratamiento de Datos Personales.',
+    texto:
+      'Autorizo de manera previa, expresa e informada el tratamiento de mis datos personales para las finalidades indicadas en el aviso y la Política de Tratamiento de Datos Personales.',
   },
   comunicaciones: {
     version: 'comunicaciones-1.0',
-    texto: 'Acepto recibir mensajes con novedades y comunicaciones de Sava que no son necesarias para usar la app (opcional).',
+    texto:
+      'Acepto recibir mensajes con novedades y comunicaciones de Sava que no son necesarias para usar la app (opcional).',
   },
   ia_externa: {
     version: 'ia-1.0',
-    texto: 'Autorizo que, cuando Aru no entienda mi pregunta con sus reglas, envíe el texto de mi pregunta y de los últimos mensajes del chat a Gemini (Google) para responderme. No se envían mis cuentas, ventas, inventario ni datos de contacto.',
+    texto:
+      'Autorizo que, cuando Aru no entienda mi pregunta con sus reglas, envíe el texto de mi pregunta y de los últimos mensajes del chat a Gemini (Google) para responderme. No se envían mis cuentas, ventas, inventario ni datos de contacto.',
   },
 } as const;
 
 export type TipoAutorizacion = keyof typeof AUTORIZACIONES;
 
-export const AVISO_PRIVACIDAD = 'En cumplimiento de la Ley 1581 de 2012 y el Decreto 1074 de 2015, te informamos que tus datos personales serán utilizados para gestionar tu cuenta, publicaciones, inventarios, ventas, pedidos y otras funciones de Sava. Puedes conocer, actualizar, rectificar y solicitar la supresión de tus datos, así como revocar tu autorización cuando corresponda. Consulta nuestra Política de Tratamiento de Datos Personales para conocer las finalidades completas, la identidad y los datos de contacto del responsable, y los canales para ejercer tus derechos.';
+export const AVISO_PRIVACIDAD =
+  'En cumplimiento de la Ley 1581 de 2012 y el Decreto 1074 de 2015, te informamos que tus datos personales serán utilizados para gestionar tu cuenta, publicaciones, inventarios, ventas, pedidos y otras funciones de Sava. Puedes conocer, actualizar, rectificar y solicitar la supresión de tus datos, así como revocar tu autorización cuando corresponda. Consulta nuestra Política de Tratamiento de Datos Personales para conocer las finalidades completas, la identidad y los datos de contacto del responsable, y los canales para ejercer tus derechos.';
 
 // datos del responsable que el equipo debe definir formalmente antes de un lanzamiento.
 // mientras esten vacios, la app los muestra como "por confirmar" (no se inventan)
@@ -45,7 +49,16 @@ export const SECCIONES_POLITICA: SeccionPolitica[] = [
     porConfirmar: Object.values(RESPONSABLE).some((v) => v.trim() === ''),
     parrafos: [
       'Sava es una plataforma operada por la Gobernación de Casanare y desarrollada por un equipo participante en CREATIC Casanare. La Gobernación de Casanare es la responsable del tratamiento de los datos de las personas que crean una cuenta en Sava:',
-      'Nombre o razón social: ' + pendiente(RESPONSABLE.nombre) + '\nIdentificación (NIT o cédula): ' + pendiente(RESPONSABLE.identificacion) + '\nDirección: ' + pendiente(RESPONSABLE.direccion) + '\nCorreo de contacto: ' + pendiente(RESPONSABLE.correo) + '\nTeléfono: ' + pendiente(RESPONSABLE.telefono),
+      'Nombre o razón social: ' +
+        pendiente(RESPONSABLE.nombre) +
+        '\nIdentificación (NIT o cédula): ' +
+        pendiente(RESPONSABLE.identificacion) +
+        '\nDirección: ' +
+        pendiente(RESPONSABLE.direccion) +
+        '\nCorreo de contacto: ' +
+        pendiente(RESPONSABLE.correo) +
+        '\nTeléfono: ' +
+        pendiente(RESPONSABLE.telefono),
       'Mientras estos datos no estén definidos, puedes ejercer tus derechos desde la app, en «Tus datos y privacidad → Ejercer mis derechos».',
     ],
   },
@@ -128,10 +141,14 @@ export const SECCIONES_POLITICA: SeccionPolitica[] = [
   },
   {
     titulo: '11. Menores de edad',
-    parrafos: ['Sava está dirigida a mayores de 18 años. Si eres menor de edad, usa la app con un adulto responsable.'],
+    parrafos: [
+      'Sava está dirigida a mayores de 18 años. Si eres menor de edad, usa la app con un adulto responsable.',
+    ],
   },
   {
     titulo: '12. Cambios a esta política',
-    parrafos: ['Si cambiamos esta política de forma importante, te lo avisaremos en la app y te pediremos una nueva autorización antes de seguir usando tu cuenta.'],
+    parrafos: [
+      'Si cambiamos esta política de forma importante, te lo avisaremos en la app y te pediremos una nueva autorización antes de seguir usando tu cuenta.',
+    ],
   },
 ];

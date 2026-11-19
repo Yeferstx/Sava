@@ -16,9 +16,14 @@ const VENTAJA_MINIMA = 3;
 async function leer(): Promise<Puntos> {
   try {
     const db = await getDatabase();
-    const fila = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', CLAVE);
+    const fila = await db.getFirstAsync<{ value: string }>(
+      'SELECT value FROM app_settings WHERE key = ?',
+      CLAVE,
+    );
     if (fila) return JSON.parse(fila.value) as Puntos;
-  } catch { /* sin datos */ }
+  } catch {
+    /* sin datos */
+  }
   return { cosechas: 0, insumos: 0, fecha: new Date().toISOString() };
 }
 
@@ -34,8 +39,14 @@ export async function registrarInteres(tipo: Interes, peso = 1) {
     const p = envejecer(await leer());
     p[tipo] = Math.min(50, p[tipo] + peso);
     const db = await getDatabase();
-    await db.runAsync('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', CLAVE, JSON.stringify(p));
-  } catch { /* si no se puede guardar, el inicio sigue igual */ }
+    await db.runAsync(
+      'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      CLAVE,
+      JSON.stringify(p),
+    );
+  } catch {
+    /* si no se puede guardar, el inicio sigue igual */
+  }
 }
 
 // orden de las secciones del inicio. al empezar: cosechas primero
@@ -46,5 +57,10 @@ export async function ordenInicio(): Promise<Interes[]> {
 }
 
 export async function borrarIntereses() {
-  try { const db = await getDatabase(); await db.runAsync('DELETE FROM app_settings WHERE key = ?', CLAVE); } catch { /* nada */ }
+  try {
+    const db = await getDatabase();
+    await db.runAsync('DELETE FROM app_settings WHERE key = ?', CLAVE);
+  } catch {
+    /* nada */
+  }
 }

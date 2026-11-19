@@ -7,18 +7,23 @@ export function pedirReducirMovimiento() {
   return new Promise<boolean>((resolver) => {
     let respondio = false;
     const espera = setTimeout(() => {
-      if (!respondio) { respondio = true; resolver(false); }
+      if (!respondio) {
+        respondio = true;
+        resolver(false);
+      }
     }, 400);
-    AccessibilityInfo.isReduceMotionEnabled().then((valor) => {
-      if (respondio) return;
-      respondio = true;
-      clearTimeout(espera);
-      resolver(valor);
-    }).catch(() => {
-      if (respondio) return;
-      respondio = true;
-      clearTimeout(espera);
-      resolver(false);
-    });
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((valor) => {
+        if (respondio) return;
+        respondio = true;
+        clearTimeout(espera);
+        resolver(valor);
+      })
+      .catch(() => {
+        if (respondio) return;
+        respondio = true;
+        clearTimeout(espera);
+        resolver(false);
+      });
   });
 }

@@ -5,14 +5,36 @@ export const CANTIDAD_MAXIMA = 100000;
 
 // los 19 municipios de casanare
 export const municipios = [
-  'Yopal', 'Aguazul', 'Chámeza', 'Hato Corozal', 'La Salina', 'Maní', 'Monterrey',
-  'Nunchía', 'Orocué', 'Paz de Ariporo', 'Pore', 'Recetor', 'Sabanalarga', 'Sácama',
-  'San Luis de Palenque', 'Támara', 'Tauramena', 'Trinidad', 'Villanueva',
+  'Yopal',
+  'Aguazul',
+  'Chámeza',
+  'Hato Corozal',
+  'La Salina',
+  'Maní',
+  'Monterrey',
+  'Nunchía',
+  'Orocué',
+  'Paz de Ariporo',
+  'Pore',
+  'Recetor',
+  'Sabanalarga',
+  'Sácama',
+  'San Luis de Palenque',
+  'Támara',
+  'Tauramena',
+  'Trinidad',
+  'Villanueva',
 ];
 
 // estas unidades se pueden vender por partes (medio kilo, media libra)
 export function aceptaDecimales(unidad: string) {
-  if (unidad === 'kg' || unidad === 'libra' || unidad === 'bulto' || unidad === 'litro' || unidad === 'galón') {
+  if (
+    unidad === 'kg' ||
+    unidad === 'libra' ||
+    unidad === 'bulto' ||
+    unidad === 'litro' ||
+    unidad === 'galón'
+  ) {
     return true;
   }
   return false;

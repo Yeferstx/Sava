@@ -7,7 +7,11 @@ import { AUDIOS_ARU } from './frasesAudio';
 
 // frases fijas grabadas con una voz natural: se buscan por su texto (sin tildes ni signos)
 function clave(texto: string) {
-  return texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
 }
 const GRABADAS: Record<string, number> = {};
 for (const id of Object.keys(FRASES_ARU)) {
@@ -18,8 +22,18 @@ let pulsos: ReturnType<typeof setInterval> | null = null;
 let modoListo = false;
 
 function pararGrabacion() {
-  if (pulsos) { clearInterval(pulsos); pulsos = null; }
-  if (reproductor) { try { reproductor.remove(); } catch { /* ya estaba cerrado */ } reproductor = null; }
+  if (pulsos) {
+    clearInterval(pulsos);
+    pulsos = null;
+  }
+  if (reproductor) {
+    try {
+      reproductor.remove();
+    } catch {
+      /* ya estaba cerrado */
+    }
+    reproductor = null;
+  }
 }
 
 // suena la grabacion de una frase fija. devuelve false si esa frase no esta grabada
@@ -27,15 +41,23 @@ async function decirGrabada(texto: string) {
   const audio = GRABADAS[clave(texto)];
   if (audio === undefined) return false;
   try {
-    if (!modoListo) { await setAudioModeAsync({ playsInSilentMode: true }); modoListo = true; }
+    if (!modoListo) {
+      await setAudioModeAsync({ playsInSilentMode: true });
+      modoListo = true;
+    }
     pararGrabacion();
     const player = createAudioPlayer(audio);
     reproductor = player;
     avisar(true);
     // la grabacion no avisa palabra por palabra: se simulan pulsos suaves para que aru se mueva
-    pulsos = setInterval(() => { for (const oyente of oyentesPalabra) oyente(); }, 280);
+    pulsos = setInterval(() => {
+      for (const oyente of oyentesPalabra) oyente();
+    }, 280);
     player.addListener('playbackStatusUpdate', (estado) => {
-      if (estado.didJustFinish) { pararGrabacion(); avisar(false); }
+      if (estado.didJustFinish) {
+        pararGrabacion();
+        avisar(false);
+      }
     });
     player.play();
     return true;
@@ -47,7 +69,13 @@ async function decirGrabada(texto: string) {
 
 // voz de aru: la del propio celular (gratis y sin internet).
 // se prefieren las voces de mejor calidad en espanol latino; la persona puede elegir otra
-export type VozEspanol = { identificador: string; nombre: string; idioma: string; pais: string; calidad: 'mejor' | 'normal' };
+export type VozEspanol = {
+  identificador: string;
+  nombre: string;
+  idioma: string;
+  pais: string;
+  calidad: 'mejor' | 'normal';
+};
 type VozElegida = { identificador: string; idioma: string } | null;
 
 let vozElegida: VozElegida | undefined;
@@ -60,7 +88,15 @@ const oyentes: Array<(hablando: boolean) => void> = [];
 const oyentesPalabra: Array<() => void> = [];
 
 const ORDEN = ['es-co', 'es-us', 'es-mx', 'es-419', 'es-ar', 'es-cl', 'es-es', 'es'];
-const PAISES: Record<string, string> = { co: 'Colombia', us: 'Latinoamérica', mx: 'México', '419': 'Latinoamérica', ar: 'Argentina', cl: 'Chile', es: 'España' };
+const PAISES: Record<string, string> = {
+  co: 'Colombia',
+  us: 'Latinoamérica',
+  mx: 'México',
+  '419': 'Latinoamérica',
+  ar: 'Argentina',
+  cl: 'Chile',
+  es: 'España',
+};
 
 function puntaje(voz: Speech.Voice) {
   const idioma = voz.language.replace('_', '-').toLowerCase();
@@ -90,15 +126,27 @@ export async function listarVocesEspanol(): Promise<VozEspanol[]> {
       const idioma = voz.language.replace('_', '-');
       const region = idioma.split('-')[1]?.toLowerCase() ?? '';
       const id = voz.identifier.toLowerCase();
-      const calidad = id.includes('premium') || id.includes('enhanced') || voz.quality === Speech.VoiceQuality.Enhanced ? 'mejor' : 'normal';
+      const calidad =
+        id.includes('premium') || id.includes('enhanced') || voz.quality === Speech.VoiceQuality.Enhanced
+          ? 'mejor'
+          : 'normal';
       let nombre = voz.name && voz.name !== voz.identifier ? voz.name : 'Voz ' + (lista.length + 1);
       // en android el nombre es un codigo largo: se muestra uno corto
       if (/^[a-z]{2}-[a-z]{2}-x-/i.test(nombre)) nombre = 'Voz ' + (lista.length + 1);
-      lista.push({ identificador: voz.identifier, nombre, idioma, pais: PAISES[region] ?? 'Español', calidad, puntos });
+      lista.push({
+        identificador: voz.identifier,
+        nombre,
+        idioma,
+        pais: PAISES[region] ?? 'Español',
+        calidad,
+        puntos,
+      });
     }
     lista.sort((a, b) => b.puntos - a.puntos);
     return lista.slice(0, 20).map(({ puntos: _p, ...v }) => v);
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 async function leerAjustes() {
@@ -106,11 +154,19 @@ async function leerAjustes() {
   ajustesLeidos = true;
   try {
     const db = await getDatabase();
-    const voz = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', 'voz_aru');
-    const vel = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', 'voz_velocidad');
+    const voz = await db.getFirstAsync<{ value: string }>(
+      'SELECT value FROM app_settings WHERE key = ?',
+      'voz_aru',
+    );
+    const vel = await db.getFirstAsync<{ value: string }>(
+      'SELECT value FROM app_settings WHERE key = ?',
+      'voz_velocidad',
+    );
     if (vel && Number(vel.value) > 0) velocidad = Number(vel.value);
     if (voz) vozElegida = JSON.parse(voz.value) as VozElegida;
-  } catch { /* se usa la voz automatica */ }
+  } catch {
+    /* se usa la voz automatica */
+  }
 }
 
 async function buscarVoz() {
@@ -128,10 +184,21 @@ export async function elegirVoz(voz: VozEspanol | null, nuevaVelocidad: number) 
   vocesQueFallan.clear();
   try {
     const db = await getDatabase();
-    if (voz) await db.runAsync('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', 'voz_aru', JSON.stringify(vozElegida));
+    if (voz)
+      await db.runAsync(
+        'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+        'voz_aru',
+        JSON.stringify(vozElegida),
+      );
     else await db.runAsync('DELETE FROM app_settings WHERE key = ?', 'voz_aru');
-    await db.runAsync('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', 'voz_velocidad', String(nuevaVelocidad));
-  } catch { /* queda solo mientras la app esta abierta */ }
+    await db.runAsync(
+      'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      'voz_velocidad',
+      String(nuevaVelocidad),
+    );
+  } catch {
+    /* queda solo mientras la app esta abierta */
+  }
 }
 
 export async function ajustesVoz() {
@@ -176,8 +243,13 @@ function limpiarParaVoz(texto: string) {
 async function vozElegidaAMano() {
   try {
     const db = await getDatabase();
-    return !!(await db.getFirstAsync<{ value: string }>('SELECT value FROM app_settings WHERE key = ?', 'voz_aru'));
-  } catch { return false; }
+    return !!(await db.getFirstAsync<{ value: string }>(
+      'SELECT value FROM app_settings WHERE key = ?',
+      'voz_aru',
+    ));
+  } catch {
+    return false;
+  }
 }
 
 // lee un texto en voz alta en espanol. sirve para personas que leen con dificultad
@@ -185,15 +257,20 @@ export async function hablar(texto: string, vozDePrueba?: VozEspanol, velocidadD
   Speech.stop();
   pararGrabacion();
   // las frases fijas suenan con la voz grabada (mas natural); lo demas, con la voz del celular
-  if (!vozDePrueba && await decirGrabada(texto)) return;
-  const voz = vozDePrueba ? { identificador: vozDePrueba.identificador, idioma: vozDePrueba.idioma } : await buscarVoz();
+  if (!vozDePrueba && (await decirGrabada(texto))) return;
+  const voz = vozDePrueba
+    ? { identificador: vozDePrueba.identificador, idioma: vozDePrueba.idioma }
+    : await buscarVoz();
   let empezo = false;
   const opciones: Speech.SpeechOptions = {
     language: 'es-MX',
     // voz pausada y con tono natural (ni aguda ni lenta)
     rate: velocidadDePrueba ?? velocidad,
     pitch: 1.0,
-    onStart: () => { empezo = true; avisar(true); },
+    onStart: () => {
+      empezo = true;
+      avisar(true);
+    },
     onDone: () => avisar(false),
     onStopped: () => avisar(false),
     onError: () => {
@@ -204,7 +281,9 @@ export async function hablar(texto: string, vozDePrueba?: VozEspanol, velocidadD
         Speech.speak(limpiarParaVoz(texto), { ...opciones, voice: undefined, onError: () => avisar(false) });
       }
     },
-    onBoundary: () => { for (const oyente of oyentesPalabra) oyente(); },
+    onBoundary: () => {
+      for (const oyente of oyentesPalabra) oyente();
+    },
   };
   if (voz) {
     opciones.language = voz.idioma;

@@ -45,11 +45,18 @@ export default function SplashAnimado({ onTerminar }: Props) {
         // si la persona pidio menos movimiento se muestra el logo listo y solo se desvanece
         tiempo.setValue(2050 / DURACION);
       }
-      Animated.timing(tiempo, { toValue: 1, duration: reducir ? 600 : DURACION, easing: Easing.linear, useNativeDriver: false }).start(() => {
+      Animated.timing(tiempo, {
+        toValue: 1,
+        duration: reducir ? 600 : DURACION,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      }).start(() => {
         if (cancelado === false) onTerminar();
       });
     });
-    return () => { cancelado = true; };
+    return () => {
+      cancelado = true;
+    };
   }, []);
 
   const opacidadPantalla = tramo(tiempo, 2300, 2650, 1, 0);
@@ -65,30 +72,34 @@ export default function SplashAnimado({ onTerminar }: Props) {
               if (i < 2) {
                 const retraso = i * 200;
                 const largo = pieza.largo * 1.03;
-                return <PathAnimado
+                return (
+                  <PathAnimado
+                    key={pieza.id}
+                    d={pieza.d}
+                    fill={pieza.color}
+                    fillRule="evenodd"
+                    stroke={pieza.color}
+                    strokeWidth={6}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray={[largo, largo]}
+                    strokeDashoffset={tramo(tiempo, retraso, 900 + retraso, largo, 0)}
+                    fillOpacity={tramo(tiempo, 800 + retraso, 1300 + retraso, 0, 1)}
+                    strokeOpacity={tramo(tiempo, 1000 + retraso, 1400 + retraso, 1, 0)}
+                  />
+                );
+              }
+              // las letras aparecen una detras de otra de izquierda a derecha
+              const inicio = 1300 + (i - 2) * 100;
+              return (
+                <PathAnimado
                   key={pieza.id}
                   d={pieza.d}
                   fill={pieza.color}
                   fillRule="evenodd"
-                  stroke={pieza.color}
-                  strokeWidth={6}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeDasharray={[largo, largo]}
-                  strokeDashoffset={tramo(tiempo, retraso, 900 + retraso, largo, 0)}
-                  fillOpacity={tramo(tiempo, 800 + retraso, 1300 + retraso, 0, 1)}
-                  strokeOpacity={tramo(tiempo, 1000 + retraso, 1400 + retraso, 1, 0)}
-                />;
-              }
-              // las letras aparecen una detras de otra de izquierda a derecha
-              const inicio = 1300 + (i - 2) * 100;
-              return <PathAnimado
-                key={pieza.id}
-                d={pieza.d}
-                fill={pieza.color}
-                fillRule="evenodd"
-                fillOpacity={tramo(tiempo, inicio, inicio + 350, 0, 1)}
-              />;
+                  fillOpacity={tramo(tiempo, inicio, inicio + 350, 0, 1)}
+                />
+              );
             })}
           </Svg>
         </View>
@@ -98,5 +109,16 @@ export default function SplashAnimado({ onTerminar }: Props) {
 }
 
 const styles = StyleSheet.create({
-  fondo: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: CREMA, alignItems: 'center', justifyContent: 'center', zIndex: 100, elevation: 100 },
+  fondo: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: CREMA,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+    elevation: 100,
+  },
 });

@@ -11,22 +11,34 @@ export function useEspacioTeclado() {
 
   function medir() {
     const borde = tecladoArriba.current;
-    if (borde === null || !ref.current) { setEspacio(0); return; }
+    if (borde === null || !ref.current) {
+      setEspacio(0);
+      return;
+    }
     ref.current.measureInWindow((_x, y, _ancho, alto) => {
       setEspacio(Math.max(0, Math.round(y + alto - borde)));
     });
   }
 
   useEffect(() => {
-    const mostrar = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (evento) => {
-      tecladoArriba.current = evento.endCoordinates.screenY;
-      medir();
-    });
-    const ocultar = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => {
-      tecladoArriba.current = null;
-      setEspacio(0);
-    });
-    return () => { mostrar.remove(); ocultar.remove(); };
+    const mostrar = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (evento) => {
+        tecladoArriba.current = evento.endCoordinates.screenY;
+        medir();
+      },
+    );
+    const ocultar = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        tecladoArriba.current = null;
+        setEspacio(0);
+      },
+    );
+    return () => {
+      mostrar.remove();
+      ocultar.remove();
+    };
   }, []);
 
   return { ref, espacio, medir };

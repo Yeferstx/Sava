@@ -4,54 +4,109 @@ import { colors } from '../theme';
 import { pedirReducirMovimiento } from '../movimiento';
 
 // bloque gris que late suave mientras cargan los datos (carga tipo esqueleto)
-export function Esqueleto({ ancho = '100%', alto = 14, radio = 8, oscuro = false }: { ancho?: DimensionValue; alto?: number; radio?: number; oscuro?: boolean }) {
+export function Esqueleto({
+  ancho = '100%',
+  alto = 14,
+  radio = 8,
+  oscuro = false,
+}: {
+  ancho?: DimensionValue;
+  alto?: number;
+  radio?: number;
+  oscuro?: boolean;
+}) {
   const pulso = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     let activo = true;
-    const animacion = Animated.loop(Animated.sequence([
-      Animated.timing(pulso, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      Animated.timing(pulso, { toValue: 0, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-    ]));
+    const animacion = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulso, {
+          toValue: 1,
+          duration: 700,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulso, {
+          toValue: 0,
+          duration: 700,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
     // con «reducir movimiento» queda quieto
-    void pedirReducirMovimiento().then((reducir) => { if (activo && !reducir) animacion.start(); else pulso.setValue(0.6); }).catch(() => animacion.start());
-    return () => { activo = false; animacion.stop(); };
+    void pedirReducirMovimiento()
+      .then((reducir) => {
+        if (activo && !reducir) animacion.start();
+        else pulso.setValue(0.6);
+      })
+      .catch(() => animacion.start());
+    return () => {
+      activo = false;
+      animacion.stop();
+    };
   }, []);
   const opacidad = pulso.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
   let color: string = colors.verdeClaro;
   if (oscuro) color = 'rgba(255,255,255,0.14)';
-  return <Animated.View style={{ width: ancho, height: alto, borderRadius: radio, backgroundColor: color, opacity: opacidad }} />;
+  return (
+    <Animated.View
+      style={{ width: ancho, height: alto, borderRadius: radio, backgroundColor: color, opacity: opacidad }}
+    />
+  );
 }
 
 // forma de una tarjeta de producto mientras carga
 export function TarjetaEsqueleto({ enGrilla = false }: { enGrilla?: boolean }) {
-  return <View style={[styles.tarjeta, enGrilla && styles.grilla]}>
-    <Esqueleto alto={116} radio={11} />
-    <View style={styles.espacio} />
-    <Esqueleto ancho="80%" alto={13} />
-    <View style={styles.espacioChico} />
-    <Esqueleto ancho="55%" alto={13} />
-    <View style={styles.espacioChico} />
-    <Esqueleto ancho="65%" alto={10} />
-  </View>;
+  return (
+    <View style={[styles.tarjeta, enGrilla && styles.grilla]}>
+      <Esqueleto alto={116} radio={11} />
+      <View style={styles.espacio} />
+      <Esqueleto ancho="80%" alto={13} />
+      <View style={styles.espacioChico} />
+      <Esqueleto ancho="55%" alto={13} />
+      <View style={styles.espacioChico} />
+      <Esqueleto ancho="65%" alto={10} />
+    </View>
+  );
 }
 
 // forma de una fila (inventario, consultas) mientras carga
 export function FilaEsqueleto() {
-  return <View style={styles.fila}>
-    <Esqueleto ancho={56} alto={56} radio={14} />
-    <View style={styles.filaTextos}>
-      <Esqueleto ancho="70%" alto={14} />
-      <Esqueleto ancho="45%" alto={12} />
-      <Esqueleto ancho="55%" alto={12} />
+  return (
+    <View style={styles.fila}>
+      <Esqueleto ancho={56} alto={56} radio={14} />
+      <View style={styles.filaTextos}>
+        <Esqueleto ancho="70%" alto={14} />
+        <Esqueleto ancho="45%" alto={12} />
+        <Esqueleto ancho="55%" alto={12} />
+      </View>
     </View>
-  </View>;
+  );
 }
 
 const styles = StyleSheet.create({
-  tarjeta: { width: 156, backgroundColor: colors.white, borderRadius: 16, padding: 8, borderWidth: 1, borderColor: colors.line },
+  tarjeta: {
+    width: 156,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
   grilla: { width: '48%' },
   espacio: { height: 10 },
   espacioChico: { height: 6 },
-  fila: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.white, borderRadius: 17, borderWidth: 1, borderColor: colors.line, padding: 12, marginBottom: 10 },
+  fila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.white,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: 12,
+    marginBottom: 10,
+  },
   filaTextos: { flex: 1, gap: 8 },
 });

@@ -14,10 +14,22 @@ function useVaiven(moverse: boolean, duracion: number) {
   const valor = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (!moverse) return;
-    const vaiven = Animated.loop(Animated.sequence([
-      Animated.timing(valor, { toValue: 1, duration: duracion, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(valor, { toValue: 0, duration: duracion, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-    ]));
+    const vaiven = Animated.loop(
+      Animated.sequence([
+        Animated.timing(valor, {
+          toValue: 1,
+          duration: duracion,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(valor, {
+          toValue: 0,
+          duration: duracion,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
     vaiven.start();
     return () => vaiven.stop();
   }, [moverse]);
@@ -33,8 +45,17 @@ export default function PaisajeLlanero({ posicion, moverse }: Props) {
 
   // el sol sale una sola vez desde el horizonte
   useEffect(() => {
-    if (!moverse) { sol.setValue(1); return; }
-    Animated.timing(sol, { toValue: 1, duration: 1400, delay: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    if (!moverse) {
+      sol.setValue(1);
+      return;
+    }
+    Animated.timing(sol, {
+      toValue: 1,
+      duration: 1400,
+      delay: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
   }, [moverse]);
 
   const derecha = lento.interpolate({ inputRange: [0, 1], outputRange: [-SOBRANTE, -SOBRANTE + 18] });
@@ -47,17 +68,35 @@ export default function PaisajeLlanero({ posicion, moverse }: Props) {
       <View pointerEvents="none" style={[styles.arriba, { height: alto }]}>
         <Animated.View style={[styles.capa, { transform: [{ translateX: derecha }] }]}>
           <Svg width={ancho} height={alto} viewBox={`0 0 ${ancho} ${alto}`}>
-            <Path d={`M0 ${alto * 0.72} C ${ancho * 0.25} ${alto * 0.3}, ${ancho * 0.5} ${alto * 0.42}, ${ancho * 0.72} ${alto * 0.62} S ${ancho * 0.95} ${alto * 0.7}, ${ancho} ${alto * 0.55}`} stroke={colors.verde} strokeOpacity={0.22} strokeWidth={2} fill="none" />
+            <Path
+              d={`M0 ${alto * 0.72} C ${ancho * 0.25} ${alto * 0.3}, ${ancho * 0.5} ${alto * 0.42}, ${ancho * 0.72} ${alto * 0.62} S ${ancho * 0.95} ${alto * 0.7}, ${ancho} ${alto * 0.55}`}
+              stroke={colors.verde}
+              strokeOpacity={0.22}
+              strokeWidth={2}
+              fill="none"
+            />
           </Svg>
         </Animated.View>
-        <Animated.View style={[styles.sol, { right: width * 0.16, opacity: sol, transform: [{ translateY: subirSol }] }]}>
+        <Animated.View
+          style={[styles.sol, { right: width * 0.16, opacity: sol, transform: [{ translateY: subirSol }] }]}
+        >
           <Svg width={56} height={22} viewBox="0 0 56 22">
-            <Path d="M3 20 A25 18 0 0 1 53 20" stroke={colors.arcilla} strokeWidth={2} strokeLinecap="round" fill="none" />
+            <Path
+              d="M3 20 A25 18 0 0 1 53 20"
+              stroke={colors.arcilla}
+              strokeWidth={2}
+              strokeLinecap="round"
+              fill="none"
+            />
           </Svg>
         </Animated.View>
         <Animated.View style={[styles.capa, { transform: [{ translateX: izquierda }] }]}>
           <Svg width={ancho} height={alto} viewBox={`0 0 ${ancho} ${alto}`}>
-            <Path d={`M${ancho * 0.7} ${alto} C ${ancho * 0.78} ${alto * 0.66}, ${ancho * 0.88} ${alto * 0.6}, ${ancho} ${alto * 0.74} L ${ancho} ${alto} Z`} fill={colors.verde} fillOpacity={0.1} />
+            <Path
+              d={`M${ancho * 0.7} ${alto} C ${ancho * 0.78} ${alto * 0.66}, ${ancho * 0.88} ${alto * 0.6}, ${ancho} ${alto * 0.74} L ${ancho} ${alto} Z`}
+              fill={colors.verde}
+              fillOpacity={0.1}
+            />
           </Svg>
         </Animated.View>
       </View>
@@ -69,18 +108,35 @@ export default function PaisajeLlanero({ posicion, moverse }: Props) {
     <View pointerEvents="none" style={[styles.abajo, { height: alto }]}>
       <Animated.View style={[styles.capa, { transform: [{ translateX: izquierda }] }]}>
         <Svg width={ancho} height={alto} viewBox={`0 0 ${ancho} ${alto}`}>
-          <Path d={`M0 ${alto * 0.42} C ${ancho * 0.22} ${alto * 0.18}, ${ancho * 0.4} ${alto * 0.3}, ${ancho * 0.58} ${alto * 0.5} S ${ancho * 0.88} ${alto * 0.4}, ${ancho} ${alto * 0.3} L ${ancho} ${alto} L 0 ${alto} Z`} fill={colors.verde} fillOpacity={0.07} />
+          <Path
+            d={`M0 ${alto * 0.42} C ${ancho * 0.22} ${alto * 0.18}, ${ancho * 0.4} ${alto * 0.3}, ${ancho * 0.58} ${alto * 0.5} S ${ancho * 0.88} ${alto * 0.4}, ${ancho} ${alto * 0.3} L ${ancho} ${alto} L 0 ${alto} Z`}
+            fill={colors.verde}
+            fillOpacity={0.07}
+          />
         </Svg>
       </Animated.View>
       <Animated.View style={[styles.capa, { transform: [{ translateX: derecha }] }]}>
         <Svg width={ancho} height={alto} viewBox={`0 0 ${ancho} ${alto}`}>
-          <Path d={`M0 ${alto * 0.62} C ${ancho * 0.3} ${alto * 0.48}, ${ancho * 0.55} ${alto * 0.78}, ${ancho * 0.8} ${alto * 0.66} S ${ancho} ${alto * 0.58}, ${ancho} ${alto * 0.6} L ${ancho} ${alto} L 0 ${alto} Z`} fill={colors.verdeClaro} />
-          <Path d={`M${ancho * 0.6} ${alto * 0.9} C ${ancho * 0.75} ${alto * 0.78}, ${ancho * 0.88} ${alto * 0.6}, ${ancho} ${alto * 0.52}`} stroke={colors.arcilla} strokeWidth={2} strokeLinecap="round" fill="none" />
+          <Path
+            d={`M0 ${alto * 0.62} C ${ancho * 0.3} ${alto * 0.48}, ${ancho * 0.55} ${alto * 0.78}, ${ancho * 0.8} ${alto * 0.66} S ${ancho} ${alto * 0.58}, ${ancho} ${alto * 0.6} L ${ancho} ${alto} L 0 ${alto} Z`}
+            fill={colors.verdeClaro}
+          />
+          <Path
+            d={`M${ancho * 0.6} ${alto * 0.9} C ${ancho * 0.75} ${alto * 0.78}, ${ancho * 0.88} ${alto * 0.6}, ${ancho} ${alto * 0.52}`}
+            stroke={colors.arcilla}
+            strokeWidth={2}
+            strokeLinecap="round"
+            fill="none"
+          />
         </Svg>
       </Animated.View>
       <View style={[styles.capa, { left: 0 }]}>
         <Svg width={width} height={alto} viewBox={`0 0 ${width} ${alto}`}>
-          <Path d={`M0 ${alto * 0.84} C ${width * 0.3} ${alto * 0.74}, ${width * 0.6} ${alto * 0.94}, ${width} ${alto * 0.82} L ${width} ${alto} L 0 ${alto} Z`} fill={colors.verde} fillOpacity={0.12} />
+          <Path
+            d={`M0 ${alto * 0.84} C ${width * 0.3} ${alto * 0.74}, ${width * 0.6} ${alto * 0.94}, ${width} ${alto * 0.82} L ${width} ${alto} L 0 ${alto} Z`}
+            fill={colors.verde}
+            fillOpacity={0.12}
+          />
         </Svg>
       </View>
     </View>
