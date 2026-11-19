@@ -21,7 +21,8 @@ export default function VisorReporte({ visible, periodo, tipo, onCerrar }: Props
     setHtml('');
     setPdf('');
     armarReporte(periodo, tipo)
-      .then((texto) => setHtml(texto))
+      // la hoja es tamano carta: se ajusta al ancho de la pantalla para verla completa
+      .then((texto) => setHtml(texto.replace('<head>', '<head><meta name="viewport" content="width=820, user-scalable=yes">')))
       .catch(() => { Alert.alert('No se pudo crear el reporte', 'Intenta otra vez.'); onCerrar(); });
   }, [visible, periodo, tipo]);
 
@@ -57,7 +58,7 @@ export default function VisorReporte({ visible, periodo, tipo, onCerrar }: Props
         <Pressable accessibilityRole="button" accessibilityLabel="Cerrar reporte" hitSlop={10} onPress={onCerrar}><X size={26} color={colors.grafito} /></Pressable>
       </View>
       {html === '' && <View style={styles.cargando}><ActivityIndicator size="large" color={colors.verde} /><Text style={styles.cargandoTexto}>Preparando tu reporte…</Text></View>}
-      {html !== '' && <WebView originWhitelist={['*']} source={{ html }} style={styles.hoja} javaScriptEnabled={false} setDisplayZoomControls={false} />}
+      {html !== '' && <WebView originWhitelist={['*']} source={{ html }} style={styles.hoja} javaScriptEnabled={false} scalesPageToFit setDisplayZoomControls={false} />}
       <View style={styles.botones}>
         <Pressable accessibilityRole="button" disabled={html === '' || ocupado !== ''} onPress={() => void descargar()} style={[styles.boton, styles.principal, (html === '' || ocupado !== '') && styles.apagado]}>
           {ocupado === 'descargar' ? <ActivityIndicator color={colors.white} /> : <Download size={20} color={colors.white} />}
