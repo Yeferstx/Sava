@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Easing, FlatList, Image, Linking, Modal, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { optimizarFoto } from '../../shared/fotos';
+import { moverIndiceAlInicio } from '../../shared/videoRapido';
 import type { Business } from '../business/types';
 import { useEvent } from 'expo';
 import { Esqueleto } from '../../shared/components/Esqueleto';
@@ -122,7 +123,8 @@ export default function VideosScreen({ canPublish = false, onVender, onOpenMaria
       if (!user) throw new Error('Inicia sesión para publicar videos.');
       const response = await fetch(draftUri);
       if (!response.ok) throw new Error('No pudimos leer el video guardado en este celular.');
-      const bytes = await response.arrayBuffer();
+      // indice al inicio: el video empieza a verse sin esperar a que baje completo
+      const bytes = moverIndiceAlInicio(await response.arrayBuffer());
       if (bytes.byteLength > 50 * 1024 * 1024) throw new Error('El video supera el límite de 50 MB.');
       let extension = 'mp4';
       if (draftUri.toLowerCase().split('?')[0].endsWith('.mov')) extension = 'mov';
@@ -130,7 +132,7 @@ export default function VideosScreen({ canPublish = false, onVender, onOpenMaria
       if (extension === 'mov') contentType = 'video/quicktime';
       const videoId = createLocalId('video');
       const videoPath = user.id + '/' + businessId + '/videos/' + videoId + '.' + extension;
-      const { error: uploadError } = await supabase.storage.from('sava-media').upload(videoPath, bytes, { contentType, upsert: false });
+      const { error: uploadError } = await supabase.storage.from('sava-media').upload(videoPath, bytes, { contentType, upsert: false, cacheControl: '31536000' });
       if (uploadError) throw uploadError;
       // portada: una imagen del segundo 1, pequena, para mostrar mientras carga el video
       let thumbPath: string | null = null;
@@ -139,7 +141,7 @@ export default function VideosScreen({ canPublish = false, onVender, onOpenMaria
         const portada = await optimizarFoto(miniatura.uri, 720);
         const bytesPortada = await (await fetch(portada)).arrayBuffer();
         const rutaPortada = user.id + '/' + businessId + '/videos/' + videoId + '.jpg';
-        const subida = await supabase.storage.from('sava-media').upload(rutaPortada, bytesPortada, { contentType: 'image/jpeg', upsert: true });
+        const subida = await supabase.storage.from('sava-media').upload(rutaPortada, bytesPortada, { contentType: 'image/jpeg', upsert: true, cacheControl: '31536000' });
         if (!subida.error) thumbPath = subida.data.path;
       } catch { /* sin portada el video igual se publica */ }
       let { error: insertError } = await supabase.from('videos').insert({ id: videoId, business_id: businessId, title: draftTitle.trim(), category: draftCategory, video_path: videoPath, is_published: true, thumb_path: thumbPath });
@@ -236,6 +238,20 @@ function VideoPreview({ uri }: { uri: string }) {
   return <VideoView player={player} style={styles.preview} nativeControls contentFit="contain" />;
 }
 
+// linea delgada que corre abajo mientras carga, en vez de la rueda en el centro
+function BarraCarga() {
+  const avance = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const vuelta = Animated.loop(Animated.timing(avance, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }));
+    vuelta.start();
+    return () => vuelta.stop();
+  }, [avance]);
+  const mover = avance.interpolate({ inputRange: [0, 1], outputRange: [-160, 420] });
+  return <View pointerEvents="none" accessibilityLabel="Cargando video" style={styles.barraCarga}>
+    <Animated.View style={[styles.barraLuz, { transform: [{ translateX: mover }] }]} />
+  </View>;
+}
+
 type ItemProps = { video: PublicVideo; alto: number; activo: boolean; silencio: boolean; onSilencio: () => void; onOpenMaria?: () => void; onOpenProductor?: (business: Business) => void; reintento: number };
 
 // un video a pantalla completa. la lista solo deja montados los videos cercanos,
@@ -251,7 +267,8 @@ function VideoCompleto({ video, alto, activo, silencio, onSilencio, onOpenMaria,
   if (uri !== '') {
     let direccion = uri;
     if (intento > 0) direccion = uri + '?intento=' + intento;
-    fuente = { uri: direccion };
+    // useCaching: el video queda guardado en el celular y la segunda vez abre de una
+    fuente = { uri: direccion, useCaching: true };
   }
   const player = useVideoPlayer(fuente, (instance) => {
     instance.loop = true;
@@ -301,10 +318,11 @@ function VideoCompleto({ video, alto, activo, silencio, onSilencio, onOpenMaria,
     {/* portada mientras carga: nunca queda la pantalla vacia */}
     {!!portada && status !== 'readyToPlay' && <Image source={{ uri: portada }} style={styles.video} resizeMode="contain" accessibilityElementsHidden />}
     <Pressable accessibilityRole="button" accessibilityLabel={pausado ? 'Reproducir video' : 'Pausar video'} onPress={() => setPausado(!pausado)} style={styles.toque}>
-      {status === 'loading' && activo && <View style={styles.cargandoVideo}><ActivityIndicator size="large" color={colors.white} /><Text style={styles.cargandoTexto}>Cargando video…</Text></View>}
       {status === 'error' && <View style={styles.cargandoVideo}><Text style={styles.cargandoTexto}>No se pudo cargar este video.</Text><Pressable accessibilityRole="button" onPress={() => setIntento(intento + 1)} style={styles.reintentar}><Text style={styles.reintentarTexto}>Intentar de nuevo</Text></Pressable></View>}
       {pausado && status === 'readyToPlay' && <View style={styles.pausa}><Play size={40} color={colors.white} fill={colors.white} /></View>}
     </Pressable>
+
+    {status === 'loading' && activo && <BarraCarga />}
 
     <View pointerEvents="box-none" style={styles.info}>
       <Text style={styles.etiquetaTexto}>{video.category}</Text>
@@ -339,6 +357,8 @@ const styles = StyleSheet.create({
   esqueletoInfo: { flex: 1, gap: 8 },
   esqueletoAcciones: { gap: 14 },
   cargandoVideo: { alignItems: 'center', gap: 10 },
+  barraCarga: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' },
+  barraLuz: { width: 160, height: 3, borderRadius: 2, backgroundColor: colors.arcilla },
   cargandoTexto: { color: colors.white, fontSize: 14, fontWeight: '700' },
   reintentar: { backgroundColor: colors.arcilla, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 9 },
   reintentarTexto: { color: colors.grafito, fontSize: 14, fontWeight: '900' },
