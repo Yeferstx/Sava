@@ -3,7 +3,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Asset } from 'expo-asset';
-import { File } from 'expo-file-system';
+import { Directory, File } from 'expo-file-system';
 import { getActiveBusinessId, getDatabase } from '../../infrastructure/database/database';
 import { estadoSincronizacion } from '../../infrastructure/sync/syncService';
 import { getBusinessProfile } from '../business/data/businessRepository';
@@ -20,8 +20,8 @@ async function imagenAru() {
   } catch { return ''; }
 }
 
-// arma el pdf y abre el menu para guardarlo o compartirlo
-export async function compartirReporte(periodo: Periodo, tipo: 'agricultor' | 'tienda') {
+// arma el html del reporte (se ve dentro de la app y con el mismo se crea el pdf)
+export async function armarReporte(periodo: Periodo, tipo: 'agricultor' | 'tienda') {
   const esTienda = tipo === 'tienda';
   const db = await getDatabase();
   const negocioId = await getActiveBusinessId();
@@ -39,7 +39,12 @@ export async function compartirReporte(periodo: Periodo, tipo: 'agricultor' | 't
   const sync = await estadoSincronizacion().catch(() => null);
   const aru = await imagenAru();
 
-  const html = armarHtmlReporte({ esTienda, periodo, desde, ahora, nombreNegocio: perfil ? perfil.name : 'Mi negocio', lugar: perfil && perfil.city ? perfil.city + ', Casanare' : 'Casanare', ultimaSync: sync && sync.ultima ? sync.ultima : '', aru, r, actuales, anteriores, deudas, productos });
+  return armarHtmlReporte({ esTienda, periodo, desde, ahora, nombreNegocio: perfil ? perfil.name : 'Mi negocio', lugar: perfil && perfil.city ? perfil.city + ', Casanare' : 'Casanare', ultimaSync: sync && sync.ultima ? sync.ultima : '', aru, r, actuales, anteriores, deudas, productos });
+}
+
+// convierte el html en un pdf con un nombre claro
+export async function crearPdf(html: string, periodo: Periodo) {
+  const ahora = new Date();
   const { uri } = await Print.printToFileAsync({ html, width: 595, height: 842 });
   // nombre claro para el archivo
   let destino = uri;
@@ -50,7 +55,29 @@ export async function compartirReporte(periodo: Periodo, tipo: 'agricultor' | 't
     if (nuevo.exists) nuevo.delete();
     original.move(nuevo);
     destino = nuevo.uri;
-  } catch { /* se comparte con el nombre que dio el sistema */ }
-  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(destino, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Guardar o compartir tu reporte' });
+  } catch { /* se queda con el nombre que dio el sistema */ }
   return destino;
+}
+
+export async function compartirPdf(uri: string) {
+  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Compartir tu reporte' });
+}
+
+// guarda el pdf en la carpeta que la persona elija (por ejemplo Descargas).
+// devuelve false si cerro el selector sin elegir carpeta
+export async function guardarPdf(uri: string) {
+  const original = new File(uri);
+  let carpeta: Directory;
+  try { carpeta = await Directory.pickDirectoryAsync(); }
+  catch { return false; }
+  const copia = carpeta.createFile(original.name, 'application/pdf');
+  await copia.write(await original.bytes());
+  return true;
+}
+
+// arma el pdf y abre el menu para guardarlo o compartirlo
+export async function compartirReporte(periodo: Periodo, tipo: 'agricultor' | 'tienda') {
+  const uri = await crearPdf(await armarReporte(periodo, tipo), periodo);
+  await compartirPdf(uri);
+  return uri;
 }

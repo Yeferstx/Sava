@@ -8,7 +8,7 @@ import { listProducts } from '../inventory/data/inventoryRepository';
 import { recordSale } from '../sales/data/salesRepository';
 import type { Product } from '../inventory/types';
 import EstadoSincronizacion from '../../shared/components/EstadoSincronizacion';
-import { compartirReporte } from './reporte';
+import VisorReporte from './VisorReporte';
 import BotonEscuchar from '../../shared/components/BotonEscuchar';
 import { useEspacioTeclado } from '../../shared/useEspacioTeclado';
 import { listarMovimientos, registrarCobro, registrarCompra, registrarCosecha, registrarGasto, registrarPerdida, resumenCuentas, ventasPorCobrar, type Movimiento, type Periodo, type TipoMovimiento, type VentaPorCobrar } from './cuadernoRepository';
@@ -61,15 +61,7 @@ export default function CuadernoScreen({ onBack, onNuevaCosecha, tipo = 'agricul
   const [fiada, setFiada] = useState(false);
   const [ventaId, setVentaId] = useState('');
   const teclaEspacio = useEspacioTeclado();
-  const [generando, setGenerando] = useState(false);
-
-  // reporte pdf con los datos del periodo elegido; la persona decide si lo guarda o lo comparte
-  async function descargar() {
-    setGenerando(true);
-    try { await compartirReporte(periodo, tipo); }
-    catch { Alert.alert('No se pudo crear el reporte', 'Intenta otra vez.'); }
-    finally { setGenerando(false); }
-  }
+  const [verReporte, setVerReporte] = useState(false);
 
   const refrescar = useCallback(async () => {
     try {
@@ -152,9 +144,10 @@ export default function CuadernoScreen({ onBack, onNuevaCosecha, tipo = 'agricul
         <EstadoSincronizacion alCambiar={() => void refrescar()} />
 
         <View style={styles.periodos}>{periodos.map((p) => <Pressable key={p.valor} onPress={() => setPeriodo(p.valor)} style={[styles.periodo, periodo === p.valor && styles.periodoActivo]}><Text style={[styles.periodoTexto, periodo === p.valor && styles.periodoTextoActivo]}>{p.texto}</Text></Pressable>)}</View>
-        <Pressable accessibilityRole="button" disabled={generando} onPress={() => void descargar()} style={({ pressed }) => [styles.reporte, pressed && styles.presionado]}>
-          {generando ? <ActivityIndicator color={colors.verde} /> : <FileText size={20} color={colors.verde} />}
-          <View style={styles.flex}><Text style={styles.reporteTitulo}>{generando ? 'Preparando tu reporte…' : 'Descargar reporte en PDF'}</Text><Text style={styles.reporteTexto}>{periodos.find((p) => p.valor === periodo)?.texto} · funciona sin internet</Text></View>
+        {/* reporte: se ve aqui mismo y luego se descarga o se comparte */}
+        <Pressable accessibilityRole="button" onPress={() => setVerReporte(true)} style={({ pressed }) => [styles.reporte, pressed && styles.presionado]}>
+          <FileText size={20} color={colors.verde} />
+          <View style={styles.flex}><Text style={styles.reporteTitulo}>Ver reporte en PDF</Text><Text style={styles.reporteTexto}>{periodos.find((p) => p.valor === periodo)?.texto} · funciona sin internet</Text></View>
         </Pressable>
         <View style={styles.resumen}>
           <View style={[styles.cifra, styles.cifraFuerte]}><Text style={styles.cifraEtiquetaClara}>DINERO RECIBIDO</Text><Text style={styles.cifraValorClaro}>{dinero(resumen.recibido)}</Text></View>
@@ -233,6 +226,7 @@ export default function CuadernoScreen({ onBack, onNuevaCosecha, tipo = 'agricul
           </View>;
         })}
       </ScrollView>
+      <VisorReporte visible={verReporte} periodo={periodo} tipo={tipo} onCerrar={() => setVerReporte(false)} />
     </View>
   );
 }

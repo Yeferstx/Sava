@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ActivityIndicator } from 'react-native';
-import { compartirReporte } from '../cuaderno/reporte';
+import VisorReporte from '../cuaderno/VisorReporte';
 import { ArrowRight, Bell, FileText, CircleDollarSign, ClipboardList, GraduationCap, NotebookPen, Sparkles, Sprout, Store } from 'lucide-react-native';
 import EstadoSincronizacion from '../../shared/components/EstadoSincronizacion';
 import FotoPerfil from '../../shared/components/FotoPerfil';
@@ -27,7 +27,7 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
   const [finca, setFinca] = useState('');
   const [municipio, setMunicipio] = useState('');
   const [sincronizando, setSincronizando] = useState(false);
-  const [generando, setGenerando] = useState(false);
+  const [verReporte, setVerReporte] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -124,9 +124,9 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
       </Pressable>)}
     </View>
     {/* reporte del mes en pdf (con los datos del cuaderno de este celular) */}
-    <Pressable accessibilityRole="button" disabled={generando} onPress={() => { setGenerando(true); void compartirReporte('mes', esTienda ? 'tienda' : 'agricultor').catch(() => Alert.alert('No se pudo crear el reporte', 'Intenta otra vez.')).finally(() => setGenerando(false)); }} style={({ pressed }) => [styles.reporte, pressed && styles.presionado]}>
-      <View style={styles.reporteIcono}>{generando ? <ActivityIndicator color={colors.white} /> : <FileText size={22} color={colors.white} />}</View>
-      <View style={styles.flex}><Text style={styles.reporteTitulo}>{generando ? 'Preparando tu reporte…' : 'Reporte de mi negocio'}</Text><Text style={styles.reporteTexto}>Así va tu negocio este mes, en PDF para guardar o compartir</Text></View>
+    <Pressable accessibilityRole="button" onPress={() => setVerReporte(true)} style={({ pressed }) => [styles.reporte, pressed && styles.presionado]}>
+      <View style={styles.reporteIcono}><FileText size={22} color={colors.white} /></View>
+      <View style={styles.flex}><Text style={styles.reporteTitulo}>Reporte de mi negocio</Text><Text style={styles.reporteTexto}>Así va tu negocio este mes: míralo aquí y descárgalo en PDF</Text></View>
       <ArrowRight size={18} color={colors.white} />
     </Pressable>
     <Text style={styles.mas}>Más opciones</Text>
@@ -140,6 +140,7 @@ export default function BusinessDashboardScreen({ onNavigate, onEditFinca, onSig
     <Pressable onPress={onLegal} style={styles.link}><Text style={styles.linkText}>Tus datos y privacidad</Text></Pressable>
     {!!onSignOut && <Pressable onPress={onSignOut} style={styles.link}><Text style={styles.signOutText}>Cerrar sesión</Text></Pressable>}
     <ApoyoGobernacion conMapa />
+    <VisorReporte visible={verReporte} periodo="mes" tipo={esTienda ? 'tienda' : 'agricultor'} onCerrar={() => setVerReporte(false)} />
   </ScrollView>;
 }
 
